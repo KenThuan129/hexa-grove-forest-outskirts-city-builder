@@ -1,0 +1,60 @@
+import { MemoryPicture } from '../types/game';
+
+export const INITIAL_MEMORIES: MemoryPicture[] = [
+  {
+    id: 1,
+    title: 'The First Hearth',
+    subtitle: 'Where the pioneering spirit first took root.',
+    lore: 'A quiet timber cottage standing under the morning pines. The beginning of a long journey.',
+    levelReq: 1,
+    sketchIcon: '🏡',
+  },
+  {
+    id: 2,
+    title: 'Sunlit Meadow & Grove',
+    subtitle: 'Golden harvest fields kissing the emerald tree line.',
+    lore: 'Learning the beauty of harmony and color alignment across the gentle rolling clearings.',
+    levelReq: 3,
+    sketchIcon: '🌾',
+  },
+  {
+    id: 3,
+    title: 'Whispering Elder Stones',
+    subtitle: 'Ancient monoliths that teach stillness amidst ambition.',
+    lore: 'Every penalty is but a gentle lesson in spatial discipline and mindful settlement.',
+    levelReq: 5,
+    sketchIcon: '🗿',
+  },
+  {
+    id: 4,
+    title: 'The Great Stoneworks',
+    subtitle: 'When giant clusters united into monolithic strength.',
+    lore: 'Multi-hex foundations bound by stone plinths and shared craftmanship.',
+    levelReq: 8,
+    sketchIcon: '🏛️',
+  },
+  {
+    id: 5,
+    title: 'The Rotary Riverbend',
+    subtitle: 'When the earth shifted with the turn of the rotary gear.',
+    lore: 'Watching entire hamlets rotate in 60-degree harmony across the rushing waterways.',
+    levelReq: 12,
+    sketchIcon: '⚙️',
+  },
+  {
+    id: 6,
+    title: 'Highland Citadel Keep',
+    subtitle: 'Soaring spires overlooking the mist-shrouded valleys.',
+    lore: 'Mastery achieved through patience, zero disconnects, and unwavering perseverance.',
+    levelReq: 16,
+    sketchIcon: '🏰',
+  },
+  {
+    id: 7,
+    title: 'The Blossom Metropolis',
+    subtitle: 'A grand civilization flourishing under eternal dawn.',
+    lore: 'A sprawling sanctuary of four harmonic colors, eternal hearths, and peaceful dreams.',
+    levelReq: 20,
+    sketchIcon: '🌸',
+  },
+];

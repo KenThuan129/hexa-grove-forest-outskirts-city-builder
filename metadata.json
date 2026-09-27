@@ -1,0 +1,6 @@
+{
+  "name": "Hexa Grove - Forest Outskirts City Builder",
+  "description": "A vibrant 3D hexagonal puzzle game of building a serene city settlement on the outskirts of an infinite procedurally generated forest.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
