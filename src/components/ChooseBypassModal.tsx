@@ -1,12 +1,12 @@
 import React from 'react';
-import { PenaltyType, PenaltyBypassRecord, MemoryPicture } from '../types/game';
+import { BypassablePenaltyType, PenaltyBypassRecord, MemoryPicture } from '../types/game';
 import { Shield, Sparkles, Copy, Layers, Unlink2, MapPinOff, X, Check } from 'lucide-react';
 
 interface ChooseBypassModalProps {
   isOpen: boolean;
   picture: MemoryPicture | null;
   currentBypasses: PenaltyBypassRecord;
-  onSelectBypass: (pictureId: number, penalty: PenaltyType) => void;
+  onSelectBypass: (pictureId: number, penalty: BypassablePenaltyType) => void;
   onClose: () => void;
 }
 
@@ -20,7 +20,7 @@ export const ChooseBypassModal: React.FC<ChooseBypassModalProps> = ({
   if (!isOpen || !picture) return null;
 
   const PENALTY_OPTIONS: {
-    type: PenaltyType;
+    type: BypassablePenaltyType;
     name: string;
     description: string;
     icon: React.ReactNode;

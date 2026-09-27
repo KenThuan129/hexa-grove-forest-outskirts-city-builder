@@ -118,9 +118,30 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
               </div>
 
               <div className="p-2.5 rounded-xl bg-purple-50/70 border border-purple-200">
-                <span className="font-bold text-purple-900">Mastery Challenges (Level 3+):</span>
+                <span className="font-bold text-purple-900">Fog Hexes & Falsehood:</span>
                 <p className="text-purple-800 mt-0.5">
-                  Special level-wide objectives. You must achieve at least <strong>1 Star Goal</strong> PLUS fulfill the <strong>Mastery Challenge</strong> in order to proceed!
+                  Fog Hexes preview future phase boundaries. Placing tiles on Fog does NOT incur an off-map penalty if safely connected to the starting safe area. However, isolated placement triggers the <strong>Falsehood Penalty</strong> (score drops to 0!). Successfully exploring Fog awards <strong>+3 Safe Gray Tiles</strong> when advancing to the next phase!
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-200">
+                <span className="font-bold text-blue-900">River Separators:</span>
+                <p className="text-blue-800 mt-0.5">
+                  Natural rushing waterways cross the board. Water cells are impassable and unbuildable barriers that require clever cluster pathing.
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-200">
+                <span className="font-bold text-rose-900">Penalty Restrictions (Level 20+):</span>
+                <p className="text-rose-800 mt-0.5">
+                  Starting from Level 20, players are allowed at most <strong>3 total penalties</strong> (excluding Memory Free Pass bypasses). Exceeding this limit drops settlement score to 0!
+                </p>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-gradient-to-r from-rose-50 to-purple-50 border border-rose-300">
+                <span className="font-bold text-rose-950">Level 25 Boss Challenge:</span>
+                <p className="text-rose-900 mt-0.5">
+                  A 5-phase ultimate trial against the Ancient Titan! Complete color zones to deplete the boss HP gauge with limited inventory stock to achieve 3★ victory.
                 </p>
               </div>
             </div>
@@ -135,7 +156,8 @@ export const RulesModal: React.FC<RulesModalProps> = ({ isOpen, onClose }) => {
             <ul className="list-disc list-inside space-y-1 text-xs text-slate-600">
               <li><strong>Left-Click:</strong> Select piece or pick up placed tile. Click again on destination to place or relocate.</li>
               <li><strong>Right-Click:</strong> Instantly cancel holding piece or recall placed tile back to available list.</li>
-              <li><strong>'R' Key:</strong> Rotate held cluster piece by 60° clockwise.</li>
+              <li><strong>'R' Key:</strong> Rotate held multi-hex cluster piece by 60° clockwise.</li>
+              <li><strong>'T' Key:</strong> Spin the Turntable (60° clockwise rotation for single hexes and color zones).</li>
               <li><strong>Pan & Zoom:</strong> Drag ground with primary mouse button to pan; mouse wheel to zoom.</li>
             </ul>
           </div>

@@ -321,13 +321,65 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       const isColoredZone = cell.colorRequirement !== 'neutral';
 
       // Base tile material
-      const baseMat = new THREE.MeshStandardMaterial({
-        color: isColoredZone ? colorData.base : 0xe2e8f0,
-        roughness: isColoredZone ? 0.35 : 0.65,
-        metalness: isColoredZone ? 0.15 : 0.05,
-        emissive: isColoredZone ? colorData.emissive : 0x000000,
-        emissiveIntensity: isColoredZone ? 0.3 : 0,
-      });
+      let baseMat: THREE.MeshStandardMaterial;
+      let borderMat: THREE.LineBasicMaterial;
+
+      if (cell.isRiver) {
+        // Shimmering natural river barrier
+        baseMat = new THREE.MeshStandardMaterial({
+          color: 0x38bdf8,
+          roughness: 0.1,
+          metalness: 0.8,
+          emissive: 0x0284c7,
+          emissiveIntensity: 0.5,
+          transparent: true,
+          opacity: 0.9,
+        });
+        borderMat = new THREE.LineBasicMaterial({
+          color: 0x0ea5e9,
+          linewidth: 2,
+        });
+      } else if (cell.isFog) {
+        // Mystical Fog Hex (future phase prediction)
+        baseMat = new THREE.MeshStandardMaterial({
+          color: 0xc4b5fd,
+          roughness: 0.85,
+          metalness: 0.05,
+          emissive: 0x8b5cf6,
+          emissiveIntensity: 0.35,
+          transparent: true,
+          opacity: 0.5,
+        });
+        borderMat = new THREE.LineBasicMaterial({
+          color: 0xa855f7,
+          linewidth: 2,
+        });
+      } else if (cell.isCrystalPink) {
+        // Expandacardia Special Crystal Pink Hex
+        baseMat = new THREE.MeshStandardMaterial({
+          color: 0xfdf2f8,
+          roughness: 0.25,
+          metalness: 0.3,
+          emissive: 0xec4899,
+          emissiveIntensity: 0.55,
+        });
+        borderMat = new THREE.LineBasicMaterial({
+          color: 0xf43f5e,
+          linewidth: 3,
+        });
+      } else {
+        baseMat = new THREE.MeshStandardMaterial({
+          color: isColoredZone ? colorData.base : 0xe2e8f0,
+          roughness: isColoredZone ? 0.35 : 0.65,
+          metalness: isColoredZone ? 0.15 : 0.05,
+          emissive: isColoredZone ? colorData.emissive : 0x000000,
+          emissiveIntensity: isColoredZone ? 0.3 : 0,
+        });
+        borderMat = new THREE.LineBasicMaterial({
+          color: isColoredZone ? colorData.border : 0x94a3b8,
+          linewidth: 2,
+        });
+      }
 
       const mesh = new THREE.Mesh(hexGeometry, baseMat);
       mesh.receiveShadow = true;
@@ -335,16 +387,40 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       cellGroup.add(mesh);
 
       // Glowing or defined perimeter border
-      const borderMat = new THREE.LineBasicMaterial({
-        color: isColoredZone ? colorData.border : 0x94a3b8,
-        linewidth: 2,
-      });
       const borderLine = new THREE.LineSegments(borderGeometry, borderMat);
       borderLine.position.y = 0.145;
       cellGroup.add(borderLine);
 
-      // If it's a colored zone, add subtle inner magical rune ring / gemstone marker
-      if (isColoredZone) {
+      // Markers for special tiles
+      if (cell.isRiver) {
+        // Floating water currents
+        const waterRipples = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.5, 0.5, 0.04, 6),
+          new THREE.MeshStandardMaterial({
+            color: 0x0284c7,
+            emissive: 0x38bdf8,
+            emissiveIntensity: 0.6,
+            roughness: 0.1,
+          })
+        );
+        waterRipples.position.y = 0.15;
+        cellGroup.add(waterRipples);
+      } else if (cell.isFog) {
+        // Floating mist orb
+        const mistOrb = new THREE.Mesh(
+          new THREE.SphereGeometry(0.3, 8, 8),
+          new THREE.MeshStandardMaterial({
+            color: 0xede9fe,
+            emissive: 0xa855f7,
+            emissiveIntensity: 0.5,
+            transparent: true,
+            opacity: 0.7,
+          })
+        );
+        mistOrb.position.y = 0.3;
+        cellGroup.add(mistOrb);
+      } else if (isColoredZone) {
+        // Inner magical rune gemstone marker
         const markerGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.08, 6);
         const markerMat = new THREE.MeshStandardMaterial({
           color: colorData.border,

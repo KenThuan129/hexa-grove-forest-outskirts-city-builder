@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { LevelConfig } from '../types/game';
+import { LevelConfig, GameMode, AcePerkId } from '../types/game';
+import { ACE_PERKS } from '../data/memories';
 import { HomeShowcaseSpotlight } from './HomeShowcaseSpotlight';
 import {
   Compass,
@@ -12,12 +13,18 @@ import {
   Star,
   ChevronRight,
   Shield,
+  Zap,
+  CheckCircle2,
+  Flame,
+  Award,
 } from 'lucide-react';
 
 interface HomePageProps {
   levels: LevelConfig[];
   currentLevelIndex: number;
   isOpenShowcase?: boolean;
+  gameMode?: GameMode;
+  equippedAce?: AcePerkId | null;
   onCloseShowcase?: () => void;
   onSelectLevel: (index: number) => void;
   onStartJourney: () => void;
@@ -25,12 +32,15 @@ interface HomePageProps {
   onOpenSettings: () => void;
   onOpenRules: () => void;
   onOpenLevelEditor: () => void;
+  onChangeGameMode?: (mode: GameMode) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   levels,
   currentLevelIndex,
   isOpenShowcase = false,
+  gameMode = 'tryhard',
+  equippedAce = null,
   onCloseShowcase = () => {},
   onSelectLevel,
   onStartJourney,
@@ -38,9 +48,11 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenSettings,
   onOpenRules,
   onOpenLevelEditor,
+  onChangeGameMode = () => {},
 }) => {
   const [showLevelSelectModal, setShowLevelSelectModal] = useState(false);
   const currentLevel = levels[currentLevelIndex] || levels[0];
+  const activeAceObj = ACE_PERKS.find(a => a.id === equippedAce);
 
   return (
     <div className="relative w-screen h-screen overflow-y-auto bg-slate-950 font-sans select-none text-slate-100 flex flex-col justify-between">
@@ -126,6 +138,66 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Action Buttons Hub */}
         <div className="flex flex-col gap-3 w-full max-w-sm sm:max-w-md">
+          {/* Game Mode Selector: Casual Mode vs Try-Hard Mode */}
+          <div className="p-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-xl flex flex-col gap-1.5">
+            <div className="flex items-center justify-between px-2 pt-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
+              <span>Game Mode</span>
+              <span className={gameMode === 'tryhard' ? 'text-amber-400' : 'text-emerald-400'}>
+                {gameMode === 'tryhard' ? '★ 3-Star Rating' : '✓ Mastery Objective Only'}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-slate-950/80 rounded-xl border border-slate-800">
+              <button
+                type="button"
+                onClick={() => onChangeGameMode('casual')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  gameMode === 'casual'
+                    ? 'bg-emerald-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Casual Mode</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeGameMode('tryhard')}
+                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  gameMode === 'tryhard'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+                }`}
+              >
+                <Award className="w-3.5 h-3.5" />
+                <span>Try-hard Mode</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Active Ace Perk Indicator if equipped */}
+          {activeAceObj && (
+            <div
+              onClick={onNavigateMemories}
+              className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-950/90 to-purple-950/90 border border-amber-500/50 shadow-lg flex items-center justify-between text-xs cursor-pointer hover:border-amber-400 transition-all group"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-xl filter drop-shadow">{activeAceObj.icon}</span>
+                <div className="text-left">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 block leading-tight">
+                    Equipped Ace Perk
+                  </span>
+                  <span className="font-bold text-amber-100 group-hover:text-white">
+                    {activeAceObj.name}
+                  </span>
+                </div>
+              </div>
+              <span className="text-[10px] text-amber-300 font-mono flex items-center gap-1 bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-700">
+                <span>Manage</span>
+                <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+              </span>
+            </div>
+          )}
+
           {/* Main Play Button: "Level + <current level progression>" */}
           <button
             data-tutorial-id="home-play-btn"
@@ -138,7 +210,7 @@ export const HomePage: React.FC<HomePageProps> = ({
               </div>
               <div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200 block">
-                  Level {currentLevel.id} of 20
+                  Level {currentLevel.id} of {levels.length} · {gameMode === 'tryhard' ? 'Try-hard' : 'Casual'}
                 </span>
                 <span className="text-sm sm:text-base font-black tracking-tight">
                   {currentLevel.name}
@@ -179,14 +251,14 @@ export const HomePage: React.FC<HomePageProps> = ({
             className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-slate-900/40 hover:bg-slate-900/70 text-slate-400 hover:text-slate-200 border border-slate-800 text-[11px] font-semibold transition-all cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Select Specific Level (1 - 20)</span>
+            <span>Select Specific Level (1 - {levels.length})</span>
           </button>
         </div>
       </main>
 
       {/* Footer */}
       <footer className="relative z-10 w-full p-4 text-center text-[10px] text-slate-500 border-t border-slate-800/60 max-w-6xl mx-auto">
-        <p>Hexa Pioneer · 20 Levels Expedition · Atmospheric Hex Puzzle Architecture</p>
+        <p>Hexa Pioneer · 40 Levels Grand Expedition · Atmospheric Hex Puzzle Architecture</p>
       </footer>
 
       {/* Level Selection Modal */}
@@ -197,7 +269,7 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white">
               <div className="flex items-center gap-2">
                 <Compass className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-sm font-black tracking-wide">Select Level</h3>
+                <h3 className="text-sm font-black tracking-wide">Select Level (1 to {levels.length})</h3>
               </div>
               <button
                 onClick={() => setShowLevelSelectModal(false)}
@@ -207,11 +279,20 @@ export const HomePage: React.FC<HomePageProps> = ({
               </button>
             </div>
 
-            {/* Level Grid (20 Levels) */}
+            {/* Level Grid (40 Levels) */}
             <div className="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {levels.map((lvl, idx) => {
                 const isCurrent = idx === currentLevelIndex;
-                const tier = idx < 10 ? 'Tier 1' : idx < 15 ? 'Tier 2' : 'Tier 3';
+                const tier =
+                  lvl.isBossLevel
+                    ? '👹 BOSS'
+                    : lvl.id > 30
+                    ? 'Tier 4: Master'
+                    : lvl.id > 20
+                    ? 'Tier 3: Expert'
+                    : lvl.id > 10
+                    ? 'Tier 2: Journey'
+                    : 'Tier 1: Pioneer';
 
                 return (
                   <button
@@ -222,7 +303,11 @@ export const HomePage: React.FC<HomePageProps> = ({
                       onStartJourney();
                     }}
                     className={`p-3 rounded-2xl border flex items-center justify-between text-left transition-all cursor-pointer ${
-                      isCurrent
+                      lvl.isBossLevel
+                        ? isCurrent
+                          ? 'bg-rose-950/90 border-rose-500 text-white shadow-lg ring-2 ring-rose-500'
+                          : 'bg-rose-950/40 hover:bg-rose-950/70 border-rose-800/80 text-rose-100 hover:text-white'
+                        : isCurrent
                         ? 'bg-emerald-950/80 border-emerald-500/80 text-white shadow-lg ring-1 ring-emerald-500'
                         : 'bg-slate-800/60 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
                     }`}
@@ -230,7 +315,11 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <div className="flex items-center gap-2.5">
                       <div
                         className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs font-mono ${
-                          isCurrent ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-300'
+                          lvl.isBossLevel
+                            ? 'bg-rose-600 text-white animate-pulse'
+                            : isCurrent
+                            ? 'bg-emerald-500 text-slate-950'
+                            : 'bg-slate-700 text-slate-300'
                         }`}
                       >
                         {lvl.id}
@@ -245,7 +334,13 @@ export const HomePage: React.FC<HomePageProps> = ({
                       </div>
                     </div>
 
-                    <span className="text-[9px] font-mono font-bold bg-slate-900/80 px-1.5 py-0.5 rounded-lg text-cyan-300 border border-slate-700">
+                    <span
+                      className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-lg border ${
+                        lvl.isBossLevel
+                          ? 'bg-rose-900/80 text-rose-300 border-rose-700'
+                          : 'bg-slate-900/80 text-cyan-300 border-slate-700'
+                      }`}
+                    >
                       {tier}
                     </span>
                   </button>

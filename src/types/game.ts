@@ -23,6 +23,9 @@ export interface GridCell {
   unlockPhase: number;
   placedTile?: PlacedTile;
   heightOffset?: number;
+  isFog?: boolean;
+  isRiver?: boolean;
+  isCrystalPink?: boolean; // Highlighted by Expandacardia Ace
 }
 
 export interface HexPiece {
@@ -35,6 +38,7 @@ export interface HexPiece {
   // Multi-hex Cluster geometry: max 6 hexes per cluster
   clusterShape?: ClusterCellOffset[];
   clusterType?: ClusterType;
+  stock?: number; // Limited inventory stock count (e.g. Boss level)
 }
 
 export interface PlacedTile extends HexPiece {
@@ -52,6 +56,7 @@ export interface PenaltyRecord {
   disconnect: number;  // Disconnected hex components count
   overlap: number;     // Tiles replaced/stacked over existing ones
   offMap: number;      // Placement attempts outside valid bounds
+  falsehood: number;   // Placed on Fog Hex without connection to safe area
 }
 
 export interface RotationZone {
@@ -80,6 +85,8 @@ export interface PhaseConfig {
     coords: HexCoord[];
     name: string;
   }[];
+  fogCoords?: HexCoord[];     // Fog Hexes previewing next phase boundaries
+  riverCoords?: HexCoord[];   // Unbuildable natural river barrier cells
   rotationZones?: RotationZone[];
 }
 
@@ -96,6 +103,10 @@ export interface LevelConfig {
     star3: number;
   };
   masteryChallenge?: MasteryChallenge;
+  isBossLevel?: boolean;
+  bossName?: string;
+  bossMaxHp?: number;
+  strictPenaltyLimit?: number; // Starting from level 20: max 3 penalties allowed
   uiConfig?: {
     hideLeftSidebar?: boolean;
     hideRightSidebar?: boolean;
@@ -104,10 +115,31 @@ export interface LevelConfig {
   };
 }
 
-export type PenaltyType = 'overlap' | 'overuse' | 'disconnect' | 'offMap';
+export type BypassablePenaltyType = 'overlap' | 'overuse' | 'disconnect' | 'offMap';
+
+export type PenaltyType = 'overlap' | 'overuse' | 'disconnect' | 'offMap' | 'falsehood';
+
+export type GameMode = 'casual' | 'tryhard';
+
+export type AcePerkId =
+  | 'inventory_expand'
+  | 'synthesis'
+  | 'recombulation'
+  | 'surge'
+  | 'expandacardia'
+  | 'merry_go_rondo';
+
+export interface AcePerk {
+  id: AcePerkId;
+  name: string;
+  tagline: string;
+  description: string;
+  icon: string;
+  accentColor: string;
+}
 
 export interface PenaltyBypassRecord {
-  overlap: number;    // 0 to 3 max
+  overlap: number;    // 0 to 3 max (or more with Surge)
   overuse: number;    // 0 to 3 max
   disconnect: number; // 0 to 3 max
   offMap: number;     // 0 to 3 max
@@ -115,12 +147,22 @@ export interface PenaltyBypassRecord {
 
 export interface MemoryPicture {
   id: number;
+  chapterId: number;
   title: string;
   subtitle: string;
   lore: string;
   levelReq: number;
   sketchIcon: string;
-  chosenBypass?: PenaltyType;
+  chosenBypass?: BypassablePenaltyType;
+}
+
+export interface NarrativeChapter {
+  id: number;
+  title: string;
+  epoch: string;
+  description: string;
+  levelRange: [number, number];
+  chapterRewardAceUnlocked?: boolean;
 }
 
 export interface GameState {

@@ -14,6 +14,7 @@ interface LevelCompleteModalProps {
   isMasteryCompleted?: boolean;
   onNextLevel: () => void;
   onReplayLevel: () => void;
+  onViewMemories?: () => void;
 }
 
 export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
@@ -27,6 +28,7 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
   isMasteryCompleted = false,
   onNextLevel,
   onReplayLevel,
+  onViewMemories,
 }) => {
   useEffect(() => {
     if (isOpen) {
@@ -181,31 +183,43 @@ export const LevelCompleteModal: React.FC<LevelCompleteModalProps> = ({
         </div>
 
         {/* Buttons */}
-        <div className="flex items-center gap-3 w-full">
-          <button
-            onClick={onReplayLevel}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
-          >
-            <RotateCcw className="w-4 h-4" />
-            <span>Replay</span>
-          </button>
-
-          {hasNextLevel ? (
+        <div className="flex flex-col gap-2 w-full">
+          {onViewMemories && (
             <button
-              onClick={onNextLevel}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+              onClick={onViewMemories}
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-amber-950 font-black text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>Next Frontier</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={onReplayLevel}
-              className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
-            >
-              Play Again
+              <Award className="w-4 h-4 text-amber-900" />
+              <span>Read Visual Novel Memory Story</span>
             </button>
           )}
+
+          <div className="flex items-center gap-3 w-full">
+            <button
+              onClick={onReplayLevel}
+              className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition-colors cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Replay</span>
+            </button>
+
+            {hasNextLevel ? (
+              <button
+                onClick={onNextLevel}
+                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+              >
+                <span>Next Frontier</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                onClick={onReplayLevel}
+                className="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+              >
+                Play Again
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

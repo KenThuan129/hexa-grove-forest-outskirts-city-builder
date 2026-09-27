@@ -19,6 +19,8 @@ interface LeftSidebarProps {
   totalZonesCount: number;
   penalties: PenaltyRecord;
   starsEarned: number;
+  levelId?: number;
+  strictPenaltyLimit?: number;
   hidePenalties?: boolean;
   highlightPenalties?: boolean;
   bypasses?: PenaltyBypassRecord;
@@ -33,6 +35,8 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   totalZonesCount,
   penalties,
   starsEarned,
+  levelId = 1,
+  strictPenaltyLimit,
   hidePenalties = false,
   highlightPenalties = false,
   bypasses = { overlap: 0, overuse: 0, disconnect: 0, offMap: 0 },
@@ -53,9 +57,28 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
     penalties.overlap * 100 +
     penalties.offMap * 80;
 
+  const totalPenaltiesCount =
+    penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + (penalties.falsehood || 0);
+
+  const maxPenalties = strictPenaltyLimit ?? (levelId >= 20 ? 3 : undefined);
+  const isPenaltyLimitExceeded = maxPenalties !== undefined && totalPenaltiesCount > maxPenalties;
+  const isFalsehoodTriggered = (penalties.falsehood || 0) > 0;
+
+  const [scrambleNum, setScrambleNum] = React.useState('742');
+
+  React.useEffect(() => {
+    if (!isFalsehoodTriggered && !isPenaltyLimitExceeded) return;
+    const interval = setInterval(() => {
+      setScrambleNum(Math.floor(100 + Math.random() * 900).toString());
+    }, 50);
+    return () => clearInterval(interval);
+  }, [isFalsehoodTriggered, isPenaltyLimitExceeded]);
+
   // Win / Loss Condition State
   const settlementStatus =
-    starsEarned >= 3
+    isPenaltyLimitExceeded || isFalsehoodTriggered
+      ? { label: 'Disqualified (0 Pts)', color: 'text-rose-700 bg-rose-50 border-rose-300 animate-pulse' }
+      : starsEarned >= 3
       ? { label: 'Flourishing', color: 'text-emerald-700 bg-emerald-50 border-emerald-200' }
       : starsEarned === 2
       ? { label: 'Prospering', color: 'text-teal-700 bg-teal-50 border-teal-200' }
@@ -149,18 +172,26 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       {/* 2. Penalties 2x2 Grid (Ultra Compact & High Visibility) */}
       {!hidePenalties && (
         <div
-          className={`bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl rounded-2xl p-3 flex flex-col gap-2 transition-all ${
-            highlightPenalties ? 'ring-4 ring-rose-400/80 animate-bounce' : ''
+          className={`bg-white/95 backdrop-blur-xl border shadow-xl rounded-2xl p-3 flex flex-col gap-2 transition-all ${
+            isPenaltyLimitExceeded || isFalsehoodTriggered
+              ? 'border-rose-500 ring-4 ring-rose-400/80 animate-pulse bg-rose-50/40'
+              : highlightPenalties
+              ? 'ring-4 ring-rose-400/80 animate-bounce'
+              : 'border-slate-200/90'
           }`}
         >
           <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
             <div className="flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
               <h3 className="text-[11px] font-black uppercase tracking-wider text-slate-800">
-                Penalties
+                Penalties {maxPenalties !== undefined && `(${totalPenaltiesCount}/${maxPenalties} Max)`}
               </h3>
             </div>
-            {totalDeductions > 0 ? (
+            {isPenaltyLimitExceeded || isFalsehoodTriggered ? (
+              <span className="text-[10px] font-black text-white bg-rose-600 px-1.5 py-0.5 rounded-full uppercase">
+                LIMIT EXCEEDED (0 PTS)
+              </span>
+            ) : totalDeductions > 0 ? (
               <span className="text-[11px] font-black text-rose-600 font-mono tabular-nums">
                 -{totalDeductions} pts
               </span>
@@ -170,6 +201,22 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </span>
             )}
           </div>
+
+          {/* Falsehood Alert */}
+          {isFalsehoodTriggered && (
+            <div className="p-2 rounded-xl bg-rose-950 text-white text-[10px] flex items-center justify-between font-bold border border-rose-500 ring-2 ring-rose-400 shadow animate-pulse">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs">⚠️</span>
+                <span>Falsehood Penalty</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="font-mono text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded">
+                  ERR-{scrambleNum}
+                </span>
+                <span className="text-rose-300 font-mono">Score 0</span>
+              </div>
+            </div>
+          )}
 
         {/* 2x2 Grid of Penalties */}
         <div className="grid grid-cols-2 gap-1.5 text-[10px]">
@@ -284,6 +331,38 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Falsehood Penalty Tile for Level 21+ */}
+        {levelId >= 21 && (
+          <div
+            className={`p-1.5 rounded-xl border flex items-center justify-between text-[10px] mt-1.5 transition-all ${
+              isFalsehoodTriggered
+                ? 'bg-rose-950 border-rose-500 text-white ring-2 ring-rose-400 shadow animate-pulse'
+                : 'bg-purple-50/70 border-purple-200/80 text-purple-900'
+            }`}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs">🌫️</span>
+              <div>
+                <span className="font-bold block leading-none">Falsehood Penalty</span>
+                <span className={`text-[8px] ${isFalsehoodTriggered ? 'text-rose-300' : 'text-purple-600'}`}>
+                  {isFalsehoodTriggered ? 'Disconnected from safe ground!' : 'Fog must connect to safe ground'}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-1">
+              {isFalsehoodTriggered ? (
+                <span className="font-mono text-[9px] font-black bg-rose-600 text-white px-1.5 py-0.5 rounded animate-pulse">
+                  ERR-{scrambleNum}
+                </span>
+              ) : (
+                <span className="font-mono font-bold text-[9px] text-purple-700 bg-purple-100 px-1.5 py-0.2 rounded-full">
+                  0 Errors
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
       )}
     </aside>

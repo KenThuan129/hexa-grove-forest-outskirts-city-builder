@@ -23,8 +23,9 @@ import {
   MemoryPicture,
   PenaltyBypassRecord,
   PenaltyType,
+  BypassablePenaltyType,
 } from './types/game';
-import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius } from './utils/hexMath';
+import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors } from './utils/hexMath';
 import { sounds } from './utils/audio';
 import {
   Sparkles,
@@ -60,6 +61,7 @@ export default function App() {
   // Grid state: every cell key maps to an array/stack of placed tiles (to support overlapping error mechanics)
   const [unlockedCells, setUnlockedCells] = useState<Map<string, GridCell>>(new Map());
   const [placedTiles, setPlacedTiles] = useState<Map<string, PlacedTile[]>>(new Map());
+  const [availablePieces, setAvailablePieces] = useState<HexPiece[]>([]);
 
   // Dragging & Interaction
   const [selectedPiece, setSelectedPiece] = useState<HexPiece | null>(null);
@@ -110,7 +112,7 @@ export default function App() {
   }, [memories]);
 
   // Handle player choosing a penalty bypass for a completed memory picture
-  const handleSelectBypass = (pictureId: number, penalty: PenaltyType) => {
+  const handleSelectBypass = (pictureId: number, penalty: BypassablePenaltyType) => {
     setMemories(prev =>
       prev.map(m => (m.id === pictureId ? { ...m, chosenBypass: penalty } : m))
     );
@@ -118,7 +120,7 @@ export default function App() {
     showToast(`Memory #${pictureId} chosen! Granted +1 ${penalty.toUpperCase()} Free Pass per level.`, 'success');
   };
 
-  // Initialize Unlocked Grid Cells for current Phase
+  // Initialize Unlocked Grid Cells for current Phase (including Fog Hexes & River Separators)
   const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number) => {
     const lvl = LEVELS[lvlIdx];
     const newCells = new Map<string, GridCell>();
@@ -126,6 +128,8 @@ export default function App() {
     for (let p = 0; p <= phIdx; p++) {
       const phase = lvl.phases[p];
       if (!phase) continue;
+
+      // 1. Regular Unlocked Coords
       for (const coord of phase.unlockedCoords) {
         const key = coordKey(coord.q, coord.r);
         let colorReq: TileColor = 'neutral';
@@ -141,7 +145,43 @@ export default function App() {
           colorRequirement: colorReq,
           isUnlocked: true,
           unlockPhase: p + 1,
+          isFog: false,
+          isRiver: false,
         });
+      }
+
+      // 2. River Barrier Coords
+      if (phase.riverCoords) {
+        for (const coord of phase.riverCoords) {
+          const key = coordKey(coord.q, coord.r);
+          newCells.set(key, {
+            q: coord.q,
+            r: coord.r,
+            colorRequirement: 'neutral',
+            isUnlocked: false,
+            unlockPhase: p + 1,
+            isRiver: true,
+            isFog: false,
+          });
+        }
+      }
+
+      // 3. Fog Hexes (Predicting next phase boundaries)
+      if (phase.fogCoords) {
+        for (const coord of phase.fogCoords) {
+          const key = coordKey(coord.q, coord.r);
+          if (!newCells.has(key)) {
+            newCells.set(key, {
+              q: coord.q,
+              r: coord.r,
+              colorRequirement: 'neutral',
+              isUnlocked: false,
+              unlockPhase: p + 1,
+              isFog: true,
+              isRiver: false,
+            });
+          }
+        }
       }
     }
 
@@ -157,8 +197,9 @@ export default function App() {
     setPickedUpCoord(null);
     setActiveDragPiece(null);
     setIsLevelCompleteModalOpen(false);
+    setAvailablePieces(currentLevel.availablePieces);
     initializeGridForLevel(levelIndex, 0);
-  }, [levelIndex, initializeGridForLevel]);
+  }, [levelIndex, initializeGridForLevel, currentLevel]);
 
   // Handle Phase change within level
   useEffect(() => {
@@ -169,18 +210,19 @@ export default function App() {
   const connectivity = useMemo(() => {
     const coords: HexCoord[] = [];
     placedTiles.forEach((stack, key) => {
-      if (stack.length > 0 && unlockedCells.has(key)) {
+      if (stack.length > 0 && unlockedCells.has(key) && !unlockedCells.get(key)?.isRiver) {
         coords.push({ q: stack[0].q, r: stack[0].r });
       }
     });
     return analyzeConnectivity(coords);
   }, [placedTiles, unlockedCells]);
 
-  // Off-map tiles count
+  // Off-map tiles count (River hexes or out-of-bounds cells)
   const rawOffMapCount = useMemo(() => {
     let count = 0;
     placedTiles.forEach((stack, key) => {
-      if (!unlockedCells.has(key)) {
+      const cell = unlockedCells.get(key);
+      if (!cell || cell.isRiver) {
         count += stack.length;
       }
     });
@@ -191,7 +233,8 @@ export default function App() {
   const inBoundsPlacedCount = useMemo(() => {
     let count = 0;
     placedTiles.forEach((stack, key) => {
-      if (unlockedCells.has(key)) {
+      const cell = unlockedCells.get(key);
+      if (cell && (cell.isUnlocked || cell.isFog) && !cell.isRiver) {
         count += stack.length;
       }
     });
@@ -213,6 +256,62 @@ export default function App() {
   const parCount = currentPhase?.targetTilesCount || 5;
   const rawOveruseCount = Math.max(0, inBoundsPlacedCount - parCount);
 
+  // Active Real-Time Falsehood evaluation:
+  // Dynamically checks if ANY placed tile on a Fog cell is in a component disconnected from safe unlocked ground.
+  // When tiles are removed from fog or reconnected to safe area, this automatically recalculates to 0!
+  const dynamicFalsehoodCount = useMemo(() => {
+    const allPlacedCoords: HexCoord[] = [];
+    placedTiles.forEach(stack => {
+      if (stack.length > 0) {
+        allPlacedCoords.push({ q: stack[0].q, r: stack[0].r });
+      }
+    });
+
+    if (allPlacedCoords.length === 0) return 0;
+
+    let isolatedFogCount = 0;
+    const visited = new Set<string>();
+
+    for (const coord of allPlacedCoords) {
+      const key = coordKey(coord.q, coord.r);
+      if (visited.has(key)) continue;
+
+      const component: HexCoord[] = [];
+      const queue: HexCoord[] = [coord];
+      visited.add(key);
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        component.push(current);
+        const neighbors = getHexNeighbors(current.q, current.r);
+        for (const n of neighbors) {
+          const nKey = coordKey(n.q, n.r);
+          if (!visited.has(nKey) && (placedTiles.get(nKey)?.length || 0) > 0) {
+            visited.add(nKey);
+            queue.push(n);
+          }
+        }
+      }
+
+      // Check if this component contains any tile placed on safe unlocked area (isUnlocked && !isFog && !isRiver)
+      const hasSafeTile = component.some(c => {
+        const cell = unlockedCells.get(coordKey(c.q, c.r));
+        return cell && cell.isUnlocked && !cell.isFog && !cell.isRiver;
+      });
+
+      const hasFogTile = component.some(c => {
+        const cell = unlockedCells.get(coordKey(c.q, c.r));
+        return cell?.isFog;
+      });
+
+      if (hasFogTile && !hasSafeTile) {
+        isolatedFogCount++;
+      }
+    }
+
+    return isolatedFogCount;
+  }, [placedTiles, unlockedCells]);
+
   // Penalties record with Memories Penalty Bypass Free Passes Applied!
   const penalties: PenaltyRecord = useMemo(() => {
     return {
@@ -220,8 +319,16 @@ export default function App() {
       disconnect: Math.max(0, connectivity.disconnectedCount - bypasses.disconnect),
       overlap: Math.max(0, rawOverlapErrorCount - bypasses.overlap),
       offMap: Math.max(0, rawOffMapCount - bypasses.offMap),
+      falsehood: dynamicFalsehoodCount,
     };
-  }, [rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, bypasses]);
+  }, [rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, dynamicFalsehoodCount, bypasses]);
+
+  // Strict Penalty Limit Check (Level 20+ max 3 penalties allowed)
+  const totalPenaltiesCount =
+    penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood;
+  const strictPenaltyLimit = currentLevel.strictPenaltyLimit ?? (currentLevel.id >= 20 ? 3 : undefined);
+  const isPenaltyLimitExceeded = strictPenaltyLimit !== undefined && totalPenaltiesCount > strictPenaltyLimit;
+  const isFalsehoodActive = penalties.falsehood > 0;
 
   // Trigger Penalty Discovery in Level 3
   useEffect(() => {
@@ -330,14 +437,17 @@ export default function App() {
       ? coloredZonesCompleted && inBoundsPlacedCount >= 2
       : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
 
-  // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved)
+  // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
   const score = useMemo(() => {
+    if (isPenaltyLimitExceeded || isFalsehoodActive) {
+      return 0;
+    }
     let finalScore = rawScore;
     if (currentLevel.masteryChallenge && isMasteryCompleted) {
       finalScore += 600;
     }
     return finalScore;
-  }, [rawScore, currentLevel, isMasteryCompleted]);
+  }, [rawScore, currentLevel, isMasteryCompleted, isPenaltyLimitExceeded, isFalsehoodActive]);
 
   // Stars calculation
   const starsEarned = useMemo(() => {
@@ -348,12 +458,50 @@ export default function App() {
     return 0;
   }, [score, currentLevel]);
 
+  // Rotate a held cluster by 60° (using R key or Rotate button)
+  const handleRotateCluster = useCallback(() => {
+    if (!selectedPiece) {
+      showToast('Select a multi-hex cluster to rotate (R key)!', 'info');
+      return;
+    }
+    if (selectedPiece.clusterShape && selectedPiece.clusterShape.length > 1) {
+      const newShape = selectedPiece.clusterShape.map(off => {
+        const rotated = rotateHexCoord(off, { q: 0, r: 0 }, 1);
+        return { ...off, q: rotated.q, r: rotated.r };
+      });
+      setSelectedPiece({ ...selectedPiece, clusterShape: newShape });
+      sounds.playRotate();
+      showToast(`${selectedPiece.name} rotated 60° (R key)!`, 'info');
+    } else {
+      showToast('Single hexes have symmetric orientation. Use [R] on multi-hex clusters!', 'info');
+    }
+  }, [selectedPiece]);
+
   // Execute Tile / Cluster Placement
   const handlePlaceTile = useCallback(
     (anchorCoord: HexCoord, pieceToPlace: HexPiece) => {
+      // Stock check for limited piece inventory (e.g. Level 25 Boss challenge)
+      if (pieceToPlace.stock !== undefined && pieceToPlace.stock <= 0) {
+        sounds.playWarning();
+        showToast('Out of Stock! You have deployed all available copies of this tile.', 'warn');
+        return;
+      }
+
       const isCluster = Boolean(pieceToPlace.clusterShape && pieceToPlace.clusterShape.length > 1);
       const offsets = isCluster && pieceToPlace.clusterShape ? pieceToPlace.clusterShape : [{ q: 0, r: 0 }];
 
+      // 1. River Barrier Check: Waterways cannot be built on!
+      const touchesRiver = offsets.some(off => {
+        const key = coordKey(anchorCoord.q + off.q, anchorCoord.r + off.r);
+        return unlockedCells.get(key)?.isRiver;
+      });
+      if (touchesRiver) {
+        sounds.playWarning();
+        showToast('🌊 River Barrier: Natural waterways are unbuildable!', 'warn');
+        return;
+      }
+
+      // 2. Color Mismatch Check
       let hasMismatch = false;
       let mismatchName = '';
 
@@ -374,6 +522,39 @@ export default function App() {
         return;
       }
 
+      // 3. Fog Hex Check:
+      let placedOnFog = false;
+      let isFogLegit = false;
+      for (const off of offsets) {
+        const tQ = anchorCoord.q + off.q;
+        const tR = anchorCoord.r + off.r;
+        const key = coordKey(tQ, tR);
+        const cell = unlockedCells.get(key);
+        if (cell?.isFog) {
+          placedOnFog = true;
+          const neighbors = getHexNeighbors(tQ, tR);
+          for (const n of neighbors) {
+            const nKey = coordKey(n.q, n.r);
+            const nCell = unlockedCells.get(nKey);
+            if (nCell && nCell.isUnlocked && !nCell.isFog && !nCell.isRiver) {
+              isFogLegit = true;
+              break;
+            }
+            if (placedTiles.has(nKey) && (placedTiles.get(nKey)?.length || 0) > 0) {
+              isFogLegit = true;
+              break;
+            }
+          }
+        }
+      }
+
+      if (placedOnFog && !isFogLegit) {
+        sounds.playWarning();
+        showToast('⚠️ Falsehood Penalty! Fog exploration must connect to safe ground. Score is 0 until corrected or removed!', 'warn');
+      } else if (placedOnFog && isFogLegit) {
+        showToast('🌫️ Safe Fog Exploration! +3 bonus clearance tiles will unlock next phase.', 'success');
+      }
+
       let hadOverlap = false;
       let hadOffMap = false;
       const clusterId = isCluster ? `cluster-${Date.now()}-${Math.random().toString(36).substring(2, 7)}` : undefined;
@@ -386,7 +567,7 @@ export default function App() {
           const tKey = coordKey(tQ, tR);
           const targetCell = unlockedCells.get(tKey);
 
-          if (!targetCell) {
+          if (!targetCell || (targetCell.isFog && !isFogLegit)) {
             hadOffMap = true;
           }
 
@@ -412,13 +593,20 @@ export default function App() {
         return next;
       });
 
+      // Decrement inventory stock if limited
+      if (pieceToPlace.stock !== undefined) {
+        setAvailablePieces(prev =>
+          prev.map(p => (p.id === pieceToPlace.id && p.stock !== undefined ? { ...p, stock: Math.max(0, p.stock - 1) } : p))
+        );
+      }
+
       if (hadOverlap && bypasses.overlap === 0) {
         sounds.playWarning();
         showToast('⚠️ Overlap Error (+1)! Remove the overlapping tile or the -100 Overlap Penalty will apply.', 'warn');
       } else if (hadOverlap && bypasses.overlap > 0) {
         sounds.playPlace();
         showToast(`🛡️ Overlap Protected! Memory Free Pass absorbed penalty.`, 'success');
-      } else if (hadOffMap) {
+      } else if (hadOffMap && !placedOnFog) {
         sounds.playWarning();
         showToast('Placed outside boundary! Highlighted with warning border.', 'warn');
       } else {
@@ -438,6 +626,8 @@ export default function App() {
   );
 
   // Rotate a Rotation Zone (Turntable mechanic)
+  // Logic: Turntables only rotate SINGLE hexes; clusters are fixed monolithic structures!
+  // Level 20+: Turntables ALSO rotate the color requirements of the cells!
   const handleRotateZone = useCallback(
     (zoneId: string) => {
       const zone = currentPhase.rotationZones?.find(z => z.id === zoneId);
@@ -446,33 +636,36 @@ export default function App() {
       const zoneCoords = getCoordsInRadius(zone.center, zone.radius);
       const zoneKeySet = new Set(zoneCoords.map(c => coordKey(c.q, c.r)));
 
+      // 1. Rotate single tiles on the turntable (clusters remain stationary)
       setPlacedTiles(prev => {
         const next = new Map<string, PlacedTile[]>();
-        const stacksToRotate: { oldKey: string; stack: PlacedTile[] }[] = [];
+        const singleStacksToRotate: { oldKey: string; stack: PlacedTile[] }[] = [];
 
         prev.forEach((stack, key) => {
           if (zoneKeySet.has(key)) {
-            stacksToRotate.push({ oldKey: key, stack });
+            // Check if this stack belongs to a multi-hex cluster
+            const isClusterStack = stack.some(t => Boolean(t.clusterId || (t.clusterShape && t.clusterShape.length > 1)));
+            if (isClusterStack) {
+              // Cluster tiles stay fixed in place!
+              next.set(key, stack);
+            } else {
+              // Single tile stack: rotate around zone center
+              singleStacksToRotate.push({ oldKey: key, stack });
+            }
           } else {
             next.set(key, stack);
           }
         });
 
-        stacksToRotate.forEach(({ stack }) => {
+        singleStacksToRotate.forEach(({ stack }) => {
           if (stack.length === 0) return;
           const rotatedCoord = rotateHexCoord({ q: stack[0].q, r: stack[0].r }, zone.center, 1);
           const newKey = coordKey(rotatedCoord.q, rotatedCoord.r);
-          const updatedStack = stack.map(tile => {
-            const rotAnchor = tile.clusterAnchor
-              ? rotateHexCoord(tile.clusterAnchor, zone.center, 1)
-              : undefined;
-            return {
-              ...tile,
-              q: rotatedCoord.q,
-              r: rotatedCoord.r,
-              clusterAnchor: rotAnchor,
-            };
-          });
+          const updatedStack = stack.map(tile => ({
+            ...tile,
+            q: rotatedCoord.q,
+            r: rotatedCoord.r,
+          }));
           const existingAtNew = next.get(newKey) || [];
           next.set(newKey, [...existingAtNew, ...updatedStack]);
         });
@@ -480,49 +673,59 @@ export default function App() {
         return next;
       });
 
+      // 2. Level 20+ Turntable: Switch positions of the colored hexes within the turntable area!
+      if (currentLevel.id >= 20) {
+        setUnlockedCells(prev => {
+          const next = new Map(prev);
+          const cellsInZone = zoneCoords.map(c => prev.get(coordKey(c.q, c.r))).filter((c): c is GridCell => Boolean(c));
+          cellsInZone.forEach(c => {
+            const rotated = rotateHexCoord({ q: c.q, r: c.r }, zone.center, 1);
+            const targetKey = coordKey(rotated.q, rotated.r);
+            const existingTarget = next.get(targetKey);
+            if (existingTarget) {
+              next.set(targetKey, { ...existingTarget, colorRequirement: c.colorRequirement });
+            }
+          });
+          return next;
+        });
+      }
+
       setRotationsPerformed(prev => prev + 1);
       sounds.playRotate();
-      showToast(`${zone.name} rotated 60° via keyboard!`, 'info');
+      showToast(
+        currentLevel.id >= 20
+          ? `${zone.name} rotated 60° (Single tiles & Color Zones shifted)!`
+          : `${zone.name} rotated 60° (Single tiles shifted)!`,
+        'info'
+      );
     },
-    [currentPhase]
+    [currentPhase, currentLevel.id]
   );
 
-  // Keyboard-based Rotation Mechanic:
-  // Note: Clusters CANNOT be rotated!
-  const handleKeyboardRotate = useCallback(() => {
-    // Prohibit rotating cluster pieces
-    if (selectedPiece?.clusterShape && selectedPiece.clusterShape.length > 1) {
-      sounds.playWarning();
-      showToast('⚠️ Clusters cannot be rotated! Clusters are fixed monolithic structures.', 'warn');
-      return;
-    }
-
-    // If current phase has rotation zones (turntables), rotate the active zone
+  // Rotate Turntable zone (using T key)
+  const handleRotateTurntableShortcut = useCallback(() => {
     if (currentPhase.rotationZones && currentPhase.rotationZones.length > 0) {
       handleRotateZone(currentPhase.rotationZones[0].id);
-      return;
-    }
-
-    if (selectedPiece) {
-      sounds.playPickup();
-      showToast(`${selectedPiece.name} orientation aligned!`, 'info');
     } else {
-      showToast('No active turntable zone on this stage.', 'info');
+      showToast('No Turntable in this phase!', 'info');
     }
-  }, [selectedPiece, currentPhase, handleRotateZone]);
+  }, [currentPhase.rotationZones, handleRotateZone]);
 
-  // Keyboard shortcut: Press 'R' or 'E' to rotate turntable zone
+  // Keyboard shortcuts: Press 'R' to rotate cluster, Press 'T' to rotate turntable
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
-      if (e.key === 'r' || e.key === 'R' || e.key === 'e' || e.key === 'E') {
+      if (e.key === 'r' || e.key === 'R') {
         e.preventDefault();
-        handleKeyboardRotate();
+        handleRotateCluster();
+      } else if (e.key === 't' || e.key === 'T') {
+        e.preventDefault();
+        handleRotateTurntableShortcut();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleKeyboardRotate]);
+  }, [handleRotateCluster, handleRotateTurntableShortcut]);
 
   // Right-Click Handler
   const handleRightClickBoard = useCallback(
@@ -717,17 +920,24 @@ export default function App() {
         setIsExpansionAnimating(false);
       }, 1200);
     } else {
+      // Final Phase: Level Victory Validation
+      // 1-phase or multi-phase level requires at least 1 Star AND Mastery Challenge (if configured)
+      const hasMastery = Boolean(currentLevel.masteryChallenge);
+      if (starsEarned < 1 || (hasMastery && !isMasteryCompleted)) {
+        sounds.playWarning();
+        if (starsEarned < 1 && hasMastery && !isMasteryCompleted) {
+          showToast('Victory requires at least 1 Star (★1) AND Mastery Challenge completed!', 'warn');
+        } else if (starsEarned < 1) {
+          showToast('Victory requires reaching at least 1 Star (★1)!', 'warn');
+        } else {
+          showToast('Victory requires completing the Mastery Challenge objective!', 'warn');
+        }
+        return;
+      }
+
       // Level Completed! Record highest completed level
       const completedLvlId = currentLevel.id;
       setHighestCompletedLevel(prev => Math.max(prev, completedLvlId));
-
-      if (currentLevel.id >= 13) {
-        if (starsEarned < 1 || !isMasteryCompleted) {
-          sounds.playWarning();
-          showToast('Mastery Challenge and at least 1 Star required to proceed!', 'warn');
-          return;
-        }
-      }
       sounds.playVictory();
       setIsLevelCompleteModalOpen(true);
     }
@@ -961,6 +1171,8 @@ export default function App() {
                 totalZonesCount={totalZonesCount}
                 penalties={penalties}
                 starsEarned={starsEarned}
+                levelId={currentLevel.id}
+                strictPenaltyLimit={strictPenaltyLimit}
                 hidePenalties={currentLevel.uiConfig?.hidePenalties}
                 highlightPenalties={highlightPenalties}
                 bypasses={bypasses}
@@ -991,6 +1203,8 @@ export default function App() {
                 overlapErrorCount={penalties.overlap}
                 hideScore={currentLevel.uiConfig?.hideScore}
                 highlightScore={highlightScore}
+                isFalsehoodActive={isFalsehoodActive}
+                isPenaltyLimitExceeded={isPenaltyLimitExceeded}
                 onRotateZone={handleRotateZone}
                 onCompletePhase={handleCompletePhase}
                 onToggleSound={handleToggleSound}
@@ -1114,6 +1328,10 @@ export default function App() {
         onReplayLevel={() => {
           setIsLevelCompleteModalOpen(false);
           handleResetBoard();
+        }}
+        onViewMemories={() => {
+          setIsLevelCompleteModalOpen(false);
+          setActivePage('memories');
         }}
       />
     </div>

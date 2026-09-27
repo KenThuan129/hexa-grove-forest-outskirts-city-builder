@@ -1,18 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { HexPiece, TileColor } from '../types/game';
+import { HexPiece, TileColor, AcePerkId } from '../types/game';
 import { getHex3DThumbnail } from '../utils/thumbnailGenerator';
-import { Shield, Sun, Leaf, Droplets, Flame, MousePointerClick, RotateCw, Layers } from 'lucide-react';
+import { Shield, Sun, Leaf, Droplets, Flame, MousePointerClick, RotateCw, Layers, Dices } from 'lucide-react';
 
 interface TileTrayProps {
   availablePieces: HexPiece[];
   selectedPiece: HexPiece | null;
   activeDragPiece: HexPiece | null;
   hasRotationZones?: boolean;
+  equippedAce?: AcePerkId | null;
   onSelectPiece: (piece: HexPiece | null) => void;
   onRightClickPiece: (piece: HexPiece) => void;
   onStartDragPiece: (piece: HexPiece, clientX: number, clientY: number) => void;
   onEndDragPiece: () => void;
   onClearHover?: () => void;
+  onRotateCluster?: () => void;
+  onRecombulate?: () => void;
 }
 
 type ColorFilter = 'all' | TileColor;
@@ -69,10 +72,14 @@ export const TileTray: React.FC<TileTrayProps> = ({
   selectedPiece,
   activeDragPiece,
   hasRotationZones = false,
+  equippedAce,
   onSelectPiece,
   onRightClickPiece,
   onStartDragPiece,
+  onEndDragPiece,
   onClearHover,
+  onRotateCluster,
+  onRecombulate,
 }) => {
   const [activeFilter, setActiveFilter] = useState<ColorFilter>('all');
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
@@ -105,6 +112,7 @@ export const TileTray: React.FC<TileTrayProps> = ({
   const handlePiecePointerDown = (piece: HexPiece, e: React.PointerEvent) => {
     e.stopPropagation();
     if (e.button !== 0) return;
+    if (piece.stock !== undefined && piece.stock <= 0) return;
     pendingDragRef.current = { piece, startX: e.clientX, startY: e.clientY };
   };
 
@@ -120,8 +128,8 @@ export const TileTray: React.FC<TileTrayProps> = ({
   const handlePiecePointerUp = (piece: HexPiece, e: React.PointerEvent) => {
     e.stopPropagation();
     if (pendingDragRef.current) {
-      // Deliberate click to select / pick up
       pendingDragRef.current = null;
+      if (piece.stock !== undefined && piece.stock <= 0) return;
       onSelectPiece(selectedPiece?.id === piece.id ? null : piece);
     }
   };
@@ -182,10 +190,38 @@ export const TileTray: React.FC<TileTrayProps> = ({
 
           {/* Action Helper & Keyboard Rotate Helper */}
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            {hasRotationZones && (
+            {equippedAce === 'recombulation' && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  onRecombulate?.();
+                }}
+                className="flex items-center gap-1.5 font-bold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-2.5 py-1 rounded-lg shadow-md transition-all cursor-pointer animate-pulse"
+                title="Recombulate Inventory: Reroll available pieces for optimal 3-star and mastery synergy"
+              >
+                <Dices className="w-3.5 h-3.5 text-purple-200" />
+                <span>Recombulate [Ace]</span>
+              </button>
+            )}
+
+            {isHoldingCluster && (
+              <button
+                onClick={e => {
+                  e.stopPropagation();
+                  onRotateCluster?.();
+                }}
+                className="flex items-center gap-1.5 font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 px-2.5 py-1 rounded-lg shadow-md transition-all cursor-pointer animate-pulse"
+                title="Rotate the held multi-hex cluster by 60° (or press R key)"
+              >
+                <RotateCw className="w-3.5 h-3.5" />
+                <span>Rotate Cluster [R]</span>
+              </button>
+            )}
+
+            {hasRotationZones && !isHoldingCluster && (
               <span className="flex items-center gap-1.5 font-bold bg-cyan-100 text-cyan-900 border border-cyan-300 px-2.5 py-0.5 rounded-lg shadow-xs">
                 <RotateCw className="w-3.5 h-3.5 text-cyan-600 animate-spin-slow" />
-                <span>Press [R] to Rotate Turntable</span>
+                <span>Turntable: Spins Single Hexes Only</span>
               </span>
             )}
 
@@ -217,6 +253,7 @@ export const TileTray: React.FC<TileTrayProps> = ({
             const thumbUrl = thumbnails[piece.id];
             const isCluster = Boolean(piece.clusterShape && piece.clusterShape.length > 1);
             const clusterCount = piece.clusterShape ? piece.clusterShape.length : 1;
+            const isOutOfStock = piece.stock !== undefined && piece.stock <= 0;
 
             return (
               <div
@@ -232,13 +269,15 @@ export const TileTray: React.FC<TileTrayProps> = ({
                   e.stopPropagation();
                   onRightClickPiece(piece);
                 }}
-                className={`group shrink-0 relative flex flex-col items-center justify-between p-1.5 rounded-xl border-2 transition-all cursor-grab active:cursor-grabbing select-none w-24 sm:w-28 bg-white ${
+                className={`group shrink-0 relative flex flex-col items-center justify-between p-1.5 rounded-xl border-2 transition-all ${
+                  isOutOfStock ? 'opacity-40 grayscale cursor-not-allowed bg-slate-100' : 'cursor-grab active:cursor-grabbing bg-white'
+                } select-none w-24 sm:w-28 ${
                   theme.border
                 } ${
                   isSelected
                     ? 'ring-2 ring-emerald-500 ring-offset-1 scale-105 shadow-lg -translate-y-1 border-emerald-500 bg-emerald-50/20'
                     : 'hover:shadow-md hover:-translate-y-0.5'
-                } ${isDragging ? 'opacity-30 scale-95' : 'opacity-100'}`}
+                } ${isDragging ? 'opacity-30 scale-95' : ''}`}
               >
                 {/* 3D Visual Demo Container */}
                 <div
@@ -259,6 +298,13 @@ export const TileTray: React.FC<TileTrayProps> = ({
                     <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-slate-900/85 backdrop-blur-xs text-white text-[8px] font-black px-1.5 py-0.2 rounded-full border border-slate-700">
                       <Layers className="w-2.5 h-2.5 text-amber-400" />
                       <span>{clusterCount}H</span>
+                    </div>
+                  )}
+
+                  {/* Stock count badge (Boss / Limited level) */}
+                  {piece.stock !== undefined && (
+                    <div className="absolute bottom-1 right-1 bg-slate-900/90 text-white font-mono text-[8px] font-bold px-1.5 py-0.2 rounded-md">
+                      x{piece.stock}
                     </div>
                   )}
 

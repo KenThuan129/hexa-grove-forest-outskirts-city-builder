@@ -1355,14 +1355,15 @@ export const LEVELS: LevelConfig[] = [
   {
     id: 20,
     name: 'Pioneer Metropolis',
-    subtitle: 'Grand Campaign Finale: Master Pioneer Sanctuary',
+    subtitle: 'Grand Finale: 3-Phase Quad-Color Challenge (1000 Pts Mastery)',
     description:
-      'The ultimate test of pioneer architecture: 3-Phase expansion, 6-Hex Blossom mega-clusters, dual rotary turntables, and complete quad-color integration.',
+      'The ultimate campaign finale: 3-Phase expansion with all 4 colors available, Blossom mega-clusters, central turntable, 1★ at 1000 points, and Mastery Challenge of achieving at least 1000 points!',
     masteryChallenge: {
       id: 'mc-20',
-      title: 'Grand Master Sovereign',
-      description: 'Claim 3 Stars with 0 Disconnects, 0 Overlaps, and at least 2 Zone Rotations.',
-      type: 'zero_disconnect',
+      title: 'Grand Metropolis Mastery',
+      description: 'Complete with at least 1000 points',
+      type: 'min_score',
+      targetValue: 1000,
     },
     phases: [
       {
@@ -1509,12 +1510,1651 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces([
       'p-house-gray',
+      'p-duo-gray',
       'p-blossom-multi',
+      'p-house-amber',
+      'p-triad-amber',
+      'p-trees-emerald',
+      'p-duo-emerald',
+      'p-pentad-emerald',
+      'p-house-sapphire',
+      'p-duo-sapphire',
+      'p-quad-sapphire',
+      'p-house-ruby',
+      'p-duo-ruby',
+    ]),
+    targetScore: { star1: 1000, star2: 3200, star3: 5500 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 21: Mistveil Outpost (Introduces Fog Hexes)
+  // --------------------------------------------------------------------------
+  {
+    id: 21,
+    name: 'Mistveil Outpost',
+    subtitle: 'Special Mechanic: Fog Hexes & Future Forecast',
+    description:
+      'Predict next phase expansion by placing tiles onto purple Fog Hexes connected to safe ground. Avoid Falsehood penalties and earn +3 bonus safe clearance tiles!',
+    masteryChallenge: {
+      id: 'mc-21',
+      title: 'Mist Prophet',
+      description: 'Complete with at least 1800 points and 0 Falsehood penalties.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Mistveil Camp',
+        objective: 'Establish base camp and forecast phase 2 using the eastern Fog Hexes.',
+        targetTilesCount: 7,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunlit Clearing',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 1, r: -1 }],
+          },
+        ],
+        fogCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }, { q: 1, r: 1 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Fog Dissipation',
+        objective: 'Occupy the emerald groves unlocked from the mist.',
+        targetTilesCount: 13,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: 0 },
+          { q: 2, r: -1 },
+          { q: 1, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunlit Clearing',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 1, r: -1 }],
+          },
+          {
+            name: 'Grove Clearing',
+            color: 'emerald',
+            coords: [{ q: 0, r: 2 }, { q: -1, r: 2 }],
+          },
+        ],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-house-amber', 'p-duo-amber', 'p-duo-emerald']),
+    targetScore: { star1: 1000, star2: 3200, star3: 4500 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 22: The Azure Crossing (Introduces River Separator)
+  // --------------------------------------------------------------------------
+  {
+    id: 22,
+    name: 'The Azure Crossing',
+    subtitle: 'Special Mechanic: River Waterways (Unbuildable Barrier)',
+    description:
+      'A rushing azure river splits the valley in two. Build settlements on both riverbanks without dropping structures into the water!',
+    masteryChallenge: {
+      id: 'mc-22',
+      title: 'Riverbank Master',
+      description: 'Complete with at least 1800 points and 0 Disconnect penalties.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Twin Riverbanks',
+        objective: 'Match the Amber and Sapphire districts across the natural waterway.',
+        targetTilesCount: 10,
+        unlockedCoords: [
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: -1, r: -1 },
+          { q: -1, r: 1 },
+          { q: 1, r: -1 },
+          { q: 1, r: 0 },
+          { q: 2, r: -1 },
+          { q: 2, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Western Aquifer',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+          {
+            name: 'Eastern Solar Bank',
+            color: 'amber',
+            coords: [{ q: 2, r: -1 }, { q: 2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: -1 }, { q: 0, r: 0 }, { q: 0, r: 1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-triad-amber']),
+    targetScore: { star1: 1000, star2: 3400, star3: 4800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 23: Meandering Mist Delta (Fog + River Combination)
+  // --------------------------------------------------------------------------
+  {
+    id: 23,
+    name: 'Meandering Mist Delta',
+    subtitle: 'Mechanics: River Divide + Fog Hex Predictions',
+    description:
+      'A winding river carves through misty wetlands. Use Fog Hexes connected to safe clearance to expand safely across phases.',
+    masteryChallenge: {
+      id: 'mc-23',
+      title: 'Delta Pioneer',
+      description: 'Complete with at least 2000 points.',
+      type: 'min_score',
+      targetValue: 2000,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Delta Basin',
+        objective: 'Secure the amber delta bank and forecast phase 2 into the southern fog.',
+        targetTilesCount: 8,
+        unlockedCoords: [
+          { q: -1, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Delta Sunfield',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+        fogCoords: [{ q: -2, r: 2 }, { q: -1, r: 2 }, { q: 1, r: 1 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Emerald Wetlands',
+        objective: 'Develop the newly revealed emerald grove wetlands.',
+        targetTilesCount: 14,
+        unlockedCoords: [
+          { q: -1, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: -2, r: 2 },
+          { q: -1, r: 2 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 1, r: -1 },
+          { q: 1, r: 1 },
+          { q: 2, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Delta Sunfield',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+          {
+            name: 'Wetland Sanctuary',
+            color: 'emerald',
+            coords: [{ q: -2, r: 2 }, { q: -1, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-triad-amber', 'p-duo-emerald', 'p-pentad-emerald']),
+    targetScore: { star1: 1000, star2: 3600, star3: 5000 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 24: Turntable Rapids (River + Rotary Colored Zone Swapper)
+  // --------------------------------------------------------------------------
+  {
+    id: 24,
+    name: 'Turntable Rapids',
+    subtitle: 'Mechanic: Turntable Color Zone Swapping (Lvl 20+)',
+    description:
+      'Spinning the rotary turntable now shifts both single tiles AND the color zone requirements underneath them!',
+    masteryChallenge: {
+      id: 'mc-24',
+      title: 'Rapids Engineer',
+      description: 'Complete with at least 1800 points and max 3 penalties.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Rotary Rapids',
+        objective: 'Rotate the turntable mechanism to shift the Amber and Sapphire zones.',
+        targetTilesCount: 11,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: -1 },
+          { q: -2, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Rotary Sunspire',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: -1 }],
+          },
+          {
+            name: 'River Well',
+            color: 'sapphire',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 1 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-24-rapids',
+            name: 'Rapids Rotary Hub',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 1 }, { q: -1, r: 2 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-duo-amber', 'p-quad-sapphire', 'p-duo-ruby']),
+    targetScore: { star1: 1000, star2: 3800, star3: 5200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 25: TITAN OF THE MIST (BOSS CHALLENGE)
+  // --------------------------------------------------------------------------
+  {
+    id: 25,
+    name: 'Titan of the Mist',
+    subtitle: 'BOSS CHALLENGE: 5-Phase Siege with Limited Stock',
+    description:
+      'Defeat the Ancient River Titan across 5 escalating phases! Each completed color zone reduces the Boss HP gauge down a notch. Use limited piece inventory wisely to claim 3★ victory!',
+    isBossLevel: true,
+    bossName: 'Ancient River Titan',
+    bossMaxHp: 5000,
+    masteryChallenge: {
+      id: 'mc-25',
+      title: 'Titan Slayer Mastery',
+      description: 'Defeat all 5 Boss phases with at least 2500 points!',
+      type: 'min_score',
+      targetValue: 2500,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Boss Phase 1: The Titan Awakens',
+        objective: 'Establish the northern sunstone line to deal first damage to the Titan.',
+        targetTilesCount: 6,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -1, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Titan Eye (Amber)',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Boss Phase 2: Glacial Barrier',
+        objective: 'Subdue the sapphire hydro surges across the river flank.',
+        targetTilesCount: 11,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -1, r: 1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 2, r: -1 },
+          { q: 2, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Titan Eye (Amber)',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Ice Sluice (Sapphire)',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+      },
+      {
+        phaseNumber: 3,
+        title: 'Boss Phase 3: Verdant Shield',
+        objective: 'Break through the emerald armor in the northern valley.',
+        targetTilesCount: 16,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -1, r: 1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 2, r: -1 },
+          { q: 2, r: 0 },
+          { q: 0, r: -2 },
+          { q: -1, r: -1 },
+          { q: 1, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Titan Eye (Amber)',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Ice Sluice (Sapphire)',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+          {
+            name: 'Verdant Carapace (Emerald)',
+            color: 'emerald',
+            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+      },
+      {
+        phaseNumber: 4,
+        title: 'Boss Phase 4: Volcanic Rage',
+        objective: 'Ignite the Ruby hearths to counter the Titan blazing fury.',
+        targetTilesCount: 20,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -1, r: 1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 2, r: -1 },
+          { q: 2, r: 0 },
+          { q: 0, r: -2 },
+          { q: -1, r: -1 },
+          { q: 1, r: -2 },
+          { q: -1, r: 2 },
+          { q: -2, r: 2 },
+          { q: 0, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Titan Eye (Amber)',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Ice Sluice (Sapphire)',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+          {
+            name: 'Verdant Carapace (Emerald)',
+            color: 'emerald',
+            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
+          },
+          {
+            name: 'Magma Core (Ruby)',
+            color: 'ruby',
+            coords: [{ q: -1, r: 2 }, { q: -2, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+      },
+      {
+        phaseNumber: 5,
+        title: 'Boss Phase 5: Final Titan Subjugation',
+        objective: 'Unite all quad-color districts with the Blossom mega-cluster for total victory!',
+        targetTilesCount: 25,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -1, r: 1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 2, r: -1 },
+          { q: 2, r: 0 },
+          { q: 0, r: -2 },
+          { q: -1, r: -1 },
+          { q: 1, r: -2 },
+          { q: -1, r: 2 },
+          { q: -2, r: 2 },
+          { q: 0, r: 1 },
+          { q: 2, r: 1 },
+          { q: 3, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Titan Eye (Amber)',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Ice Sluice (Sapphire)',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+          {
+            name: 'Verdant Carapace (Emerald)',
+            color: 'emerald',
+            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
+          },
+          {
+            name: 'Magma Core (Ruby)',
+            color: 'ruby',
+            coords: [{ q: -1, r: 2 }, { q: -2, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+      },
+    ],
+    availablePieces: [
+      { ...PIECE_PALETTE.find(p => p.id === 'p-blossom-multi')!, stock: 2 },
+      { ...PIECE_PALETTE.find(p => p.id === 'p-triad-amber')!, stock: 3 },
+      { ...PIECE_PALETTE.find(p => p.id === 'p-pentad-emerald')!, stock: 2 },
+      { ...PIECE_PALETTE.find(p => p.id === 'p-quad-sapphire')!, stock: 3 },
+      { ...PIECE_PALETTE.find(p => p.id === 'p-duo-ruby')!, stock: 4 },
+      { ...PIECE_PALETTE.find(p => p.id === 'p-house-gray')!, stock: 6 },
+    ],
+    targetScore: { star1: 1000, star2: 3500, star3: 4200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 26: Whispering Canyon (River Canyon & Dual Fog)
+  // --------------------------------------------------------------------------
+  {
+    id: 26,
+    name: 'Whispering Canyon',
+    subtitle: 'Mechanics: Dual River Canyons & Deep Fog',
+    description:
+      'A canyon of dual rushing streams flanked by misty banks. Connect structures to safe clearings to unlock extra gray tiles.',
+    masteryChallenge: {
+      id: 'mc-26',
+      title: 'Canyon Sovereign',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Canyon Rim',
+        objective: 'Establish the amber canyon rim and forecast the western fog.',
+        targetTilesCount: 9,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunstone Rim',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: -1, r: 0 }, { q: -1, r: 1 }, { q: -1, r: 2 }],
+        fogCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }, { q: -2, r: 2 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-triad-amber', 'p-quad-amber', 'p-duo-emerald']),
+    targetScore: { star1: 1000, star2: 3600, star3: 4800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 27: Sunstone Aqueduct (Rotary River Bridge)
+  // --------------------------------------------------------------------------
+  {
+    id: 27,
+    name: 'Sunstone Aqueduct',
+    subtitle: 'Mechanic: Rotary Aqueduct Hub',
+    description:
+      'Spin the central turntable gear to switch solar and hydro alignments across the aqueduct gorge.',
+    masteryChallenge: {
+      id: 'mc-27',
+      title: 'Aqueduct Master',
+      description: 'Complete with at least 1800 points and 0 Disconnects.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Aqueduct Mechanism',
+        objective: 'Rotate the central aqueduct gear to match all color requirements.',
+        targetTilesCount: 11,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: 0 },
+          { q: -2, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Aqueduct Sunpath',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+          {
+            name: 'Hydro Sluice',
+            color: 'sapphire',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-27-aqueduct',
+            name: 'Aqueduct Gear',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-triad-amber', 'p-quad-sapphire', 'p-duo-emerald']),
+    targetScore: { star1: 1000, star2: 4000, star3: 5200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 28: Verdant Sluice Gate (Emerald Delta + Rotary Zones)
+  // --------------------------------------------------------------------------
+  {
+    id: 28,
+    name: 'Verdant Sluice Gate',
+    subtitle: 'Mechanic: Emerald Waterway Management',
+    description:
+      'Manage emerald groves and sapphire streams alongside strict 3-penalty integrity restrictions.',
+    masteryChallenge: {
+      id: 'mc-28',
+      title: 'Sluice Keeper',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Verdant Basin',
+        objective: 'Align emerald and sapphire zones with the rotary sluice.',
+        targetTilesCount: 12,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+          { q: 2, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Grove Glade',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+          {
+            name: 'Stream Inflow',
+            color: 'sapphire',
+            coords: [{ q: 1, r: -1 }, { q: 2, r: -1 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-28-sluice',
+            name: 'Verdant Sluice Hub',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: -2, r: 1 }, { q: -2, r: 2 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-emerald', 'p-pentad-emerald', 'p-quad-sapphire', 'p-duo-amber']),
+    targetScore: { star1: 1000, star2: 4200, star3: 5600 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 29: Magma Caldera Gorge (Ruby Forges + River Barrier)
+  // --------------------------------------------------------------------------
+  {
+    id: 29,
+    name: 'Magma Caldera Gorge',
+    subtitle: 'Mechanic: Ruby Forges & Rushing Rapids',
+    description:
+      'Construct crimson kilns and blacksmith workshops on opposite banks of a roaring volcanic river.',
+    masteryChallenge: {
+      id: 'mc-29',
+      title: 'Foundry Overseer',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Caldera Foundry',
+        objective: 'Construct the ruby hearth and amber granaries across the river.',
+        targetTilesCount: 13,
+        unlockedCoords: [
+          { q: -1, r: 0 },
+          { q: -2, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 1, r: -1 },
+          { q: 2, r: -1 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Terracotta Kiln',
+            color: 'ruby',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+          {
+            name: 'Sunstone Silo',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-house-ruby', 'p-duo-ruby', 'p-triad-amber', 'p-quad-gray']),
+    targetScore: { star1: 1000, star2: 4400, star3: 5800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 30: The Quad-Color Meridian (Full 4-Color Rotary Dynamic Swapper)
+  // --------------------------------------------------------------------------
+  {
+    id: 30,
+    name: 'The Quad-Color Meridian',
+    subtitle: 'Mechanic: Quad-Color Dynamic Turntable',
+    description:
+      'The central turntable rotates all 4 harmonic colors simultaneously. Solve the spatial puzzle without exceeding 3 penalties!',
+    masteryChallenge: {
+      id: 'mc-30',
+      title: 'Meridian Sovereign',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Meridian Core',
+        objective: 'Align Amber, Emerald, Sapphire, and Ruby zones around the central turntable.',
+        targetTilesCount: 14,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: 0 },
+          { q: -2, r: 0 },
+          { q: 0, r: 2 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Meridian Sun',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+          {
+            name: 'Meridian Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+          {
+            name: 'Meridian Spring',
+            color: 'sapphire',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+          {
+            name: 'Meridian Hearth',
+            color: 'ruby',
+            coords: [{ q: 0, r: -1 }, { q: 0, r: -2 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-30-meridian',
+            name: 'Meridian Dial',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+      },
+    ],
+    availablePieces: getPieces([
+      'p-house-gray',
+      'p-duo-amber',
+      'p-duo-emerald',
+      'p-duo-sapphire',
+      'p-duo-ruby',
+      'p-triad-amber',
+    ]),
+    targetScore: { star1: 1000, star2: 4600, star3: 6000 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 31: Foggy Archipelago (Twin Rivers + Fog Island Hopping)
+  // --------------------------------------------------------------------------
+  {
+    id: 31,
+    name: 'Foggy Archipelago',
+    subtitle: 'Mechanics: Multi-River Channels & Fog Exploration',
+    description:
+      'Island hop across multiple river channels using Fog Hex forecasts to unlock fertile new delta islands.',
+    masteryChallenge: {
+      id: 'mc-31',
+      title: 'Archipelago Explorer',
+      description: 'Complete with at least 2000 points.',
+      type: 'min_score',
+      targetValue: 2000,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Center Islet',
+        objective: 'Establish the center island and connect to the southern fog bank.',
+        targetTilesCount: 8,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunlit Islet',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: -1, r: 0 }, { q: -1, r: 1 }, { q: 2, r: 0 }, { q: 2, r: -1 }],
+        fogCoords: [{ q: 0, r: 1 }, { q: 1, r: 1 }, { q: 0, r: 2 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Sapphire Archipelago',
+        objective: 'Expand into the revealed southern sapphire aquifer archipelago.',
+        targetTilesCount: 15,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 0, r: 1 },
+          { q: 1, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+          { q: 1, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunlit Islet',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'South Aquifer',
+            color: 'sapphire',
+            coords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: -1, r: 0 }, { q: -1, r: 1 }, { q: 2, r: 0 }, { q: 2, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-triad-amber', 'p-quad-sapphire', 'p-duo-emerald']),
+    targetScore: { star1: 1000, star2: 4800, star3: 6200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 32: The Great Blossom Weir (6-Hex Blossom Mega-Cluster over River)
+  // --------------------------------------------------------------------------
+  {
+    id: 32,
+    name: 'The Great Blossom Weir',
+    subtitle: 'Mechanic: 6-Hex Blossom River Bridging',
+    description:
+      'Rotate and position the giant 6-Hex Highland Blossom cluster to span across the wide river gorge.',
+    masteryChallenge: {
+      id: 'mc-32',
+      title: 'Blossom Architect',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Blossom Gorge',
+        objective: 'Place and rotate the 6-Hex Blossom mega-cluster across the gorge.',
+        targetTilesCount: 13,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 1, r: -1 },
+          { q: 0, r: -1 },
+          { q: -1, r: 0 },
+          { q: -1, r: 1 },
+          { q: 2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 0, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Blossom Sun Ring',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }],
+          },
+        ],
+        riverCoords: [{ q: -1, r: -1 }, { q: 0, r: -2 }, { q: 1, r: -2 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-duo-emerald', 'p-quad-sapphire', 'p-duo-ruby']),
+    targetScore: { star1: 1000, star2: 5000, star3: 6500 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 33: Rotary Delta Citadel (Dual Turntables + River Separator)
+  // --------------------------------------------------------------------------
+  {
+    id: 33,
+    name: 'Rotary Delta Citadel',
+    subtitle: 'Mechanic: Dual Turntable Color Zone Realignments',
+    description:
+      'Two interconnected rotary turntables shift Amber and Ruby districts across a dividing river.',
+    masteryChallenge: {
+      id: 'mc-33',
+      title: 'Citadel Master',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Delta Fortresses',
+        objective: 'Synchronize both turntables to solve the dual riverbank color requirements.',
+        targetTilesCount: 15,
+        unlockedCoords: [
+          { q: -2, r: 0 },
+          { q: -1, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: -1, r: -1 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 1, r: 1 },
+          { q: 2, r: -1 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'West Hearth Hub',
+            color: 'ruby',
+            coords: [{ q: -2, r: 0 }, { q: -1, r: 0 }],
+          },
+          {
+            name: 'East Sun Hub',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-33-west',
+            name: 'West Turntable',
+            center: { q: -1, r: 0 },
+            radius: 1,
+          },
+          {
+            id: 'zone-33-east',
+            name: 'East Turntable',
+            center: { q: 1, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-ruby', 'p-triad-amber', 'p-duo-emerald', 'p-quad-sapphire']),
+    targetScore: { star1: 1000, star2: 5200, star3: 6800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 34: Emerald Riverbank Enclave (High Density Grove with 3-Penalty Limit)
+  // --------------------------------------------------------------------------
+  {
+    id: 34,
+    name: 'Emerald Riverbank Enclave',
+    subtitle: 'Mechanic: High-Density Ancient Canopy Reserve',
+    description:
+      'Deploy 5-Hex Pentad and 3-Hex Triad grove structures without violating the strict 3-penalty integrity limit.',
+    masteryChallenge: {
+      id: 'mc-34',
+      title: 'Enclave Warden',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Canopy Enclave',
+        objective: 'Establish the massive emerald canopy reserve alongside the tranquil river.',
+        targetTilesCount: 14,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 0, r: 1 },
+          { q: 1, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 1 },
+          { q: -1, r: 2 },
+          { q: -2, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Emerald Sanctuary',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 1, r: 1 }, { q: 0, r: 2 }, { q: -1, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: -1 }, { q: 1, r: -1 }, { q: 2, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-pentad-emerald', 'p-triad-emerald', 'p-duo-emerald', 'p-duo-amber']),
+    targetScore: { star1: 1000, star2: 5400, star3: 7000 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 35: Sapphire Torrent Sanctum (Triple Rotary Nodes)
+  // --------------------------------------------------------------------------
+  {
+    id: 35,
+    name: 'Sapphire Torrent Sanctum',
+    subtitle: 'Mechanic: Triple Rotary Waterwheels',
+    description:
+      'Three synchronized waterwheels route rushing sapphire currents into surrounding emerald groves.',
+    masteryChallenge: {
+      id: 'mc-35',
+      title: 'Torrent Sovereign',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Torrent Hub',
+        objective: 'Coordinate the triple rotary mechanisms across the river delta.',
+        targetTilesCount: 16,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 2, r: 0 },
+          { q: -2, r: 0 },
+          { q: 0, r: 2 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Torrent Well',
+            color: 'sapphire',
+            coords: [{ q: 0, r: 0 }, { q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+          {
+            name: 'Verdant Bank',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-35-main',
+            name: 'Torrent Waterwheel',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 1, r: 1 }, { q: 2, r: 1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-quad-sapphire', 'p-duo-sapphire', 'p-pentad-emerald', 'p-duo-amber']),
+    targetScore: { star1: 1000, star2: 5600, star3: 7200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 36: Crimson Forge Causeway (Ruby Hearths + River Canyon)
+  // --------------------------------------------------------------------------
+  {
+    id: 36,
+    name: 'Crimson Forge Causeway',
+    subtitle: 'Mechanic: Ruby Hearths & Magma River Canyon',
+    description:
+      'Build blacksmith forges along the magma river causeway, using Fog Hexes to safely bridge both rims.',
+    masteryChallenge: {
+      id: 'mc-36',
+      title: 'Magma Master',
+      description: 'Complete with at least 2000 points.',
+      type: 'min_score',
+      targetValue: 2000,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Causeway Rim',
+        objective: 'Construct the forge causeway and project into the eastern fog.',
+        targetTilesCount: 10,
+        unlockedCoords: [
+          { q: -1, r: 0 },
+          { q: -2, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: -1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'West Kiln',
+            color: 'ruby',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+        fogCoords: [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 1, r: -1 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Full Forge Causeway',
+        objective: 'Ignite both sides of the volcanic causeway.',
+        targetTilesCount: 18,
+        unlockedCoords: [
+          { q: -1, r: 0 },
+          { q: -2, r: 0 },
+          { q: -1, r: 1 },
+          { q: -2, r: 1 },
+          { q: -1, r: -1 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 1, r: -1 },
+          { q: 2, r: -1 },
+          { q: 1, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'West Kiln',
+            color: 'ruby',
+            coords: [{ q: -1, r: 0 }, { q: -2, r: 0 }],
+          },
+          {
+            name: 'East Forge',
+            color: 'ruby',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-ruby', 'p-house-ruby', 'p-triad-amber', 'p-duo-emerald']),
+    targetScore: { star1: 1000, star2: 5800, star3: 7400 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 37: Grand Blossom Archipelago (Blossom Mega-Cluster across Canyons)
+  // --------------------------------------------------------------------------
+  {
+    id: 37,
+    name: 'Grand Blossom Archipelago',
+    subtitle: 'Mechanic: 6-Hex Blossom Cluster & Fog Navigation',
+    description:
+      'Wield the mighty 6-Hex Blossom mega-cluster across deep misty river channels.',
+    masteryChallenge: {
+      id: 'mc-37',
+      title: 'Blossom Sovereign',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Blossom Peninsula',
+        objective: 'Rotate and plant the 6-Hex Blossom cluster to connect all archipelago channels.',
+        targetTilesCount: 16,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 1, r: -1 },
+          { q: 0, r: -1 },
+          { q: -1, r: 0 },
+          { q: -1, r: 1 },
+          { q: 2, r: 0 },
+          { q: 0, r: 2 },
+          { q: -2, r: 1 },
+          { q: -2, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Imperial Blossom Ring',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 1, r: -1 }, { q: 0, r: -1 }, { q: -1, r: 0 }, { q: -1, r: 1 }],
+          },
+        ],
+        riverCoords: [{ q: 0, r: 1 }, { q: 2, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-pentad-emerald', 'p-quad-sapphire', 'p-duo-ruby']),
+    targetScore: { star1: 1000, star2: 6000, star3: 7600 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 38: Dual River Sluice Matrix (Two Intersecting Rivers + Dual Turntables)
+  // --------------------------------------------------------------------------
+  {
+    id: 38,
+    name: 'Dual River Sluice Matrix',
+    subtitle: 'Mechanics: Cross-River Waterways & Dual Dynamic Hubs',
+    description:
+      'Manage settlement expansion across an X-crossing river matrix controlled by two rotary turntable gears.',
+    masteryChallenge: {
+      id: 'mc-38',
+      title: 'Matrix Engineer',
+      description: 'Complete with at least 1800 points.',
+      type: 'min_score',
+      targetValue: 1800,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Matrix Hubs',
+        objective: 'Rotate both gear nodes to align Amber, Emerald, and Sapphire districts.',
+        targetTilesCount: 18,
+        unlockedCoords: [
+          { q: -2, r: 0 },
+          { q: -1, r: 0 },
+          { q: -1, r: -1 },
+          { q: -2, r: 1 },
+          { q: 2, r: 0 },
+          { q: 1, r: 0 },
+          { q: 1, r: 1 },
+          { q: 2, r: -1 },
+          { q: 0, r: 2 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'West Sluice',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -1, r: 0 }],
+          },
+          {
+            name: 'East Sun Matrix',
+            color: 'amber',
+            coords: [{ q: 2, r: 0 }, { q: 1, r: 0 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-38-left',
+            name: 'West Matrix Gear',
+            center: { q: -1, r: 0 },
+            radius: 1,
+          },
+          {
+            id: 'zone-38-right',
+            name: 'East Matrix Gear',
+            center: { q: 1, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 0, r: 0 }, { q: 0, r: 1 }, { q: 0, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-quad-sapphire', 'p-duo-emerald', 'p-duo-ruby']),
+    targetScore: { star1: 1000, star2: 6200, star3: 7800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 39: Titan's Legacy Peninsula (4-Phase Expansion with Fog & River)
+  // --------------------------------------------------------------------------
+  {
+    id: 39,
+    name: "Titan's Legacy Peninsula",
+    subtitle: 'Mechanics: 4-Phase Epic Expansion & River Divide',
+    description:
+      'The sacred grounds of the defeated titan: A massive 4-phase peninsula requiring all 4 color masteries.',
+    masteryChallenge: {
+      id: 'mc-39',
+      title: 'Legacy Sovereign',
+      description: 'Complete all 4 phases with at least 2200 points.',
+      type: 'min_score',
+      targetValue: 2200,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Peninsula Gateway',
+        objective: 'Establish the gateway and project into northern fog.',
+        targetTilesCount: 8,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Gateway Sun',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+        ],
+        riverCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+        fogCoords: [{ q: 0, r: 1 }, { q: 1, r: 1 }, { q: -1, r: 1 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Grove District',
+        objective: 'Expand into the revealed emerald grove.',
+        targetTilesCount: 14,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 0, r: 1 },
+          { q: 1, r: 1 },
+          { q: -1, r: 1 },
+          { q: 0, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Gateway Sun',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Peninsula Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+        ],
+        riverCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+      },
+      {
+        phaseNumber: 3,
+        title: 'Phase 3: Aquifer Flank',
+        objective: 'Construct the sapphire hydro sluices.',
+        targetTilesCount: 19,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 0, r: 1 },
+          { q: 1, r: 1 },
+          { q: -1, r: 1 },
+          { q: 0, r: 2 },
+          { q: 2, r: 0 },
+          { q: 2, r: -1 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Gateway Sun',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Peninsula Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+          {
+            name: 'River Aquifer',
+            color: 'sapphire',
+            coords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+          },
+        ],
+        riverCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+      },
+      {
+        phaseNumber: 4,
+        title: 'Phase 4: Sovereign Kilns',
+        objective: 'Complete the quad-color citadel with the Ruby forge kiln.',
+        targetTilesCount: 24,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 0, r: 1 },
+          { q: 1, r: 1 },
+          { q: -1, r: 1 },
+          { q: 0, r: 2 },
+          { q: 2, r: 0 },
+          { q: 2, r: -1 },
+          { q: 1, r: -1 },
+          { q: 0, r: -2 },
+          { q: -1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Gateway Sun',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Peninsula Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+          {
+            name: 'River Aquifer',
+            color: 'sapphire',
+            coords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+          },
+          {
+            name: 'Hearth Spire',
+            color: 'ruby',
+            coords: [{ q: 0, r: -2 }, { q: -1, r: -1 }],
+          },
+        ],
+        riverCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+      },
+    ],
+    availablePieces: getPieces([
+      'p-house-gray',
+      'p-duo-gray',
       'p-triad-amber',
       'p-pentad-emerald',
       'p-quad-sapphire',
       'p-duo-ruby',
     ]),
-    targetScore: { star1: 4500, star2: 6500, star3: 8800 },
+    targetScore: { star1: 1000, star2: 6500, star3: 8200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 40: THE ETERNAL SOVEREIGN EMPIRE (Ultimate Campaign Climax)
+  // --------------------------------------------------------------------------
+  {
+    id: 40,
+    name: 'The Eternal Sovereign Empire',
+    subtitle: 'Campaign Finale: The Sovereign Master Metropolis',
+    description:
+      'The definitive frontier masterpiece: 4-Phase expansion, Blossom mega-clusters, Fog predictions, dividing rivers, dynamic rotary color hubs, and the ultimate 7000+ points Mastery Challenge!',
+    masteryChallenge: {
+      id: 'mc-40',
+      title: 'Eternal Grand Emperor',
+      description: 'Conquer the Sovereign Empire with at least 2500 points!',
+      type: 'min_score',
+      targetValue: 2500,
+    },
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'Phase 1: Imperial Core & Turntable',
+        objective: 'Build the grand blossom ring on the central turntable.',
+        targetTilesCount: 8,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Imperial Sun Plaza',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-40-core',
+            name: 'Imperial Sovereign Gear',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+        fogCoords: [{ q: -2, r: 0 }, { q: -2, r: 1 }, { q: 0, r: 2 }],
+      },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Emerald Sanctuary',
+        objective: 'Expand across the revealed western grove terraces.',
+        targetTilesCount: 16,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Imperial Sun Plaza',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Grove Sanctuary',
+            color: 'emerald',
+            coords: [{ q: 0, r: 2 }, { q: -1, r: 2 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-40-core',
+            name: 'Imperial Sovereign Gear',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+      },
+      {
+        phaseNumber: 3,
+        title: 'Phase 3: Sapphire Aqueducts',
+        objective: 'Route the crystal sapphire aqueducts into the capital.',
+        targetTilesCount: 22,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+          { q: -1, r: -1 },
+          { q: -2, r: -1 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Imperial Sun Plaza',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Grove Sanctuary',
+            color: 'emerald',
+            coords: [{ q: 0, r: 2 }, { q: -1, r: 2 }],
+          },
+          {
+            name: 'Sapphire Aqueducts',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-40-core',
+            name: 'Imperial Sovereign Gear',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+      },
+      {
+        phaseNumber: 4,
+        title: 'Phase 4: The Grand Metropolis Sovereign',
+        objective: 'Ignite the Ruby hearths to complete the ultimate eternal empire!',
+        targetTilesCount: 28,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 0, r: 1 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: -2, r: 0 },
+          { q: -2, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 2 },
+          { q: -1, r: -1 },
+          { q: -2, r: -1 },
+          { q: 0, r: -2 },
+          { q: 1, r: -2 },
+          { q: -1, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Imperial Sun Plaza',
+            color: 'amber',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
+          },
+          {
+            name: 'Grove Sanctuary',
+            color: 'emerald',
+            coords: [{ q: 0, r: 2 }, { q: -1, r: 2 }],
+          },
+          {
+            name: 'Sapphire Aqueducts',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+          },
+          {
+            name: 'Ruby Sovereign Kiln',
+            color: 'ruby',
+            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
+          },
+        ],
+        rotationZones: [
+          {
+            id: 'zone-40-core',
+            name: 'Imperial Sovereign Gear',
+            center: { q: 0, r: 0 },
+            radius: 1,
+          },
+        ],
+        riverCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }],
+      },
+    ],
+    availablePieces: getPieces([
+      'p-house-gray',
+      'p-duo-gray',
+      'p-blossom-multi',
+      'p-triad-amber',
+      'p-pentad-emerald',
+      'p-quad-sapphire',
+      'p-duo-ruby',
+      'p-house-ruby',
+    ]),
+    targetScore: { star1: 1000, star2: 6800, star3: 8800 },
   },
 ];
