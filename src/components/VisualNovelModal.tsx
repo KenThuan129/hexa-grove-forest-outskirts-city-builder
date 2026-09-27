@@ -51,11 +51,9 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
   const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
   const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  if (!isOpen || !chapter) return null;
-
-  const slides = chapter.slides;
-  const currentSlide: DialogueSlide = slides[currentSlideIndex] || slides[0];
-  const isLastSlide = currentSlideIndex === slides.length - 1;
+  const slides = chapter?.slides || [];
+  const currentSlide: DialogueSlide | undefined = slides[currentSlideIndex] || slides[0];
+  const isLastSlide = slides.length > 0 && currentSlideIndex === slides.length - 1;
 
   // Typewriter Text Effect
   useEffect(() => {
@@ -100,7 +98,7 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
 
   // Handle Auto-Play & Skip Timers
   useEffect(() => {
-    if (!isOpen || isTyping) return;
+    if (!isOpen || isTyping || !currentSlide) return;
 
     // Stop auto-advance if choice modal is present and not chosen
     if (currentSlide.optionChoice && chosenOptionIndex === null && !selectedAceBond) {
@@ -126,6 +124,7 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
 
   // Click on dialogue area: finish typing immediately, or advance slide
   const handleDialogueBoxClick = () => {
+    if (!currentSlide) return;
     if (isTyping) {
       if (typingTimerRef.current) clearInterval(typingTimerRef.current);
       setDisplayedText(currentSlide.text);
@@ -148,6 +147,8 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
       sounds.playClick();
     }
   }, [isOpen, chapter]);
+
+  if (!isOpen || !chapter || !currentSlide) return null;
 
   // Standing Sprites Configuration based on speaker
   const renderStandingSprites = () => {
