@@ -1,21 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { StoryChapter, DialogueSlide } from '../types/story';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StoryChapter, DialogueSlide, SpeakerType } from '../types/story';
 import {
   Sparkles,
   X,
   ChevronRight,
   ChevronLeft,
-  Volume2,
-  VolumeX,
-  Feather,
-  Heart,
-  Shield,
-  Compass,
   Play,
   Pause,
-  AlertTriangle,
+  FastForward,
+  MessageSquare,
+  Eye,
+  EyeOff,
+  LogOut,
+  Shield,
   Crown,
-  BookOpen,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -35,37 +35,21 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
   selectedAceBond,
 }) => {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
+  const [displayedText, setDisplayedText] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+
+  // Playback states
+  const [isAutoPlay, setIsAutoPlay] = useState(false);
+  const [isSkip, setIsSkip] = useState(false);
+  const [isHideUI, setIsHideUI] = useState(false);
+  const [showHistoryLog, setShowHistoryLog] = useState(false);
+  const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+
+  // Selected Option
   const [chosenOptionIndex, setChosenOptionIndex] = useState<number | null>(null);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-  const [soundOn, setSoundEnabled] = useState(true);
 
-  // Reset slide index when chapter changes or modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setCurrentSlideIndex(0);
-      setChosenOptionIndex(null);
-      setIsAutoPlaying(false);
-      sounds.playClick();
-    }
-  }, [isOpen, chapter]);
-
-  // Auto-play timer
-  useEffect(() => {
-    if (!isAutoPlaying || !chapter) return;
-    const slides = chapter.slides;
-    const isLastSlide = currentSlideIndex >= slides.length - 1;
-
-    if (isLastSlide) {
-      setIsAutoPlaying(false);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      setCurrentSlideIndex(prev => prev + 1);
-    }, 4500);
-
-    return () => clearTimeout(timer);
-  }, [isAutoPlaying, currentSlideIndex, chapter]);
+  const typingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const autoPlayTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   if (!isOpen || !chapter) return null;
 
@@ -73,257 +57,465 @@ export const VisualNovelModal: React.FC<VisualNovelModalProps> = ({
   const currentSlide: DialogueSlide = slides[currentSlideIndex] || slides[0];
   const isLastSlide = currentSlideIndex === slides.length - 1;
 
-  const handleNextSlide = () => {
-    sounds.playClick();
-    if (isLastSlide) {
-      onClose();
-    } else {
+  // Typewriter Text Effect
+  useEffect(() => {
+    if (!isOpen || !currentSlide) return;
+
+    setDisplayedText('');
+    setIsTyping(true);
+
+    if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+
+    const fullText = currentSlide.text;
+    let charIndex = 0;
+    const speed = isSkip ? 5 : 25; // Speed up when skipping
+
+    typingTimerRef.current = setInterval(() => {
+      charIndex++;
+      setDisplayedText(fullText.slice(0, charIndex));
+
+      if (charIndex >= fullText.length) {
+        if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+        setIsTyping(false);
+      }
+    }, speed);
+
+    return () => {
+      if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+    };
+  }, [currentSlideIndex, currentSlide, isSkip, isOpen]);
+
+  // Handle Next Slide progression
+  const advanceToNextSlide = useCallback(() => {
+    if (currentSlideIndex < slides.length - 1) {
       setCurrentSlideIndex(prev => prev + 1);
+      sounds.playClick();
+    } else {
+      setIsAutoPlay(false);
+      setIsSkip(false);
+      onClose();
+    }
+  }, [currentSlideIndex, slides.length, onClose]);
+
+  // Handle Auto-Play & Skip Timers
+  useEffect(() => {
+    if (!isOpen || isTyping) return;
+
+    // Stop auto-advance if choice modal is present and not chosen
+    if (currentSlide.optionChoice && chosenOptionIndex === null && !selectedAceBond) {
+      setIsAutoPlay(false);
+      setIsSkip(false);
+      return;
+    }
+
+    if (isSkip) {
+      autoPlayTimerRef.current = setTimeout(() => {
+        advanceToNextSlide();
+      }, 250);
+    } else if (isAutoPlay) {
+      autoPlayTimerRef.current = setTimeout(() => {
+        advanceToNextSlide();
+      }, 2800);
+    }
+
+    return () => {
+      if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    };
+  }, [isTyping, isAutoPlay, isSkip, currentSlide, chosenOptionIndex, selectedAceBond, advanceToNextSlide, isOpen]);
+
+  // Click on dialogue area: finish typing immediately, or advance slide
+  const handleDialogueBoxClick = () => {
+    if (isTyping) {
+      if (typingTimerRef.current) clearInterval(typingTimerRef.current);
+      setDisplayedText(currentSlide.text);
+      setIsTyping(false);
+    } else {
+      advanceToNextSlide();
     }
   };
 
-  const handlePrevSlide = () => {
-    sounds.playClick();
-    if (currentSlideIndex > 0) {
-      setCurrentSlideIndex(prev => prev - 1);
+  // Reset when chapter opens
+  useEffect(() => {
+    if (isOpen) {
+      setCurrentSlideIndex(0);
+      setChosenOptionIndex(null);
+      setIsAutoPlay(false);
+      setIsSkip(false);
+      setIsHideUI(false);
+      setShowHistoryLog(false);
+      setShowQuitConfirm(false);
+      sounds.playClick();
     }
+  }, [isOpen, chapter]);
+
+  // Standing Sprites Configuration based on speaker
+  const renderStandingSprites = () => {
+    const speaker = currentSlide.speakerType;
+
+    // Determine positions for active character sprites
+    const isKidActive = speaker === 'kid';
+    const isNatureActive = speaker === 'nature';
+    const isPeopleActive = speaker === 'people' || speaker === 'traveler';
+    const isDamActive = speaker === 'dam';
+
+    return (
+      <div className="absolute inset-0 pointer-events-none flex items-end justify-between px-6 sm:px-16 bottom-24 z-10">
+        {/* Left Character Sprite: The Young Pioneer (Kid) */}
+        <div
+          className={`flex flex-col items-center transition-all duration-500 transform origin-bottom ${
+            isKidActive
+              ? 'scale-105 opacity-100 filter drop-shadow-[0_10px_25px_rgba(245,158,11,0.4)] z-20'
+              : 'scale-95 opacity-50 grayscale-[30%] z-10'
+          }`}
+        >
+          <div className="relative w-40 sm:w-56 h-64 sm:h-80 flex flex-col items-center justify-end">
+            {/* SVG Illustrated Pioneer Standing Sprite */}
+            <div className="relative w-full h-full flex flex-col items-center justify-end">
+              <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-full bg-gradient-to-t from-amber-600/30 to-amber-400/10 border-2 border-amber-400/40 flex items-center justify-center text-6xl sm:text-7xl shadow-2xl backdrop-blur-md">
+                👦
+              </div>
+              <div className="w-32 sm:w-44 h-36 sm:h-48 bg-gradient-to-t from-[#3d2215] via-[#2a170d] to-transparent rounded-t-3xl border-t-2 border-x-2 border-amber-500/40 mt-[-1rem] flex items-center justify-center">
+                <span className="text-3xl font-serif text-amber-300/80">✦</span>
+              </div>
+            </div>
+            {isKidActive && (
+              <div className="absolute top-2 px-3 py-1 rounded-full bg-amber-500 text-amber-950 font-black text-[10px] tracking-widest uppercase shadow-lg animate-bounce">
+                Speaking
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Center / Right Character Sprite: Nature / Traveler / Dam Guardian */}
+        <div
+          className={`flex flex-col items-center transition-all duration-500 transform origin-bottom ${
+            !isKidActive
+              ? 'scale-105 opacity-100 filter drop-shadow-[0_10px_25px_rgba(16,185,129,0.4)] z-20'
+              : 'scale-95 opacity-50 grayscale-[30%] z-10'
+          }`}
+        >
+          <div className="relative w-44 sm:w-60 h-64 sm:h-80 flex flex-col items-center justify-end">
+            <div className="relative w-full h-full flex flex-col items-center justify-end">
+              <div className={`w-24 h-24 sm:w-32 sm:h-32 rounded-full border-2 flex items-center justify-center text-6xl sm:text-7xl shadow-2xl backdrop-blur-md ${
+                isDamActive
+                  ? 'bg-gradient-to-t from-rose-900/40 to-red-600/10 border-rose-500/50'
+                  : isPeopleActive
+                  ? 'bg-gradient-to-t from-sky-900/40 to-cyan-500/10 border-cyan-400/50'
+                  : 'bg-gradient-to-t from-emerald-900/40 to-teal-500/10 border-emerald-400/50'
+              }`}>
+                {currentSlide.avatarIcon}
+              </div>
+              <div className={`w-36 sm:w-48 h-36 sm:h-48 rounded-t-3xl border-t-2 border-x-2 mt-[-1rem] flex items-center justify-center ${
+                isDamActive
+                  ? 'bg-gradient-to-t from-[#2a0808] via-[#1c0505] to-transparent border-rose-500/40'
+                  : isPeopleActive
+                  ? 'bg-gradient-to-t from-[#0a1824] via-[#061018] to-transparent border-cyan-500/40'
+                  : 'bg-gradient-to-t from-[#091f14] via-[#05140d] to-transparent border-emerald-500/40'
+              }`}>
+                <span className="text-3xl font-serif text-emerald-300/80">🌿</span>
+              </div>
+            </div>
+            {!isKidActive && (
+              <div className="absolute top-2 px-3 py-1 rounded-full bg-cyan-400 text-cyan-950 font-black text-[10px] tracking-widest uppercase shadow-lg animate-bounce">
+                Speaking
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
   };
 
-  // Background Mood Gradient Map
-  const getMoodBackground = (mood: string) => {
+  // Background Environment Styling
+  const getEnvironmentStyle = (mood: string) => {
     switch (mood) {
       case 'dream_forest':
-        return 'from-[#132415] via-[#0d180f] to-[#060a07] border-emerald-800/50';
+        return 'from-[#0d1f12] via-[#08120b] to-[#030704] border-emerald-500/30';
       case 'sunlit_clearing':
-        return 'from-[#2e2010] via-[#1f1208] to-[#0d0703] border-amber-800/50';
+        return 'from-[#2b1d0c] via-[#1a1107] to-[#090502] border-amber-500/30';
       case 'elder_monolith':
-        return 'from-[#182828] via-[#0e1818] to-[#070b0b] border-teal-800/50';
+        return 'from-[#102424] via-[#091414] to-[#040808] border-teal-500/30';
       case 'rotary_river':
-        return 'from-[#102230] via-[#0a141d] to-[#04080b] border-sky-800/50';
+        return 'from-[#0b1c28] via-[#061018] to-[#02060a] border-sky-500/30';
       case 'storm_dam':
-        return 'from-[#300c0c] via-[#1a0505] to-[#0a0202] border-rose-800/60';
+        return 'from-[#2c0808] via-[#180404] to-[#080101] border-rose-500/40';
       case 'highland_sanctuary':
-        return 'from-[#241228] via-[#150a1b] to-[#08030b] border-purple-800/50';
+        return 'from-[#1e0a24] via-[#100514] to-[#050208] border-purple-500/30';
       case 'sovereign_dawn':
-        return 'from-[#301e08] via-[#1f1003] to-[#0a0501] border-amber-600/60';
+        return 'from-[#281806] via-[#180d02] to-[#080400] border-amber-400/40';
       default:
-        return 'from-[#24140b] via-[#140b05] to-[#080502] border-amber-900/50';
-    }
-  };
-
-  // Speaker Badge Styles
-  const getSpeakerStyle = (type: string) => {
-    switch (type) {
-      case 'kid':
-        return 'bg-amber-950/90 text-amber-300 border-amber-500/50';
-      case 'nature':
-        return 'bg-emerald-950/90 text-emerald-300 border-emerald-500/50';
-      case 'people':
-        return 'bg-orange-950/90 text-orange-300 border-orange-500/50';
-      case 'self':
-        return 'bg-rose-950/90 text-rose-300 border-rose-500/50';
-      case 'traveler':
-        return 'bg-sky-950/90 text-sky-300 border-sky-500/50';
-      case 'dam':
-        return 'bg-red-950/90 text-red-300 border-red-500/50';
-      case 'system':
-      default:
-        return 'bg-purple-950/90 text-purple-300 border-purple-500/50';
+        return 'from-[#1f1008] via-[#120904] to-[#060301] border-amber-500/30';
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/80 backdrop-blur-md animate-fade-in font-sans select-none">
-      {/* Visual Novel Theater Window */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-lg animate-fade-in font-sans select-none overflow-hidden">
+      {/* Visual Novel Full Screen Container */}
       <div
-        className={`relative w-full max-w-4xl h-[90vh] max-h-[720px] rounded-3xl border-2 bg-gradient-to-b ${getMoodBackground(
+        className={`relative w-full max-w-6xl h-[95vh] max-h-[820px] rounded-3xl border ${getEnvironmentStyle(
           currentSlide.backgroundMood
-        )} shadow-2xl overflow-hidden flex flex-col justify-between transition-all duration-700`}
+        )} bg-gradient-to-b shadow-2xl overflow-hidden flex flex-col justify-between transition-colors duration-700`}
       >
-        {/* Ambient Animated Particles / Overlay */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden z-0 opacity-40">
-          <div className="absolute top-10 left-1/4 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl animate-pulse" />
+        {/* Background Environment Art Texture */}
+        <div className="absolute inset-0 pointer-events-none z-0 opacity-40">
+          <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-1/3 right-1/3 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-3xl animate-pulse" />
           {currentSlide.backgroundMood === 'storm_dam' && (
-            <div className="absolute inset-0 bg-red-950/20 animate-pulse pointer-events-none" />
+            <div className="absolute inset-0 bg-red-950/30 animate-pulse" />
           )}
         </div>
 
-        {/* Top VN Header Bar */}
-        <header className="relative z-10 p-4 sm:p-5 border-b border-amber-500/20 bg-black/40 backdrop-blur-md flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-xl shadow-inner">
-              {chapter.sketchIcon}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-400 font-mono">
-                  Chapter {chapter.chapterNumber} · Visual Novel Memory
+        {/* Top Right Control Cluster (Matching Screenshot Layout) */}
+        {!isHideUI && (
+          <header className="relative z-30 p-4 sm:p-6 flex items-center justify-between w-full">
+            {/* Chapter Badge */}
+            <div className="flex items-center gap-3 bg-black/50 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10">
+              <span className="text-xl">{chapter.sketchIcon}</span>
+              <div>
+                <span className="text-[10px] font-mono font-bold tracking-widest text-cyan-400 uppercase block">
+                  Chapter {chapter.chapterNumber} · {chapter.title}
+                </span>
+                <span className="text-xs font-bold text-slate-200">
+                  Slide {currentSlideIndex + 1} / {slides.length}
                 </span>
               </div>
-              <h2 className="text-sm sm:text-base font-black text-amber-100 font-serif tracking-wide">
-                {chapter.title}
-              </h2>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsAutoPlaying(!isAutoPlaying)}
-              className={`p-2 rounded-xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                isAutoPlaying
-                  ? 'bg-amber-500 text-amber-950 border-amber-300'
-                  : 'bg-black/40 text-amber-300 border-amber-500/30 hover:bg-amber-950/60'
-              }`}
-            >
-              {isAutoPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{isAutoPlaying ? 'Auto On' : 'Auto'}</span>
-            </button>
-
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl bg-black/40 hover:bg-rose-950/80 text-amber-200 hover:text-white border border-amber-500/30 hover:border-rose-500/50 transition-all cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
-
-        {/* Center Stage: Character Portrait & Scene Atmosphere */}
-        <main className="relative z-10 flex-1 p-4 sm:p-6 flex flex-col justify-end gap-4 overflow-y-auto">
-          {/* Speaker Character Avatar Badge */}
-          <div className="flex items-end gap-4 animate-fade-in">
-            <div className="relative">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-amber-900/90 to-amber-950/90 border-2 border-amber-400/50 flex items-center justify-center text-3xl sm:text-4xl shadow-2xl relative z-10">
-                {currentSlide.avatarIcon}
-              </div>
-              <div className="absolute -inset-1 rounded-3xl bg-amber-400/20 blur-md pointer-events-none" />
             </div>
 
-            <div className="flex flex-col gap-1">
-              <div
-                className={`px-3 py-1 rounded-xl border text-xs font-bold flex items-center gap-1.5 shadow-lg ${getSpeakerStyle(
-                  currentSlide.speakerType
-                )}`}
+            {/* Quick Action Button Bar */}
+            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md p-1.5 rounded-2xl border border-white/15 shadow-xl">
+              {/* Dialogue History Log */}
+              <button
+                onClick={() => setShowHistoryLog(true)}
+                title="Dialogue History Log"
+                className="p-2.5 rounded-xl hover:bg-white/15 text-slate-300 hover:text-white transition-all cursor-pointer"
               >
-                <Feather className="w-3.5 h-3.5" />
-                <span>{currentSlide.speakerName}</span>
+                <MessageSquare className="w-4 h-4" />
+              </button>
+
+              {/* Auto Play Toggle */}
+              <button
+                onClick={() => {
+                  setIsAutoPlay(!isAutoPlay);
+                  setIsSkip(false);
+                  sounds.playClick();
+                }}
+                title="Auto Play"
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isAutoPlay
+                    ? 'bg-cyan-500 text-cyan-950 shadow-lg font-black'
+                    : 'hover:bg-white/15 text-slate-300 hover:text-white'
+                }`}
+              >
+                {isAutoPlay ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
+                <span className="text-[11px]">AUTO</span>
+              </button>
+
+              {/* Fast Forward / Skip */}
+              <button
+                onClick={() => {
+                  setIsSkip(!isSkip);
+                  setIsAutoPlay(false);
+                  sounds.playClick();
+                }}
+                title="Fast Forward / Skip"
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isSkip
+                    ? 'bg-amber-400 text-amber-950 shadow-lg font-black'
+                    : 'hover:bg-white/15 text-slate-300 hover:text-white'
+                }`}
+              >
+                <FastForward className="w-3.5 h-3.5" />
+                <span className="text-[11px]">SKIP</span>
+              </button>
+
+              {/* Hide UI */}
+              <button
+                onClick={() => setIsHideUI(true)}
+                title="Hide UI"
+                className="p-2.5 rounded-xl hover:bg-white/15 text-slate-300 hover:text-white transition-all cursor-pointer"
+              >
+                <Eye className="w-4 h-4" />
+              </button>
+
+              {/* Quit Story */}
+              <button
+                onClick={() => setShowQuitConfirm(true)}
+                title="Quit Story"
+                className="p-2.5 rounded-xl bg-rose-950/80 hover:bg-rose-900 text-rose-200 border border-rose-500/30 transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </header>
+        )}
+
+        {/* Unhide UI Floating Button when UI is hidden */}
+        {isHideUI && (
+          <button
+            onClick={() => setIsHideUI(false)}
+            className="absolute top-4 right-4 z-40 p-3 rounded-2xl bg-black/80 text-cyan-300 border border-cyan-500/40 shadow-2xl flex items-center gap-2 text-xs font-bold hover:bg-cyan-950 transition-all cursor-pointer"
+          >
+            <EyeOff className="w-4 h-4" />
+            <span>Show Interface</span>
+          </button>
+        )}
+
+        {/* Center Stage: Character Standing Sprites */}
+        {!isHideUI && renderStandingSprites()}
+
+        {/* Bottom Dialogue Box (Matching Screenshot Translucent Glass Box Layout) */}
+        {!isHideUI && (
+          <div className="relative z-30 p-4 sm:p-8 w-full max-w-4xl mx-auto mb-2">
+            <div
+              onClick={handleDialogueBoxClick}
+              className="relative p-6 sm:p-8 rounded-2xl bg-slate-950/85 border border-cyan-500/30 backdrop-blur-xl shadow-[0_20px_50px_rgba(0,0,0,0.8)] cursor-pointer hover:border-cyan-400/60 transition-all group overflow-hidden"
+              style={{
+                clipPath: 'polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px))',
+              }}
+            >
+              {/* Sci-Fi Chamfered Glow Borders */}
+              <div className="absolute top-0 left-0 w-8 h-1 bg-gradient-to-r from-cyan-400 to-transparent" />
+              <div className="absolute bottom-0 right-0 w-8 h-1 bg-gradient-to-l from-cyan-400 to-transparent" />
+
+              {/* Speaker Name Badge attached top-left */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="px-3 py-1 rounded-lg bg-cyan-950/90 border border-cyan-400/40 text-cyan-300 font-bold text-xs tracking-wider uppercase font-mono">
+                  {currentSlide.speakerName}
+                </span>
+                <span className="text-xs font-serif italic text-slate-400">
+                  — {currentSlide.speakerRole}
+                </span>
               </div>
-              <span className="text-[11px] font-serif italic text-amber-300/80 px-1">
-                {currentSlide.speakerRole}
-              </span>
+
+              {/* Animating Dialogue Text */}
+              <p className="text-sm sm:text-lg font-serif text-slate-100 leading-relaxed tracking-wide min-h-[64px] font-medium">
+                {displayedText}
+                {isTyping && <span className="inline-block w-2 h-4 bg-cyan-400 ml-1 animate-pulse" />}
+              </p>
+
+              {/* Interactive Choice Modal Overlay inside Dialogue Box */}
+              {currentSlide.optionChoice && (
+                <div className="mt-4 pt-4 border-t border-cyan-500/20 flex flex-col gap-3 animate-fade-in">
+                  <span className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    {currentSlide.optionChoice.prompt}
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    {currentSlide.optionChoice.options.map((opt, idx) => {
+                      const isSelected =
+                        chosenOptionIndex === idx || (opt.aceBond && selectedAceBond === opt.aceBond);
+
+                      return (
+                        <button
+                          key={idx}
+                          onClick={e => {
+                            e.stopPropagation();
+                            setChosenOptionIndex(idx);
+                            sounds.playVictory();
+                            if (opt.aceBond && onSelectAceBond) {
+                              onSelectAceBond(chapter.id, opt.aceBond);
+                            }
+                          }}
+                          className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer flex flex-col gap-1 ${
+                            isSelected
+                              ? 'bg-amber-500 text-amber-950 border-amber-200 font-bold shadow-lg scale-[1.02]'
+                              : 'bg-black/60 text-amber-200 border-cyan-500/30 hover:border-amber-400 hover:bg-amber-950/50'
+                          }`}
+                        >
+                          <span className="font-bold flex items-center justify-between">
+                            <span>{opt.text}</span>
+                            {isSelected && <Crown className="w-3.5 h-3.5 shrink-0" />}
+                          </span>
+                          {isSelected && (
+                            <span className="text-[10.5px] italic opacity-90 mt-1">
+                              "{opt.reflectionResponse}"
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Pulsing Next Arrow Indicator in Bottom Right */}
+              {!isTyping && (
+                <div className="absolute bottom-3 right-4 flex items-center gap-1 text-[11px] font-mono font-bold text-cyan-400 animate-pulse">
+                  <span>CLICK TO CONTINUE</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              )}
             </div>
           </div>
+        )}
+      </div>
 
-          {/* Dialogue Text Frame */}
-          <div className="w-full p-5 sm:p-7 rounded-3xl bg-black/75 border-2 border-amber-500/40 shadow-2xl backdrop-blur-md relative flex flex-col gap-4">
-            {/* Story Quote Line */}
-            <p className="font-serif text-sm sm:text-lg text-amber-100 leading-relaxed tracking-wide min-h-[70px]">
-              "{currentSlide.text}"
+      {/* History Dialogue Log Modal */}
+      {showHistoryLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-2xl bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 max-h-[80vh]">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2 text-cyan-400 font-bold text-sm">
+                <MessageSquare className="w-4 h-4" />
+                <span>Dialogue Transcript Log</span>
+              </div>
+              <button
+                onClick={() => setShowHistoryLog(false)}
+                className="p-1.5 rounded-xl bg-slate-800 text-slate-300 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+              {slides.slice(0, currentSlideIndex + 1).map((s, idx) => (
+                <div key={idx} className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+                  <span className="font-bold text-cyan-300 uppercase tracking-wider block mb-1">
+                    {s.speakerName} ({s.speakerRole})
+                  </span>
+                  <p className="text-slate-200 italic font-serif">"{s.text}"</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quit Story Confirmation Modal */}
+      {showQuitConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-rose-950 border border-rose-500/40 text-rose-400 flex items-center justify-center mx-auto">
+              <LogOut className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-lg font-bold text-white">Leave Visual Novel Chapter?</h3>
+            <p className="text-xs text-slate-300 leading-relaxed font-serif">
+              You can return to read Chapter {chapter.chapterNumber} anytime from the Memories Gallery.
             </p>
 
-            {/* Reflection Choice (if present on slide) */}
-            {currentSlide.optionChoice && (
-              <div className="mt-2 p-4 rounded-2xl bg-amber-950/60 border border-amber-500/30 flex flex-col gap-2.5 animate-fade-in">
-                <span className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  {currentSlide.optionChoice.prompt}
-                </span>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {currentSlide.optionChoice.options.map((opt, idx) => {
-                    const isSelected =
-                      chosenOptionIndex === idx || (opt.aceBond && selectedAceBond === opt.aceBond);
-
-                    return (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setChosenOptionIndex(idx);
-                          sounds.playVictory();
-                          if (opt.aceBond && onSelectAceBond) {
-                            onSelectAceBond(chapter.id, opt.aceBond);
-                          }
-                        }}
-                        className={`p-3 rounded-xl border text-left text-xs transition-all cursor-pointer flex flex-col gap-1 ${
-                          isSelected
-                            ? 'bg-amber-500 text-amber-950 border-amber-200 font-bold shadow-lg scale-[1.02]'
-                            : 'bg-black/50 text-amber-200 border-amber-500/30 hover:border-amber-400 hover:bg-amber-900/40'
-                        }`}
-                      >
-                        <span className="font-bold flex items-center justify-between">
-                          <span>{opt.text}</span>
-                          {isSelected && <Crown className="w-3.5 h-3.5 shrink-0" />}
-                        </span>
-                        {isSelected && (
-                          <span className="text-[10.5px] italic opacity-90 mt-1">
-                            "{opt.reflectionResponse}"
-                          </span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Core Philosophy Banner Note */}
-            <div className="pt-2 border-t border-amber-500/20 flex flex-col sm:flex-row items-center justify-between gap-2 text-[10.5px] text-amber-400/80">
-              <div className="flex items-center gap-1.5 font-serif italic">
-                <Shield className="w-3.5 h-3.5 text-amber-400" />
-                <span>
-                  "Trust in one bond is greater than the bless of all others — only you can build everything."
-                </span>
-              </div>
-              <div className="font-mono text-amber-300/60">
-                Slide {currentSlideIndex + 1} of {slides.length}
-              </div>
+            <div className="flex items-center gap-3 mt-2">
+              <button
+                onClick={() => setShowQuitConfirm(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-800"
+              >
+                Continue Reading
+              </button>
+              <button
+                onClick={() => {
+                  setShowQuitConfirm(false);
+                  onClose();
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs shadow-lg"
+              >
+                Exit Story
+              </button>
             </div>
           </div>
-        </main>
-
-        {/* Bottom VN Navigation Footer */}
-        <footer className="relative z-10 p-4 sm:p-5 border-t border-amber-500/20 bg-black/50 backdrop-blur-md flex items-center justify-between gap-3">
-          <button
-            onClick={handlePrevSlide}
-            disabled={currentSlideIndex === 0}
-            className={`px-4 py-2.5 rounded-2xl border text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
-              currentSlideIndex === 0
-                ? 'opacity-40 cursor-not-allowed bg-black/20 border-amber-900/30 text-amber-500/40'
-                : 'bg-amber-950/80 hover:bg-amber-900 text-amber-200 border-amber-500/40'
-            }`}
-          >
-            <ChevronLeft className="w-4 h-4" />
-            <span>Previous</span>
-          </button>
-
-          {/* Progress Dots */}
-          <div className="flex items-center gap-1.5">
-            {slides.map((_, idx) => (
-              <div
-                key={idx}
-                onClick={() => {
-                  sounds.playClick();
-                  setCurrentSlideIndex(idx);
-                }}
-                className={`h-2 rounded-full transition-all cursor-pointer ${
-                  idx === currentSlideIndex
-                    ? 'w-6 bg-amber-400'
-                    : 'w-2 bg-amber-900/60 hover:bg-amber-600'
-                }`}
-              />
-            ))}
-          </div>
-
-          <button
-            onClick={handleNextSlide}
-            className="px-5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-amber-950 font-black text-xs shadow-lg flex items-center gap-2 transition-all cursor-pointer hover:scale-105"
-          >
-            <span>{isLastSlide ? 'Complete Chapter' : 'Next'}</span>
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </footer>
-      </div>
+        </div>
+      )}
     </div>
   );
 };
