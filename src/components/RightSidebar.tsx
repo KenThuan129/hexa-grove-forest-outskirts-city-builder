@@ -77,8 +77,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   React.useEffect(() => {
     if (!isFalsehoodActive && !isPenaltyLimitExceeded) return;
     const interval = setInterval(() => {
-      setScrambleNum(Math.floor(100 + Math.random() * 900).toString());
-    }, 50);
+      setScrambleNum(Math.floor(100 + Math.random() * 899).toString());
+    }, 120);
     return () => clearInterval(interval);
   }, [isFalsehoodActive, isPenaltyLimitExceeded]);
 
@@ -101,46 +101,41 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     nextMilestoneText = `${targets.star3 - score} to ★3`;
   }
 
-  // Victory / Expansion eligibility:
-  // If intermediate phase (!isLastPhase): canProceed is always true for expansion.
-  // If final phase (isLastPhase):
-  //   - Try-hard mode: winning requires at least 1 Star + Mastery Challenge (if configured).
-  //   - Casual mode: winning only requires Mastery Challenge (if configured) + phase targets.
   const isFinalVictoryReady = isTryHard
     ? starsEarned >= 1 && (!masteryChallenge || isMasteryCompleted)
-    : !masteryChallenge || isMasteryCompleted;
+    : true;
   const canProceed = !isLastPhase || isFinalVictoryReady;
 
   return (
     <aside
       data-tutorial-id="right-sidebar-panel"
-      className="pointer-events-auto w-64 sm:w-72 flex flex-col gap-2 p-1 select-none"
+      className="pointer-events-auto w-64 sm:w-72 flex flex-col gap-2 p-1 select-none font-sans"
     >
-      {/* 1. Current Area & Biome Card + Rotation Zone + Expand / Claim Victory Button */}
-      <div className="bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl rounded-2xl p-2.5 flex flex-col gap-2">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
-          <div className="flex items-center gap-1.5">
-            <div className="w-5 h-5 rounded-md bg-amber-100 flex items-center justify-center text-amber-700">
+      {/* 1. Current Area & Biome Card */}
+      <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-3xl p-3 flex flex-col gap-2.5 text-slate-100">
+        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
               <Compass className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h1 className="text-[11px] font-black text-slate-900 leading-none">
+              <h1 className="text-xs font-black text-white leading-none">
                 {currentLevel.name}
               </h1>
             </div>
           </div>
 
-          <span className="text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded-full">
+          <span className="text-[9.5px] font-mono font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-2 py-0.5 rounded-full">
             Phase {currentPhaseIndex + 1}/{totalPhases}
           </span>
         </div>
 
         {/* Phase Objective Box */}
-        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200/80 text-[10px]">
-          <div className="font-bold text-slate-800 leading-tight">
+        <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[10.5px]">
+          <div className="font-bold text-amber-200 leading-tight">
             {currentPhase.title}
           </div>
-          <p className="text-slate-600 line-clamp-2 mt-0.5 leading-normal">
+          <p className="text-slate-300 line-clamp-2 mt-0.5 leading-normal text-[10px]">
             {currentPhase.objective}
           </p>
         </div>
@@ -151,23 +146,23 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             {rotationZones.map(zone => (
               <div
                 key={zone.id}
-                className="flex items-center justify-between p-2 rounded-xl bg-slate-900 text-white border border-slate-700 shadow-md"
+                className="flex items-center justify-between p-2 rounded-2xl bg-slate-950/90 text-white border border-cyan-500/40 shadow-md"
               >
                 <div className="flex items-center gap-1.5 overflow-hidden">
                   <RotateCw className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-spin-slow" />
                   <div className="truncate">
-                    <div className="text-[10px] font-bold truncate">{zone.name}</div>
+                    <div className="text-[10px] font-bold truncate text-cyan-200">{zone.name}</div>
                     <div className="text-[8px] text-slate-400">Turntable (60° Spin)</div>
                   </div>
                 </div>
                 <button
                   onClick={() => onRotateZone?.(zone.id)}
-                  className="shrink-0 px-2 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all cursor-pointer flex items-center gap-1 ml-1"
+                  className="shrink-0 px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-[10px] font-bold shadow transition-all cursor-pointer flex items-center gap-1 ml-1"
                   title="Rotate all single hexes on this turntable by 60° (Press T key)"
                 >
                   <RotateCw className="w-3 h-3" />
                   <span>Spin</span>
-                  <span className="font-mono text-[9px] bg-cyan-800/80 px-1 py-0.2 rounded text-cyan-200">[T]</span>
+                  <span className="font-mono text-[9px] bg-cyan-900/80 px-1 py-0.2 rounded text-cyan-200">[T]</span>
                 </button>
               </div>
             ))}
@@ -176,7 +171,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
 
         {/* Colored Zones Checklist */}
         <div className="flex flex-col gap-1">
-          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 font-mono">
             Target Color Zones:
           </span>
 
@@ -199,26 +194,26 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               return (
                 <div
                   key={zone.name}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10px] transition-all ${
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-xl border text-[10px] transition-all ${
                     isZoneComplete
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900 font-semibold'
-                      : 'bg-white border-slate-200 text-slate-700'
+                      ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300 font-semibold'
+                      : 'bg-slate-950/60 border-slate-800 text-slate-300'
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${
                       zone.color === 'amber'
-                        ? 'bg-amber-400'
+                        ? 'bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.8)]'
                         : zone.color === 'emerald'
-                        ? 'bg-emerald-500'
+                        ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
                         : zone.color === 'sapphire'
-                        ? 'bg-blue-500'
-                        : 'bg-rose-500'
+                        ? 'bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.8)]'
+                        : 'bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]'
                     }`}
                   />
                   <span className="truncate max-w-[90px]">{zone.name}</span>
                   {isZoneComplete ? (
-                    <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                    <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                   ) : (
                     <span className="font-mono text-[9px] text-slate-400">
                       {matchedCount}/{totalInZone}
@@ -230,20 +225,20 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           </div>
         </div>
 
-        {/* Fog Prediction Notice if present in current phase */}
+        {/* Fog Notice */}
         {currentPhase.fogCoords && currentPhase.fogCoords.length > 0 && (
-          <div className="p-2 rounded-xl bg-purple-50 border border-purple-300 text-purple-900 text-[10px] flex items-center justify-between">
+          <div className="p-2 rounded-2xl bg-purple-950/60 border border-purple-500/40 text-purple-200 text-[10px] flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <span className="text-xs">🌫️</span>
               <span className="font-bold">Fog Hexes Active ({currentPhase.fogCoords.length})</span>
             </div>
-            <span className="text-[8px] font-mono bg-purple-200 text-purple-950 px-1.5 py-0.5 rounded-full font-bold">
-              +3 Safe Tiles on Clear
+            <span className="text-[8.5px] font-mono bg-purple-900 text-purple-200 px-1.5 py-0.5 rounded-full font-bold">
+              +3 Safe Tiles
             </span>
           </div>
         )}
 
-        {/* Boss HP Gauge (for Level 25 Boss Challenge) */}
+        {/* Boss HP Gauge */}
         {currentLevel.isBossLevel && (
           <div className="p-2.5 rounded-2xl bg-gradient-to-br from-rose-950 via-slate-900 to-purple-950 text-white border-2 border-rose-500/80 shadow-xl flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
@@ -263,7 +258,6 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               </span>
             </div>
 
-            {/* Boss HP Bar (Decreases as color zones are filled) */}
             <div className="flex flex-col gap-0.5 mt-0.5">
               <div className="flex items-center justify-between text-[9px] font-mono font-bold">
                 <span className="text-rose-400">Titan Stamina</span>
@@ -271,7 +265,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                   {Math.max(0, 100 - Math.round(((currentPhaseIndex * 20) + (currentPhase.coloredZones.length > 0 ? (currentPhase.coloredZones.filter(z => z.coords.every(c => placedTiles.get(coordKey(c.q, c.r))?.[0]?.color === z.color)).length / currentPhase.coloredZones.length) * 20 : 0))))}%
                 </span>
               </div>
-              <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-rose-900/60">
+              <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-rose-900/60 shadow-inner">
                 <div
                   className="h-full bg-gradient-to-r from-rose-600 via-amber-500 to-emerald-500 rounded-full transition-all duration-500"
                   style={{
@@ -282,26 +276,28 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             </div>
           </div>
         )}
+
+        {/* Mastery Challenge */}
         {masteryChallenge && (
           <div
-            className={`p-2 rounded-xl border flex flex-col gap-1 transition-all ${
+            className={`p-2.5 rounded-2xl border flex flex-col gap-1 transition-all ${
               isMasteryCompleted
-                ? 'bg-gradient-to-r from-amber-50 to-emerald-50 border-amber-300 ring-1 ring-amber-300'
-                : 'bg-purple-50/80 border-purple-200'
+                ? 'bg-gradient-to-r from-amber-950/60 to-emerald-950/60 border-amber-400/60 shadow-lg'
+                : 'bg-purple-950/50 border-purple-500/40'
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-purple-900">
-                <Crown className="w-3 h-3 text-amber-500" />
+              <div className="flex items-center gap-1.5 text-[9.5px] font-black uppercase tracking-wider text-amber-300">
+                <Crown className="w-3.5 h-3.5 text-amber-400" />
                 <span>Mastery Challenge</span>
               </div>
               <span
-                className={`text-[8px] font-black px-1.5 py-0.2 rounded-full border ${
+                className={`text-[8.5px] font-black px-2 py-0.5 rounded-full border ${
                   isMasteryCompleted
-                    ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                    ? 'bg-emerald-950 text-emerald-300 border-emerald-500/50'
                     : isLastPhase
-                    ? 'bg-rose-100 text-rose-800 border-rose-300'
-                    : 'bg-purple-100 text-purple-800 border-purple-300'
+                    ? 'bg-rose-950 text-rose-300 border-rose-500/50'
+                    : 'bg-purple-950 text-purple-300 border-purple-500/50'
                 }`}
               >
                 {isMasteryCompleted
@@ -311,30 +307,25 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                   : 'VICTORY GOAL'}
               </span>
             </div>
-            <div className="text-[10px] font-bold text-slate-800 leading-tight">
+            <div className="text-[10.5px] font-bold text-white leading-tight">
               {masteryChallenge.title}
             </div>
-            <p className="text-[9px] text-slate-600 leading-tight">
+            <p className="text-[9.5px] text-slate-300 leading-tight">
               {masteryChallenge.description}
             </p>
-            {!isLastPhase && (
-              <span className="text-[8px] text-purple-700 font-semibold italic">
-                Active condition for winning final phase
-              </span>
-            )}
           </div>
         )}
 
-        {/* Active Overlap Error Warning Banner */}
+        {/* Overlap Error Warning */}
         {overlapErrorCount > 0 && (
-          <div className="p-2 rounded-xl bg-orange-50 border border-orange-300 text-orange-900 flex items-start gap-1.5 animate-pulse">
+          <div className="p-2 rounded-2xl bg-orange-950/70 border border-orange-500/60 text-orange-200 flex items-start gap-2 animate-pulse">
             <span className="text-xs">⚠️</span>
-            <div className="text-[9.5px] leading-tight">
-              <span className="font-bold block">
+            <div className="text-[10px] leading-tight">
+              <span className="font-bold block text-orange-300">
                 {overlapErrorCount} Active Overlap Error{overlapErrorCount > 1 ? 's' : ''}!
               </span>
-              <span className="text-orange-800">
-                Remove overlapping tile(s) or -{overlapErrorCount * 100} pts penalty will be applied.
+              <span className="text-orange-200/90 text-[9px]">
+                Remove overlapping tile(s) or -{overlapErrorCount * 100} pts penalty applied.
               </span>
             </div>
           </div>
@@ -349,20 +340,26 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               }
             }}
             disabled={!canProceed && isLastPhase}
-            className={`w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-black shadow-lg transition-all cursor-pointer ${
+            className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl text-xs font-black shadow-xl transition-all cursor-pointer ${
               canProceed
-                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white animate-bounce'
-                : 'bg-slate-300 text-slate-600 cursor-not-allowed opacity-90'
+                ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-400 text-slate-950 animate-bounce'
+                : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-90'
             }`}
           >
             {canProceed ? (
               <>
-                <CheckCircle2 className="w-4 h-4" />
+                <CheckCircle2 className="w-4 h-4 text-slate-950" />
                 <span>
                   {isLastPhase
                     ? masteryChallenge
-                      ? 'Claim Mastered Victory! ★'
-                      : 'Claim Settlement Victory'
+                      ? isMasteryCompleted
+                        ? 'Claim Mastered Victory! ★'
+                        : isTryHard
+                        ? 'Claim Mastered Victory! ★'
+                        : 'Claim Settlement Victory (Casual)'
+                      : isTryHard
+                      ? 'Claim Settlement Victory'
+                      : 'Claim Settlement Victory (Casual)'
                     : 'Expand Area (Next Phase)'}
                 </span>
               </>
@@ -379,18 +376,18 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       {/* 2. Settlement Star Progress Bar */}
       {!hideScore && (
         <div
-          className={`backdrop-blur-xl border shadow-xl rounded-2xl p-2.5 flex flex-col gap-1.5 transition-all ${
+          className={`backdrop-blur-xl border shadow-2xl rounded-3xl p-3 flex flex-col gap-2 transition-all text-slate-100 ${
             isFalsehoodActive || isPenaltyLimitExceeded
-              ? 'bg-rose-50/95 border-rose-500 ring-4 ring-rose-400/80 animate-pulse'
+              ? 'bg-rose-950/90 border-rose-500 ring-4 ring-rose-400/80 animate-pulse'
               : highlightScore
-              ? 'bg-white/95 border-amber-400 ring-4 ring-amber-400/80 animate-bounce'
-              : 'bg-white/95 border-slate-200/90'
+              ? 'bg-slate-900/95 border-amber-400 ring-4 ring-amber-400/80 animate-bounce'
+              : 'bg-slate-900/95 border-slate-700/80'
           }`}
         >
-          <div className="flex items-center justify-between border-b border-slate-100 pb-1">
-            <div className="flex items-center gap-1">
-              <Sparkles className={`w-3.5 h-3.5 ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-500' : 'text-amber-500'}`} />
-              <h3 className={`text-[11px] font-black uppercase tracking-wider ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-900' : 'text-slate-800'}`}>
+          <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className={`w-3.5 h-3.5 ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-400' : 'text-amber-400'}`} />
+              <h3 className={`text-xs font-black uppercase tracking-wider ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-200' : 'text-white'}`}>
                 Settlement Score
               </h3>
             </div>
@@ -398,45 +395,22 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             <div className="flex items-center gap-1.5">
               {isFalsehoodActive || isPenaltyLimitExceeded ? (
                 <div className="flex items-center gap-1">
-                  <span className="text-base font-black text-rose-600 font-mono">0</span>
-                  <span className="font-mono text-[10px] font-black bg-rose-600 text-white px-1.5 py-0.2 rounded shadow animate-pulse">
+                  <span className="text-base font-black text-rose-400 font-mono">0</span>
+                  <span className="font-mono text-[9.5px] font-black bg-rose-600 text-white px-1.5 py-0.2 rounded shadow animate-pulse">
                     ERR-{scrambleNum}
                   </span>
                 </div>
               ) : (
-                <span className="text-sm font-black text-slate-900 font-mono tabular-nums">
+                <span className="text-sm font-black text-amber-300 font-mono tabular-nums">
                   {score}
                 </span>
               )}
             </div>
           </div>
 
-          {/* Falsehood / Penalty Warning Banner */}
-          {isFalsehoodActive ? (
-            <div className="p-1.5 rounded-xl bg-rose-600 text-white text-[9px] font-black flex items-center justify-between shadow animate-pulse">
-              <div className="flex items-center gap-1">
-                <span>⚠️</span>
-                <span>FALSEHOOD: FOG DISCONNECTED!</span>
-              </div>
-              <span className="bg-rose-950/80 px-1.5 py-0.2 rounded font-mono text-rose-200">
-                SCORE 0
-              </span>
-            </div>
-          ) : isPenaltyLimitExceeded ? (
-            <div className="p-1.5 rounded-xl bg-rose-600 text-white text-[9px] font-black flex items-center justify-between shadow animate-pulse">
-              <div className="flex items-center gap-1">
-                <span>⚠️</span>
-                <span>PENALTY LIMIT EXCEEDED</span>
-              </div>
-              <span className="bg-rose-950/80 px-1.5 py-0.2 rounded font-mono text-rose-200">
-                SCORE 0
-              </span>
-            </div>
-          ) : null}
-
           {isTryHard ? (
             hasCompletedFirstTrial ? (
-              <div className="flex flex-col gap-1 pt-0.5">
+              <div className="flex flex-col gap-1.5 pt-0.5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1">
                     {[1, 2, 3].map(s => (
@@ -444,33 +418,33 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                         key={s}
                         className={`w-3.5 h-3.5 transition-all ${
                           isFalsehoodActive || isPenaltyLimitExceeded
-                            ? 'fill-slate-200 text-slate-400'
+                            ? 'fill-slate-800 text-slate-600'
                             : s <= starsEarned
-                            ? 'fill-amber-400 text-amber-500 drop-shadow scale-110'
-                            : 'fill-slate-100 text-slate-300'
+                            ? 'fill-amber-400 text-amber-400 drop-shadow scale-110'
+                            : 'fill-slate-900 text-slate-700'
                         }`}
                       />
                     ))}
                   </div>
-                  <span className={`text-[9px] font-semibold font-mono ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>
+                  <span className={`text-[9.5px] font-semibold font-mono ${isFalsehoodActive || isPenaltyLimitExceeded ? 'text-rose-400 font-bold' : 'text-slate-400'}`}>
                     {isFalsehoodActive ? 'Falsehood Disqualified' : isPenaltyLimitExceeded ? 'Limit Disqualified' : nextMilestoneText}
                   </span>
                 </div>
 
                 {/* Continuous Progress Bar with Milestone Markers */}
-                <div className="relative w-full h-2 bg-slate-100 rounded-full border border-slate-200 overflow-hidden">
+                <div className="relative w-full h-2 bg-slate-950 rounded-full border border-slate-800 overflow-hidden shadow-inner">
                   <div
                     className={`h-full rounded-full transition-all duration-300 ${
                       isFalsehoodActive || isPenaltyLimitExceeded
                         ? 'bg-rose-500'
-                        : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-500'
+                        : 'bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]'
                     }`}
                     style={{ width: `${isFalsehoodActive || isPenaltyLimitExceeded ? 100 : scorePercent}%` }}
                   />
                 </div>
 
                 {/* Threshold Labels */}
-                <div className="relative w-full h-3 text-[8px] font-mono text-slate-400">
+                <div className="relative w-full h-3 text-[8.5px] font-mono text-slate-400">
                   <span
                     className="absolute top-0 transform -translate-x-1/2"
                     style={{ left: `${s1Percent}%` }}
@@ -492,25 +466,25 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2 p-1.5 rounded-xl bg-amber-50/70 border border-amber-200/80 text-[10px]">
-                <Lock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <div className="text-amber-900 leading-tight">
+              <div className="flex items-center gap-2 p-2 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-[10px]">
+                <Lock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <div className="text-amber-200 leading-tight">
                   <span className="font-bold block">Trial 1 in Progress</span>
-                  <span className="text-amber-700 text-[8.5px]">
-                    Complete Phase 1 trial to unlock 3-star rating!
+                  <span className="text-amber-300/80 text-[8.5px]">
+                    Complete Phase 1 to unlock 3-star rating!
                   </span>
                 </div>
               </div>
             )
           ) : (
             /* Casual Mode Banner */
-            <div className="flex items-center justify-between p-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[10px]">
-              <div className="flex items-center gap-1.5 text-emerald-900 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Casual Mode</span>
+            <div className="flex items-center justify-between p-2 rounded-2xl bg-emerald-950/40 border border-emerald-500/30 text-[10px]">
+              <div className="flex items-center gap-1.5 text-emerald-300 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Casual Expedition</span>
               </div>
-              <span className="text-[9px] text-emerald-700 font-medium">
-                {masteryChallenge ? (isMasteryCompleted ? 'Mastery Met ✓' : 'Fulfill Mastery to Win') : 'Clear Zones to Win'}
+              <span className="text-[9px] text-emerald-400/90 font-mono">
+                {masteryChallenge ? (isMasteryCompleted ? 'Mastery Met ✓' : 'Fulfill Mastery') : 'Fill Zones to Win'}
               </span>
             </div>
           )}
@@ -518,32 +492,32 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       )}
 
       {/* 3. Quick Utilities: Rules, Reset, Sound */}
-      <div className="bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-xl rounded-2xl p-1.5 flex items-center justify-between gap-1.5">
+      <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl p-1.5 flex items-center justify-between gap-1.5 text-slate-300">
         <button
           onClick={onOpenRules}
-          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-bold transition-colors cursor-pointer"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white text-[10.5px] font-bold transition-all cursor-pointer"
         >
-          <HelpCircle className="w-3 h-3 text-slate-500" />
+          <HelpCircle className="w-3.5 h-3.5 text-cyan-400" />
           <span>Rules</span>
         </button>
 
         <button
           onClick={onResetBoard}
-          className="flex-1 flex items-center justify-center gap-1 py-1 px-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-[10px] font-bold transition-colors cursor-pointer"
+          className="flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 text-slate-300 hover:text-white text-[10.5px] font-bold transition-all cursor-pointer"
         >
-          <RotateCcw className="w-3 h-3 text-slate-500" />
+          <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
           <span>Reset</span>
         </button>
 
         <button
           onClick={onToggleSound}
-          className="p-1 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+          className="p-1.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:bg-slate-800 transition-all cursor-pointer"
           title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
         >
           {soundEnabled ? (
-            <Volume2 className="w-3.5 h-3.5 text-emerald-600" />
+            <Volume2 className="w-3.5 h-3.5 text-emerald-400" />
           ) : (
-            <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+            <VolumeX className="w-3.5 h-3.5 text-slate-500" />
           )}
         </button>
       </div>

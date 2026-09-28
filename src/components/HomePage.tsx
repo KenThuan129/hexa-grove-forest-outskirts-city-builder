@@ -1,30 +1,46 @@
 import React, { useState } from 'react';
 import { LevelConfig, GameMode, AcePerkId } from '../types/game';
-import { ACE_PERKS } from '../data/memories';
+import { ConstructionItem, ConstructionId, BoosterId } from '../types/economy';
+import { Resort3DScene } from './Resort3DScene';
 import { HomeShowcaseSpotlight } from './HomeShowcaseSpotlight';
 import {
   Compass,
   Play,
   Settings,
   BookOpen,
-  Wrench,
-  Sparkles,
   HelpCircle,
   Star,
   ChevronRight,
-  Shield,
-  Zap,
+  ChevronUp,
+  ChevronDown,
   CheckCircle2,
-  Flame,
   Award,
+  Coins,
+  Leaf,
+  ShoppingBag,
+  Crown,
+  Sparkles,
+  Hammer,
+  Eye,
+  EyeOff,
+  Lock,
 } from 'lucide-react';
+import { sounds } from '../utils/audio';
 
 interface HomePageProps {
   levels: LevelConfig[];
   currentLevelIndex: number;
   isOpenShowcase?: boolean;
   gameMode?: GameMode;
+  highestCompletedLevel?: number;
   equippedAce?: AcePerkId | null;
+  coins: number;
+  leaves: number;
+  boosters: Record<BoosterId, number>;
+  constructions: ConstructionItem[];
+  hasGoldenTicket: boolean;
+  unclaimedChestsCount?: number;
+  onUpgradeConstruction: (id: ConstructionId) => void;
   onCloseShowcase?: () => void;
   onSelectLevel: (index: number) => void;
   onStartJourney: () => void;
@@ -33,14 +49,23 @@ interface HomePageProps {
   onOpenRules: () => void;
   onOpenLevelEditor: () => void;
   onChangeGameMode?: (mode: GameMode) => void;
+  onOpenShop: () => void;
+  onShowGoldenTicket: () => void;
+  onPlayIntro?: () => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
   levels,
   currentLevelIndex,
   isOpenShowcase = false,
-  gameMode = 'tryhard',
-  equippedAce = null,
+  gameMode = 'casual',
+  highestCompletedLevel = 0,
+  coins = 0,
+  leaves = 0,
+  constructions,
+  hasGoldenTicket = false,
+  unclaimedChestsCount = 0,
+  onUpgradeConstruction,
   onCloseShowcase = () => {},
   onSelectLevel,
   onStartJourney,
@@ -49,13 +74,42 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenRules,
   onOpenLevelEditor,
   onChangeGameMode = () => {},
+  onOpenShop,
+  onShowGoldenTicket,
+  onPlayIntro,
 }) => {
-  const [showLevelSelectModal, setShowLevelSelectModal] = useState(false);
+  const [selectedId, setSelectedId] = useState<ConstructionId>('timber_lodge');
+  const [isBuildingTrayCollapsed, setIsBuildingTrayCollapsed] = useState(false);
+  const [isLevelSelectorOpen, setIsLevelSelectorOpen] = useState(false);
+  const [isZenMode, setIsZenMode] = useState(false);
+  const [modeNotice, setModeNotice] = useState<string | null>(null);
+
   const currentLevel = levels[currentLevelIndex] || levels[0];
-  const activeAceObj = ACE_PERKS.find(a => a.id === equippedAce);
+  const selectedItem =
+    constructions.find(c => c.id === selectedId) || constructions[0];
+
+  const currentLvl = selectedItem.currentLevel;
+  const isMaxLevel = currentLvl >= selectedItem.maxLevel;
+  const upgradeCost = !isMaxLevel ? selectedItem.upgradeCosts[currentLvl] : 0;
+  const canAfford = leaves >= upgradeCost && !isMaxLevel;
+
+  const totalBuiltCount = constructions.filter(c => c.currentLevel > 0).length;
+  const totalMaxedCount = constructions.filter(c => c.currentLevel === 3).length;
+  const isTryHardUnlocked = highestCompletedLevel >= 40;
+
+  const handleTryHardToggle = () => {
+    if (!isTryHardUnlocked) {
+      sounds.playWarning();
+      setModeNotice(`🔒 Try-Hard Mode unlocks at Level 40 (${highestCompletedLevel}/40 completed)`);
+      setTimeout(() => setModeNotice(null), 3000);
+      return;
+    }
+    onChangeGameMode('tryhard');
+    sounds.playClick();
+  };
 
   return (
-    <div className="relative w-screen h-screen overflow-y-auto bg-slate-950 font-sans select-none text-slate-100 flex flex-col justify-between">
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none text-slate-100 flex flex-col justify-between">
       {/* Home Showcase Spotlight Walkthrough (Triggered after Level 5 completion) */}
       <HomeShowcaseSpotlight
         isOpen={isOpenShowcase}
@@ -66,289 +120,429 @@ export const HomePage: React.FC<HomePageProps> = ({
         onOpenMemories={onNavigateMemories}
         onOpenRules={onOpenRules}
       />
-      {/* Ambient Atmospheric Hex Background with Mountain Dawn Lighting */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-gradient-to-b from-slate-900 via-[#0b1526] to-[#040810]" />
-        
-        {/* Soft Dawn Sunbeams */}
-        <div className="absolute -top-32 left-1/2 transform -translate-x-1/2 w-[900px] h-[500px] bg-gradient-to-b from-cyan-500/15 via-emerald-500/10 to-transparent rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl" />
-        
-        {/* Subtle geometric grid texture */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage: `radial-gradient(circle at 1px 1px, white 1px, transparent 0)`,
-            backgroundSize: '32px 32px',
+
+      {/* 3D Resort Scene Canvas */}
+      <div className="absolute inset-0 z-0">
+        <Resort3DScene
+          constructions={constructions}
+          selectedConstructionId={selectedId}
+          onSelectConstruction={id => {
+            setSelectedId(id);
+            sounds.playClick();
           }}
         />
       </div>
 
-      {/* Top Bar with Settings & Rules */}
-      <header className="relative z-10 w-full p-4 sm:p-6 flex items-center justify-between max-w-6xl mx-auto">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-          <span className="text-xs font-mono font-bold text-slate-400 uppercase tracking-widest">
-            v1.0 Expedition Ready
-          </span>
-        </div>
-
-        <div data-tutorial-id="home-rules-settings-bar" className="flex items-center gap-2">
-          <button
-            onClick={onOpenRules}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 shadow-md text-xs font-bold transition-all cursor-pointer"
-          >
-            <HelpCircle className="w-4 h-4 text-cyan-400" />
-            <span>Rules</span>
-          </button>
-
-          <button
-            onClick={onOpenSettings}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700 shadow-md text-xs font-bold transition-all cursor-pointer"
-          >
-            <Settings className="w-4 h-4 text-amber-400" />
-            <span>Settings</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Main Hero & Action Center */}
-      <main className="relative z-10 flex-1 flex flex-col items-center justify-center max-w-4xl mx-auto w-full px-4 text-center my-auto">
-        {/* Emblem & Game Title Branding */}
-        <div className="flex flex-col items-center gap-3 mb-6">
-          <div className="relative group cursor-pointer">
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-3xl bg-gradient-to-br from-emerald-500 via-teal-600 to-cyan-700 p-1 shadow-2xl flex items-center justify-center transform group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-slate-950/80 rounded-[22px] flex items-center justify-center backdrop-blur-sm border border-emerald-400/30">
-                <Compass className="w-10 h-10 sm:w-12 sm:h-12 text-emerald-400 drop-shadow-md animate-pulse" />
-              </div>
-            </div>
-            <div className="absolute -inset-2 bg-gradient-to-r from-emerald-500/20 via-cyan-500/20 to-teal-500/20 rounded-3xl blur-xl -z-10" />
+      {/* Top Floating HUD: Resort Title, Currency, Golden Ticket & Shop */}
+      <header className="relative z-10 w-full p-2.5 sm:p-4 flex items-center justify-between max-w-7xl mx-auto pointer-events-none">
+        {/* Left: Cozy Resort Title & 3D Building Progress */}
+        <div className="pointer-events-auto flex items-center gap-3 bg-slate-900/90 backdrop-blur-xl px-4 py-2 rounded-3xl border border-slate-700/80 shadow-2xl hover:border-emerald-500/40 transition-colors">
+          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/30 border border-emerald-400/40 flex items-center justify-center text-lg shadow-inner">
+            🏝️
           </div>
-
           <div>
-            <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white drop-shadow-lg flex items-center justify-center gap-2">
-              <span>HEXA PIONEER</span>
-            </h1>
-            <p className="text-xs sm:text-sm font-medium text-emerald-300/90 tracking-wide mt-1">
-              Frontier Settlement & Spatial Architecture
+            <div className="flex items-center gap-2">
+              <h1 className="text-xs sm:text-sm font-black text-white tracking-tight">
+                Archipelago Resort
+              </h1>
+              <span className="text-[9.5px] font-mono bg-emerald-950/90 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/40 font-bold">
+                Home Sanctuary
+              </span>
+            </div>
+            <p className="text-[10.5px] text-emerald-300/90 font-mono font-medium">
+              {totalBuiltCount}/10 Built · <span className="text-amber-400 font-bold">{totalMaxedCount}/10 Maxed ★</span>
             </p>
           </div>
         </div>
 
-        {/* Action Buttons Hub */}
-        <div className="flex flex-col gap-3 w-full max-w-sm sm:max-w-md">
-          {/* Game Mode Selector: Casual Mode vs Try-Hard Mode */}
-          <div className="p-1.5 rounded-2xl bg-slate-900/90 border border-slate-700/80 shadow-xl flex flex-col gap-1.5">
-            <div className="flex items-center justify-between px-2 pt-1 text-[10px] font-mono font-bold uppercase tracking-wider text-slate-400">
-              <span>Game Mode</span>
-              <span className={gameMode === 'tryhard' ? 'text-amber-400' : 'text-emerald-400'}>
-                {gameMode === 'tryhard' ? '★ 3-Star Rating' : '✓ Mastery Objective Only'}
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-1.5 p-0.5 bg-slate-950/80 rounded-xl border border-slate-800">
-              <button
-                type="button"
-                onClick={() => onChangeGameMode('casual')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  gameMode === 'casual'
-                    ? 'bg-emerald-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Casual Mode</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => onChangeGameMode('tryhard')}
-                className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  gameMode === 'tryhard'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md'
-                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
-                }`}
-              >
-                <Award className="w-3.5 h-3.5" />
-                <span>Try-hard Mode</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Active Ace Perk Indicator if equipped */}
-          {activeAceObj && (
-            <div
-              onClick={onNavigateMemories}
-              className="p-2.5 rounded-2xl bg-gradient-to-r from-amber-950/90 to-purple-950/90 border border-amber-500/50 shadow-lg flex items-center justify-between text-xs cursor-pointer hover:border-amber-400 transition-all group"
+        {/* Right: Currency Balances, Shop & System Modals */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Golden Ticket Badge Button (Locked until 10/10 Maxed) */}
+          {hasGoldenTicket ? (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onShowGoldenTicket();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-amber-950 font-black text-xs shadow-xl animate-pulse cursor-pointer border border-yellow-200 transform hover:scale-105 transition-transform"
+              title="View Legendary Golden Ticket"
             >
-              <div className="flex items-center gap-2">
-                <span className="text-xl filter drop-shadow">{activeAceObj.icon}</span>
-                <div className="text-left">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 block leading-tight">
-                    Equipped Ace Perk
-                  </span>
-                  <span className="font-bold text-amber-100 group-hover:text-white">
-                    {activeAceObj.name}
-                  </span>
-                </div>
-              </div>
-              <span className="text-[10px] text-amber-300 font-mono flex items-center gap-1 bg-amber-900/60 px-2 py-0.5 rounded-full border border-amber-700">
-                <span>Manage</span>
-                <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-              </span>
-            </div>
+              <Crown className="w-4 h-4 fill-amber-950" />
+              <span className="hidden sm:inline">Golden Ticket ★</span>
+            </button>
+          ) : totalMaxedCount === 10 ? (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onShowGoldenTicket();
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 text-amber-950 font-black text-xs shadow-xl animate-bounce cursor-pointer border border-yellow-300 hover:scale-105 transition-transform"
+              title="All 10 constructions maxed! Click to claim your Golden Ticket!"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Claim Ticket! (10/10)</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                sounds.playClick();
+                onShowGoldenTicket();
+              }}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-900/90 border border-slate-700 text-slate-400 text-xs font-mono font-bold cursor-pointer hover:border-amber-500/50 hover:text-amber-300 transition-all shadow-lg"
+              title={`Golden Ticket Vault: Max out all 10 resort buildings to claim (${totalMaxedCount}/10 maxed)`}
+            >
+              <Lock className="w-3.5 h-3.5 text-amber-500/70" />
+              <span className="hidden md:inline">Ticket</span>
+              <span className="text-amber-400">({totalMaxedCount}/10)</span>
+            </button>
           )}
 
-          {/* Main Play Button: "Level + <current level progression>" */}
-          <button
-            data-tutorial-id="home-play-btn"
-            onClick={onStartJourney}
-            className="group relative w-full flex items-center justify-between p-4 rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-2xl shadow-emerald-950/80 border border-emerald-400/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+          {/* Leaves Balance */}
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-300 font-mono font-bold text-xs shadow-lg"
+            title="Leaves: Obtained from Journey Chests. Spend to build and upgrade your resort!"
           >
-            <div className="flex items-center gap-3.5 text-left">
-              <div className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-                <Play className="w-5 h-5 fill-white text-white ml-0.5" />
-              </div>
-              <div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-emerald-200 block">
-                  Level {currentLevel.id} of {levels.length} · {gameMode === 'tryhard' ? 'Try-hard' : 'Casual'}
-                </span>
-                <span className="text-sm sm:text-base font-black tracking-tight">
-                  {currentLevel.name}
-                </span>
-              </div>
-            </div>
-
-            <ChevronRight className="w-5 h-5 text-emerald-200 group-hover:translate-x-1 transition-transform" />
-          </button>
-
-          {/* Secondary Buttons Grid */}
-          <div className="grid grid-cols-2 gap-2.5">
-            {/* Level Editor Button (Opens Coming Soon Popup) */}
-            <button
-              data-tutorial-id="home-editor-btn"
-              onClick={onOpenLevelEditor}
-              className="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/80 shadow-lg text-xs font-bold transition-all cursor-pointer group"
-            >
-              <Wrench className="w-4 h-4 text-amber-400 group-hover:rotate-45 transition-transform" />
-              <span>Level Editor</span>
-            </button>
-
-            {/* Memories Gallery Button */}
-            <button
-              data-tutorial-id="home-memories-btn"
-              onClick={onNavigateMemories}
-              className="flex items-center justify-center gap-2 py-3 px-3 rounded-2xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white border border-slate-700/80 shadow-lg text-xs font-bold transition-all cursor-pointer group"
-            >
-              <BookOpen className="w-4 h-4 text-cyan-400 group-hover:scale-110 transition-transform" />
-              <span>Memories</span>
-            </button>
+            <Leaf className="w-4 h-4 text-emerald-400" />
+            <span>{leaves}</span>
+            <span className="text-[9.5px] text-emerald-400/80 font-sans hidden sm:inline">Leaves</span>
           </div>
 
-          {/* Level Select Selector Bar */}
-          <button
-            data-tutorial-id="home-level-selector-btn"
-            onClick={() => setShowLevelSelectModal(true)}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-slate-900/40 hover:bg-slate-900/70 text-slate-400 hover:text-slate-200 border border-slate-800 text-[11px] font-semibold transition-all cursor-pointer"
+          {/* Coins Balance */}
+          <div
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-amber-950/90 border border-amber-500/50 text-amber-300 font-mono font-bold text-xs shadow-lg"
+            title="Coins: Obtained from completing levels and stars. Spend to buy tactical boosters in Emporium!"
           >
-            <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-            <span>Select Specific Level (1 - {levels.length})</span>
+            <Coins className="w-4 h-4 text-amber-400" />
+            <span>{coins}</span>
+            <span className="text-[9.5px] text-amber-400/80 font-sans hidden sm:inline">Coins</span>
+          </div>
+
+          {/* Shop / Emporium Button */}
+          <button
+            onClick={onOpenShop}
+            className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 text-amber-300 hover:text-white font-bold text-xs shadow-lg transition-all cursor-pointer"
+            title="Open Emporium (Boosters & Journey Leaves Chests)"
+          >
+            <ShoppingBag className="w-4 h-4 text-amber-400" />
+            <span className="hidden sm:inline">Emporium</span>
+            {unclaimedChestsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white font-black text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
+                {unclaimedChestsCount}
+              </span>
+            )}
+          </button>
+
+          {/* Clean View / Zen Mode Toggle */}
+          <button
+            onClick={() => {
+              setIsZenMode(!isZenMode);
+              sounds.playClick();
+            }}
+            className="p-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shadow-lg"
+            title={isZenMode ? "Show Island UI" : "Clean View: Hide UI to view Resort Island"}
+          >
+            {isZenMode ? <Eye className="w-4 h-4 text-emerald-400" /> : <EyeOff className="w-4 h-4 text-slate-400 hover:text-emerald-400" />}
+          </button>
+
+          {/* Rules */}
+          <button
+            onClick={onOpenRules}
+            className="p-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shadow-lg"
+            title="Game Rules & Guide"
+          >
+            <HelpCircle className="w-4 h-4 text-cyan-400" />
+          </button>
+
+          {/* Special Intro Prologue */}
+          {onPlayIntro && (
+            <button
+              onClick={onPlayIntro}
+              className="p-2 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 hover:text-white transition-all cursor-pointer shadow-lg"
+              title="Watch Animated Intro: 'Rejoyce, a journey up for the youth'"
+            >
+              <Sparkles className="w-4 h-4 text-amber-400" />
+            </button>
+          )}
+
+          {/* Settings */}
+          <button
+            onClick={onOpenSettings}
+            className="p-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer shadow-lg"
+            title="Settings"
+          >
+            <Settings className="w-4 h-4 text-amber-400" />
           </button>
         </div>
-      </main>
+      </header>
 
-      {/* Footer */}
-      <footer className="relative z-10 w-full p-4 text-center text-[10px] text-slate-500 border-t border-slate-800/60 max-w-6xl mx-auto">
-        <p>Hexa Pioneer · 40 Levels Grand Expedition · Atmospheric Hex Puzzle Architecture</p>
-      </footer>
-
-      {/* Level Selection Modal */}
-      {showLevelSelectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="relative w-full max-w-2xl bg-slate-900 rounded-3xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col max-h-[85vh]">
-            {/* Modal Header */}
-            <div className="p-4 bg-slate-950 border-b border-slate-800 flex items-center justify-between text-white">
-              <div className="flex items-center gap-2">
-                <Compass className="w-5 h-5 text-cyan-400" />
-                <h3 className="text-sm font-black tracking-wide">Select Level (1 to {levels.length})</h3>
+      {/* Floating Center-Left Action Card: Campaign Play, Game Mode, Memories */}
+      {!isZenMode && (
+        <div className="relative z-10 p-3 sm:p-5 max-w-sm w-full pointer-events-none self-start animate-in fade-in duration-150">
+          <div className="pointer-events-auto bg-slate-900/95 backdrop-blur-xl p-4 rounded-3xl border border-slate-700/80 shadow-2xl flex flex-col gap-3">
+            {/* Level Header & Selector */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-slate-400 font-mono font-bold">
+                <Compass className="w-3.5 h-3.5 text-amber-400" />
+                <span>EXPEDITION CAMPAIGN</span>
               </div>
+
               <button
-                onClick={() => setShowLevelSelectModal(false)}
-                className="w-7 h-7 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition-colors cursor-pointer"
+                onClick={() => setIsLevelSelectorOpen(!isLevelSelectorOpen)}
+                className="text-[11px] font-bold text-cyan-400 hover:text-cyan-300 cursor-pointer flex items-center gap-1 bg-cyan-950/60 px-2 py-0.5 rounded-lg border border-cyan-500/30"
               >
-                ✕
+                <span>Select Level</span>
+                {isLevelSelectorOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               </button>
             </div>
 
-            {/* Level Grid (40 Levels) */}
-            <div className="p-4 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {levels.map((lvl, idx) => {
-                const isCurrent = idx === currentLevelIndex;
-                const tier =
-                  lvl.isBossLevel
-                    ? '👹 BOSS'
-                    : lvl.id > 30
-                    ? 'Tier 4: Master'
-                    : lvl.id > 20
-                    ? 'Tier 3: Expert'
-                    : lvl.id > 10
-                    ? 'Tier 2: Journey'
-                    : 'Tier 1: Pioneer';
-
-                return (
+            {/* Level Switcher Dropdown */}
+            {isLevelSelectorOpen && (
+              <div className="max-h-48 overflow-y-auto bg-slate-950 p-1.5 rounded-2xl border border-slate-800 space-y-1 shadow-inner">
+                {levels.map((lvl, idx) => (
                   <button
                     key={lvl.id}
                     onClick={() => {
                       onSelectLevel(idx);
-                      setShowLevelSelectModal(false);
-                      onStartJourney();
+                      setIsLevelSelectorOpen(false);
+                      sounds.playClick();
                     }}
-                    className={`p-3 rounded-2xl border flex items-center justify-between text-left transition-all cursor-pointer ${
-                      lvl.isBossLevel
-                        ? isCurrent
-                          ? 'bg-rose-950/90 border-rose-500 text-white shadow-lg ring-2 ring-rose-500'
-                          : 'bg-rose-950/40 hover:bg-rose-950/70 border-rose-800/80 text-rose-100 hover:text-white'
-                        : isCurrent
-                        ? 'bg-emerald-950/80 border-emerald-500/80 text-white shadow-lg ring-1 ring-emerald-500'
-                        : 'bg-slate-800/60 hover:bg-slate-800 border-slate-700 text-slate-300 hover:text-white'
+                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${
+                      idx === currentLevelIndex
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow'
+                        : 'text-slate-300 hover:bg-slate-900 hover:text-white'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <div
-                        className={`w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs font-mono ${
-                          lvl.isBossLevel
-                            ? 'bg-rose-600 text-white animate-pulse'
-                            : isCurrent
-                            ? 'bg-emerald-500 text-slate-950'
-                            : 'bg-slate-700 text-slate-300'
-                        }`}
-                      >
-                        {lvl.id}
-                      </div>
-                      <div>
-                        <span className="text-xs font-bold block truncate max-w-[150px]">
-                          {lvl.name}
-                        </span>
-                        <span className="text-[9.5px] text-slate-400 truncate block max-w-[150px]">
-                          {lvl.subtitle}
-                        </span>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-lg border ${
-                        lvl.isBossLevel
-                          ? 'bg-rose-900/80 text-rose-300 border-rose-700'
-                          : 'bg-slate-900/80 text-cyan-300 border-slate-700'
-                      }`}
-                    >
-                      {tier}
-                    </span>
+                    <span>Lvl {lvl.id}: {lvl.name}</span>
+                    {idx === currentLevelIndex && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-200" />}
                   </button>
-                );
-              })}
+                ))}
+              </div>
+            )}
+
+            {/* Game Mode Selector: Casual Mode vs Locked Try-Hard Mode */}
+            <div className="flex flex-col gap-1">
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChangeGameMode('casual');
+                    sounds.playClick();
+                  }}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    gameMode === 'casual'
+                      ? 'bg-emerald-600 text-white shadow-md'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Casual</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleTryHardToggle}
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    !isTryHardUnlocked
+                      ? 'text-slate-500 bg-slate-900/60 border border-slate-800/80 cursor-pointer hover:border-amber-500/40'
+                      : gameMode === 'tryhard'
+                      ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-md cursor-pointer'
+                      : 'text-slate-400 hover:text-white cursor-pointer'
+                  }`}
+                  title={
+                    !isTryHardUnlocked
+                      ? `Locked: Complete Level 40 to unlock Try-Hard mode (${highestCompletedLevel}/40 completed)`
+                      : 'Try-Hard Mode: Requires 1★ + Mastery Challenge completed'
+                  }
+                >
+                  {!isTryHardUnlocked ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-amber-500" />
+                      <span>Try-Hard</span>
+                    </>
+                  ) : (
+                    <>
+                      <Award className="w-3.5 h-3.5" />
+                      <span>Try-Hard</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Mode Notice Toast when clicked while locked */}
+              {modeNotice && (
+                <div className="text-[10px] text-amber-300 font-mono font-bold bg-amber-950/80 border border-amber-500/50 p-1.5 rounded-xl text-center animate-in fade-in duration-150">
+                  {modeNotice}
+                </div>
+              )}
             </div>
+
+            {/* Primary Action Button: Play Level */}
+            <button
+              data-tutorial-id="home-play-btn"
+              onClick={onStartJourney}
+              className="group relative w-full flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white shadow-xl border border-emerald-400/50 transform hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer"
+            >
+              <div className="flex items-center gap-3 text-left">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <Play className="w-4 h-4 fill-white text-white ml-0.5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-200 block">
+                    Level {currentLevel.id} of {levels.length}
+                  </span>
+                  <span className="text-xs sm:text-sm font-black tracking-tight block truncate max-w-[170px]">
+                    {currentLevel.name}
+                  </span>
+                </div>
+              </div>
+
+              <ChevronRight className="w-5 h-5 text-emerald-200 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            {/* Memories (Visual Novel Story Lore) Button */}
+            <button
+              onClick={onNavigateMemories}
+              className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-slate-800/90 hover:bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs font-bold transition-all cursor-pointer shadow"
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="w-4 h-4 text-cyan-400" />
+                <span>Memories & Island Relics</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-500" />
+            </button>
           </div>
         </div>
+      )}
+
+      {/* Bottom Floating Building Mode Controller: Inspect & Upgrade Resort Constructions */}
+      {!isZenMode && (
+        <footer className="relative z-10 w-full p-2.5 sm:p-4 max-w-7xl mx-auto pointer-events-none flex flex-col items-center gap-2 animate-in fade-in duration-150">
+          {/* Toggle Collapse Bar */}
+          <div className="pointer-events-auto">
+            <button
+              onClick={() => setIsBuildingTrayCollapsed(!isBuildingTrayCollapsed)}
+              className="px-3.5 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-700 text-slate-300 text-[11px] font-mono font-bold flex items-center gap-2 cursor-pointer shadow-lg hover:text-white transition-colors"
+            >
+              <Hammer className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{isBuildingTrayCollapsed ? 'Expand 10 Resort Constructions' : 'Hide Construction Tray'}</span>
+              {isBuildingTrayCollapsed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+
+          {!isBuildingTrayCollapsed && (
+            <div className="pointer-events-auto w-full bg-slate-900/95 backdrop-blur-xl rounded-3xl border border-slate-700/80 shadow-2xl p-3.5 sm:p-4 flex flex-col gap-3">
+              {/* Top Row: Selected Construction Inspector & Upgrade Button */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2.5 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-800 border border-slate-700 flex items-center justify-center text-3xl shadow-inner shrink-0">
+                    {selectedItem.icon}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-sm sm:text-base font-black text-white">
+                        {selectedItem.name}
+                      </h3>
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                        selectedItem.currentLevel === 3
+                          ? 'bg-amber-950 border-amber-500/50 text-amber-300'
+                          : selectedItem.currentLevel > 0
+                          ? 'bg-emerald-950 border-emerald-500/40 text-emerald-300'
+                          : 'bg-slate-900 border-slate-800 text-slate-500'
+                      }`}>
+                        {selectedItem.currentLevel === 0
+                          ? 'Unbuilt Plot'
+                          : selectedItem.currentLevel === 3
+                          ? '★ MAX LEVEL 3'
+                          : `Level ${selectedItem.currentLevel} / 3`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-300 font-medium mt-0.5 line-clamp-1">
+                      {selectedItem.description}
+                    </p>
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      ✦ {selectedItem.perkDescription}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Upgrade / Build Action Button */}
+                <div className="shrink-0 w-full sm:w-auto">
+                  {isMaxLevel ? (
+                    <div className="px-4 py-2 rounded-2xl bg-amber-950/80 border border-amber-500/50 text-amber-300 font-bold text-xs flex items-center justify-center gap-2 shadow">
+                      <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                      <span>Peak Glory Reached ★</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => onUpgradeConstruction(selectedItem.id)}
+                      disabled={!canAfford}
+                      className={`w-full sm:w-auto px-5 py-2.5 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer ${
+                        canAfford
+                          ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white transform hover:scale-105 active:scale-95'
+                          : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                      }`}
+                    >
+                      <Leaf className={`w-4 h-4 ${canAfford ? 'text-emerald-200' : 'text-slate-500'}`} />
+                      <span>
+                        {selectedItem.currentLevel === 0 ? 'Build' : 'Upgrade'}: {upgradeCost} Leaves
+                      </span>
+                      {!canAfford && (
+                        <span className="text-[10px] text-rose-400 font-mono">
+                          (Need {upgradeCost - leaves} more)
+                        </span>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Bottom Row: 10 Construction Selectors Carousel */}
+              <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5 sm:gap-2 overflow-x-auto">
+                {constructions.map(item => {
+                  const isSelected = item.id === selectedId;
+                  const isMax = item.currentLevel === 3;
+                  const isBuilt = item.currentLevel > 0;
+
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setSelectedId(item.id);
+                        sounds.playClick();
+                      }}
+                      className={`relative p-2 rounded-2xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-amber-500/20 border-amber-400 shadow-md scale-105'
+                          : isBuilt
+                          ? 'bg-slate-800/80 border-slate-700 hover:border-slate-500'
+                          : 'bg-slate-900/60 border-slate-800/80 opacity-60 hover:opacity-100'
+                      }`}
+                      title={`${item.name} (${item.currentLevel === 0 ? 'Unbuilt' : `Lv ${item.currentLevel}/3`})`}
+                    >
+                      <span className="text-xl sm:text-2xl">{item.icon}</span>
+                      <span className="text-[10px] font-bold text-white truncate max-w-full text-center">
+                        {item.name.split(' ')[0]}
+                      </span>
+
+                      {/* Level Pill */}
+                      <span
+                        className={`text-[9px] font-mono px-1.5 rounded-full font-bold ${
+                          isMax
+                            ? 'bg-amber-400 text-amber-950 font-black'
+                            : isBuilt
+                            ? 'bg-emerald-900 text-emerald-300'
+                            : 'bg-slate-800 text-slate-500'
+                        }`}
+                      >
+                        {item.currentLevel}/3
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </footer>
       )}
     </div>
   );
