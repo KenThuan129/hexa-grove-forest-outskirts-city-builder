@@ -90,17 +90,16 @@ export default function App() {
   };
 
   const triggerLevelTransit = (targetIndex: number, phaseNum?: number) => {
-    const target = LEVELS[targetIndex] || LEVELS[0];
+    const safeTargetIndex = Math.max(0, Math.min(LEVELS.length - 1, targetIndex));
+    const target = LEVELS[safeTargetIndex] || LEVELS[0];
     setLevelTransit({
       levelId: target.id,
       levelName: target.name,
       parLimit: target.phases[0]?.targetTilesCount || 5,
-      phaseNumber: phaseNum,
+      phaseNumber: phaseNum !== undefined ? phaseNum + 1 : 1,
     });
-    setLevelIndex(targetIndex);
-    if (phaseNum !== undefined) {
-      setPhaseIndex(phaseNum);
-    }
+    setLevelIndex(safeTargetIndex);
+    setPhaseIndex(phaseNum !== undefined ? phaseNum : 0);
   };
 
   // Clean UI / Zen Mode for clutter-free viewport
@@ -322,10 +321,13 @@ export default function App() {
 
   // Initialize Unlocked Grid Cells for current Phase (including Fog Hexes & River Separators)
   const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number) => {
-    const lvl = LEVELS[lvlIdx];
+    const safeIdx = Math.max(0, Math.min(LEVELS.length - 1, lvlIdx));
+    const lvl = LEVELS[safeIdx] || LEVELS[0];
+    if (!lvl || !lvl.phases || lvl.phases.length === 0) return;
     const newCells = new Map<string, GridCell>();
 
-    for (let p = 0; p <= phIdx; p++) {
+    const safePhIdx = Math.min(phIdx, lvl.phases.length - 1);
+    for (let p = 0; p <= safePhIdx; p++) {
       const phase = lvl.phases[p];
       if (!phase) continue;
 

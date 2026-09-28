@@ -311,11 +311,11 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     if (!gridGroupRef.current) return;
     const group = gridGroupRef.current;
 
-    // Clear old children
+    // Clear old children with complete hierarchy disposal
     while (group.children.length > 0) {
       const child = group.children[0];
       group.remove(child);
-      if ((child as THREE.Mesh).geometry) (child as THREE.Mesh).geometry.dispose();
+      disposeHierarchy(child);
     }
 
     const hexGeometry = createHexPrismGeometry(HEX_RADIUS * 0.94, 0.28);
@@ -326,8 +326,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       const cellGroup = new THREE.Group();
       cellGroup.position.set(x, 0, z);
 
-      const colorData = COLOR_MAP[cell.colorRequirement];
-      const isColoredZone = cell.colorRequirement !== 'neutral';
+      const colorData = COLOR_MAP[cell.colorRequirement] || COLOR_MAP.neutral;
+      const isColoredZone = cell.colorRequirement !== 'neutral' && cell.colorRequirement in COLOR_MAP;
 
       // Base tile material
       let baseMat: THREE.MeshStandardMaterial;
