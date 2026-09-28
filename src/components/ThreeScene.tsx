@@ -202,19 +202,21 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     scene.add(particles);
     particlesRef.current = particles;
 
-    // Animation Loop with high-precision timestamp
+    // Animation Loop with high-precision timestamp & zero-alloc vector reuse
     const startTimestamp = performance.now();
+    const tempTargetCamPos = new THREE.Vector3();
+    const tempOffset = new THREE.Vector3();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
+      if (isContextLost) return;
       const elapsedTime = (performance.now() - startTimestamp) * 0.001;
 
-      // Camera lerp
+      // Camera lerp (zero GC allocations)
       if (cameraRef.current) {
-        const targetCamPos = cameraTargetRef.current.clone().add(
-          cameraOffsetRef.current.clone().multiplyScalar(currentZoomRef.current)
-        );
-        cameraRef.current.position.lerp(targetCamPos, 0.12);
+        tempOffset.copy(cameraOffsetRef.current).multiplyScalar(currentZoomRef.current);
+        tempTargetCamPos.copy(cameraTargetRef.current).add(tempOffset);
+        cameraRef.current.position.lerp(tempTargetCamPos, 0.12);
         cameraRef.current.lookAt(cameraTargetRef.current);
       }
 

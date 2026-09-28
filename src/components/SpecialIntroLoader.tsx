@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Compass, ChevronRight, Volume2, VolumeX } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Compass, ChevronRight, Sparkles } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 interface SpecialIntroLoaderProps {
@@ -14,6 +14,18 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
   const [progress, setProgress] = useState(0);
   const [phaseText, setPhaseText] = useState('Igniting ancient celestial beacons...');
   const [isFadingOut, setIsFadingOut] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const finishedRef = useRef(false);
+
+  const handleFinish = useCallback(() => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    setIsFadingOut(true);
+    setTimeout(() => {
+      onCompleteRef.current();
+    }, 200);
+  }, []);
 
   useEffect(() => {
     // Play majestic celestial intro chime
@@ -22,7 +34,7 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
     const startTime = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const pct = Math.min(100, Math.floor((elapsed / (autoCloseDelayMs - 600)) * 100));
+      const pct = Math.min(100, Math.floor((elapsed / Math.max(1, autoCloseDelayMs - 600)) * 100));
       setProgress(pct);
 
       if (pct < 30) {
@@ -35,24 +47,28 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
         setPhaseText('The journey commences now.');
       }
 
-      if (elapsed >= autoCloseDelayMs - 500) {
+      if (elapsed >= autoCloseDelayMs - 400) {
         setIsFadingOut(true);
       }
 
       if (elapsed >= autoCloseDelayMs) {
         clearInterval(interval);
-        onComplete();
+        handleFinish();
       }
     }, 40);
 
-    return () => clearInterval(interval);
-  }, [autoCloseDelayMs, onComplete]);
+    const failsafe = setTimeout(() => {
+      handleFinish();
+    }, autoCloseDelayMs + 500);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(failsafe);
+    };
+  }, [autoCloseDelayMs, handleFinish]);
 
   const handleSkip = () => {
-    setIsFadingOut(true);
-    setTimeout(() => {
-      onComplete();
-    }, 250);
+    handleFinish();
   };
 
   return (

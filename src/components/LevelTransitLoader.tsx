@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Compass, Sparkles, CheckCircle2, Star, ArrowRight } from 'lucide-react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { Compass, Star } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 const ARCHIPELAGO_TIPS = [
@@ -31,6 +31,9 @@ export const LevelTransitLoader: React.FC<LevelTransitLoaderProps> = ({
 }) => {
   const [progress, setProgress] = useState(0);
   const [isClosing, setIsClosing] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const completedRef = useRef(false);
 
   // Pick a stable random tip
   const tip = useMemo(() => {
@@ -38,37 +41,46 @@ export const LevelTransitLoader: React.FC<LevelTransitLoaderProps> = ({
     return ARCHIPELAGO_TIPS[idx];
   }, [levelId, phaseNumber]);
 
+  const handleFinish = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    setIsClosing(true);
+    sounds.playLevelTransitArrival();
+    setTimeout(() => {
+      onCompleteRef.current();
+    }, 60);
+  }, []);
+
   useEffect(() => {
     const startTime = Date.now();
     const interval = setInterval(() => {
       const elapsed = Date.now() - startTime;
-      const pct = Math.min(100, Math.floor((elapsed / (durationMs - 100)) * 100));
+      const pct = Math.min(100, Math.floor((elapsed / Math.max(1, durationMs - 80)) * 100));
       setProgress(pct);
 
-      if (elapsed >= durationMs - 120 && !isClosing) {
-        setIsClosing(true);
-        sounds.playLevelTransitArrival();
-      }
-
-      if (elapsed >= durationMs) {
+      if (elapsed >= durationMs - 80) {
         clearInterval(interval);
-        onComplete();
+        handleFinish();
       }
     }, 25);
 
-    return () => clearInterval(interval);
-  }, [durationMs, isClosing, onComplete]);
+    // Hard failsafe: never let loader hang under any circumstances
+    const failsafe = setTimeout(() => {
+      handleFinish();
+    }, durationMs + 200);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(failsafe);
+    };
+  }, [durationMs, handleFinish]);
 
   return (
     <div
-      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl transition-opacity duration-200 select-none ${
+      className={`fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-xl transition-opacity duration-150 select-none ${
         isClosing ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
-      onClick={() => {
-        setIsClosing(true);
-        sounds.playLevelTransitArrival();
-        setTimeout(onComplete, 80);
-      }}
+      onClick={handleFinish}
     >
       {/* Tactical Center Card */}
       <div className="relative w-full max-w-sm bg-slate-900/95 border border-slate-700/90 rounded-3xl p-5 sm:p-6 shadow-2xl flex flex-col items-center text-center animate-in zoom-in-95 duration-150">

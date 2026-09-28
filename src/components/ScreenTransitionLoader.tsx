@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Compass, Sparkles, Home, BookOpen, MapPin } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
@@ -22,6 +22,21 @@ export const ScreenTransitionLoader: React.FC<ScreenTransitionLoaderProps> = ({
   durationMs = 650,
 }) => {
   const [phase, setPhase] = useState<'enter' | 'hold' | 'exit'>('enter');
+  const onMidpointRef = useRef(onTransitionMidpoint);
+  onMidpointRef.current = onTransitionMidpoint;
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+  const finishedRef = useRef(false);
+
+  const handleFinish = useCallback(() => {
+    if (finishedRef.current) return;
+    finishedRef.current = true;
+    onMidpointRef.current?.();
+    setPhase('exit');
+    setTimeout(() => {
+      onCompleteRef.current?.();
+    }, 60);
+  }, []);
 
   useEffect(() => {
     sounds.playTransitWhoosh();
@@ -29,9 +44,7 @@ export const ScreenTransitionLoader: React.FC<ScreenTransitionLoaderProps> = ({
     // Trigger midpoint callback to switch actual router/DOM state underneath
     const midTimer = setTimeout(() => {
       setPhase('hold');
-      if (onTransitionMidpoint) {
-        onTransitionMidpoint();
-      }
+      onMidpointRef.current?.();
     }, durationMs * 0.45);
 
     // Trigger exit fade
@@ -41,15 +54,20 @@ export const ScreenTransitionLoader: React.FC<ScreenTransitionLoaderProps> = ({
 
     // Finish transition
     const endTimer = setTimeout(() => {
-      onComplete();
+      handleFinish();
     }, durationMs);
+
+    const failsafe = setTimeout(() => {
+      handleFinish();
+    }, durationMs + 250);
 
     return () => {
       clearTimeout(midTimer);
       clearTimeout(exitTimer);
       clearTimeout(endTimer);
+      clearTimeout(failsafe);
     };
-  }, [durationMs, onComplete, onTransitionMidpoint]);
+  }, [durationMs, handleFinish]);
 
   // Determine dynamic visual icon and text based on destination
   const getDestinationContent = () => {
