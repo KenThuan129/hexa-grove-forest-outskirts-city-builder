@@ -31,9 +31,6 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
   canCompletePhase,
   onCompleteTutorialStep,
 }) => {
-  // Only active on Levels 1, 2, and 3
-  if (levelId > 3) return null;
-
   // Level 2 Sub-step Tracking: 1 = Left Sidebar, 2 = Right Sidebar, 3 = Tray list, 4 = Completed
   const [level2Step, setLevel2Step] = useState<number>(1);
   const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
@@ -244,7 +241,10 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     };
   }, [updateTargetRect]);
 
-  // If user placed any tile in Level 2 or completed, dismiss
+  // Dismiss conditions (only active on Levels 1, 2, 3)
+  if (levelId > 3) {
+    return null;
+  }
   if (levelId === 2 && (level2Step >= 4 || placedTiles.size > 0)) {
     return null;
   }

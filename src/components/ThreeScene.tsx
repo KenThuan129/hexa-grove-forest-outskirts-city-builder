@@ -44,6 +44,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   isExpansionAnimating,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -70,8 +71,9 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
 
   // Initialize Scene, Camera, Lights, Procedural Forest, and Render Loop
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !canvasRef.current) return;
     const container = containerRef.current;
+    const canvas = canvasRef.current;
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
 
@@ -87,36 +89,42 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     camera.lookAt(0, 0, 0);
     cameraRef.current = camera;
 
-    // Robust WebGL Renderer creation with fallback
-    let renderer: THREE.WebGLRenderer;
+    // Robust WebGL Renderer creation with fallback on canvasRef
+    let renderer: THREE.WebGLRenderer | null = null;
+    const isLowEnd = typeof window !== 'undefined' && (window.navigator?.hardwareConcurrency || 4) <= 4;
     try {
       renderer = new THREE.WebGLRenderer({
-        antialias: true,
+        canvas,
+        antialias: !isLowEnd,
         alpha: false,
-        powerPreference: 'default',
+        powerPreference: isLowEnd ? 'default' : 'high-performance',
         failIfMajorPerformanceCaveat: false,
       });
     } catch {
       try {
         renderer = new THREE.WebGLRenderer({
+          canvas,
           antialias: false,
           alpha: false,
           powerPreference: 'default',
           failIfMajorPerformanceCaveat: false,
         });
       } catch {
-        setWebGLError(true);
-        return;
+        renderer = null;
       }
     }
 
+    if (!renderer) {
+      setWebGLError(true);
+      return;
+    }
+
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isLowEnd ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.shadowMap.type = THREE.PCFShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
-    container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
     setWebGLError(false);
 
@@ -137,8 +145,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       animate();
     };
 
-    renderer.domElement.addEventListener('webglcontextlost', handleContextLost, false);
-    renderer.domElement.addEventListener('webglcontextrestored', handleContextRestored, false);
+    canvas.addEventListener('webglcontextlost', handleContextLost, false);
+    canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
 
     // Lighting
     const ambientLight = new THREE.AmbientLight(0xfff6ea, 1.2);
@@ -150,8 +158,9 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     const sunLight = new THREE.DirectionalLight(0xfff3cf, 1.8);
     sunLight.position.set(18, 28, 14);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
+    const shadowRes = isLowEnd ? 512 : 1024;
+    sunLight.shadow.mapSize.width = shadowRes;
+    sunLight.shadow.mapSize.height = shadowRes;
     sunLight.shadow.camera.near = 0.5;
     sunLight.shadow.camera.far = 70;
     sunLight.shadow.camera.left = -20;
@@ -193,12 +202,12 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     scene.add(particles);
     particlesRef.current = particles;
 
-    // Animation Loop
-    let clock = new THREE.Clock();
+    // Animation Loop with high-precision timestamp
+    const startTimestamp = performance.now();
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
-      const elapsedTime = clock.getElapsedTime();
+      const elapsedTime = (performance.now() - startTimestamp) * 0.001;
 
       // Camera lerp
       if (cameraRef.current) {
@@ -283,15 +292,13 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       (window as any).__hexaGetHexScreenPos = undefined;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
-      if (renderer.domElement) {
-        renderer.domElement.removeEventListener('webglcontextlost', handleContextLost);
-        renderer.domElement.removeEventListener('webglcontextrestored', handleContextRestored);
-        if (container.contains(renderer.domElement)) {
-          container.removeChild(renderer.domElement);
-        }
+      if (canvas) {
+        canvas.removeEventListener('webglcontextlost', handleContextLost);
+        canvas.removeEventListener('webglcontextrestored', handleContextRestored);
       }
-      renderer.dispose();
-      renderer.forceContextLoss();
+      if (renderer) {
+        renderer.dispose();
+      }
       scene.clear();
       rendererRef.current = null;
     };
@@ -835,6 +842,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      <canvas ref={canvasRef} className="w-full h-full block touch-none" />
       {/* Fallback if browser blocked or exhausted WebGL contexts */}
       {webGLError && (
         <div className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md text-white">

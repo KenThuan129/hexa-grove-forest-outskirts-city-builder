@@ -14,6 +14,7 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
   onSelectConstruction,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const sceneRef = useRef<THREE.Scene | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
@@ -33,7 +34,7 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
 
   // Initialize Three.js scene
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!containerRef.current || !canvasRef.current) return;
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
@@ -46,15 +47,39 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 100);
     cameraRef.current = camera;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const isLowEnd = typeof window !== 'undefined' && (window.navigator?.hardwareConcurrency || 4) <= 4;
+    let renderer: THREE.WebGLRenderer | null = null;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current,
+        antialias: !isLowEnd,
+        alpha: false,
+        powerPreference: isLowEnd ? 'default' : 'high-performance',
+        failIfMajorPerformanceCaveat: false,
+      });
+    } catch {
+      try {
+        renderer = new THREE.WebGLRenderer({
+          canvas: canvasRef.current,
+          antialias: false,
+          alpha: false,
+          powerPreference: 'default',
+          failIfMajorPerformanceCaveat: false,
+        });
+      } catch {
+        renderer = null;
+      }
+    }
+
+    if (!renderer) {
+      return;
+    }
+
     rendererRef.current = renderer;
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isLowEnd ? 1.5 : 2));
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-    containerRef.current.innerHTML = '';
-    containerRef.current.appendChild(renderer.domElement);
+    renderer.shadowMap.type = THREE.PCFShadowMap;
 
     // Ambient & Directional Lighting
     const ambientLight = new THREE.AmbientLight(0xfff1e0, 0.75);
@@ -63,8 +88,9 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     const sunLight = new THREE.DirectionalLight(0xfffaed, 1.3);
     sunLight.position.set(12, 20, 10);
     sunLight.castShadow = true;
-    sunLight.shadow.mapSize.width = 1024;
-    sunLight.shadow.mapSize.height = 1024;
+    const shadowRes = isLowEnd ? 512 : 1024;
+    sunLight.shadow.mapSize.width = shadowRes;
+    sunLight.shadow.mapSize.height = shadowRes;
     sunLight.shadow.camera.near = 1;
     sunLight.shadow.camera.far = 50;
     sunLight.shadow.camera.left = -15;
@@ -189,11 +215,11 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     const particles = new THREE.Points(particleGeo, particleMat);
     scene.add(particles);
 
-    // Animation Loop
-    let clock = new THREE.Clock();
+    // Animation Loop with high-precision timestamp
+    const startTimestamp = performance.now();
     const animate = () => {
       animFrameRef.current = requestAnimationFrame(animate);
-      const elapsed = clock.getElapsedTime();
+      const elapsed = (performance.now() - startTimestamp) * 0.001;
 
       // Rotate windmill blades
       if (rotatingWindmillRef.current) {
@@ -662,7 +688,9 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onWheel={handleWheel}
-      className="w-full h-full cursor-grab active:cursor-grabbing outline-none select-none"
-    />
+      className="w-full h-full cursor-grab active:cursor-grabbing outline-none select-none relative overflow-hidden"
+    >
+      <canvas ref={canvasRef} className="w-full h-full block touch-none" />
+    </div>
   );
 };

@@ -1552,13 +1552,15 @@ export default function App() {
       </div>
 
       {/* Strict Tutorial Spotlight Overlay for Levels 1 -> 3 (Blackens irrelevant areas, tooltips, hand gesture) */}
-      <TutorialSpotlight
-        levelId={currentLevel.id}
-        selectedPiece={selectedPiece}
-        placedTiles={placedTiles}
-        canCompletePhase={canCompletePhase}
-        onCompleteTutorialStep={handleCompletePhase}
-      />
+      {currentLevel.id <= 3 && (
+        <TutorialSpotlight
+          levelId={currentLevel.id}
+          selectedPiece={selectedPiece}
+          placedTiles={placedTiles}
+          canCompletePhase={canCompletePhase}
+          onCompleteTutorialStep={handleCompletePhase}
+        />
+      )}
 
       {/* Main Cockpit HUD: Left Sidebar, Right Sidebar, Top Action Bar */}
       <div className="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-2 sm:p-3">
