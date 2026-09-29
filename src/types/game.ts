@@ -2,6 +2,22 @@ export type TileType = 'house' | 'trees' | 'mixed';
 
 export type TileColor = 'neutral' | 'amber' | 'emerald' | 'sapphire' | 'ruby';
 
+export type PlayMode = 'building' | 'challenger';
+
+export type BossZoneType = 'power' | 'defend' | 'traits' | 'mixed';
+
+export interface BossBattleStats {
+  attack: number;
+  defense: number;
+  traits: {
+    lifeStealPct: number;    // e.g. 0.25 = 25% heal on hit
+    aegisShield: number;     // e.g. 50 starting shield
+    doubleStrikePct: number; // e.g. 0.20 = 20% double attack
+    thornCounterPct: number; // e.g. 0.30 = 30% reflect damage
+    criticalRatePct: number; // e.g. 0.25 = 25% critical hit chance
+  };
+}
+
 export interface HexCoord {
   q: number;
   r: number;
@@ -26,6 +42,7 @@ export interface GridCell {
   isFog?: boolean;
   isRiver?: boolean;
   isCrystalPink?: boolean; // Highlighted by Expandacardia Ace
+  bossZoneType?: BossZoneType;
 }
 
 export interface HexPiece {
@@ -39,6 +56,7 @@ export interface HexPiece {
   clusterShape?: ClusterCellOffset[];
   clusterType?: ClusterType;
   stock?: number; // Limited inventory stock count (e.g. Boss level)
+  lightbulbCost?: number; // Cost in Lightbulbs (Building Mode)
 }
 
 export interface PlacedTile extends HexPiece {
@@ -70,7 +88,7 @@ export interface MasteryChallenge {
   id: string;
   title: string;
   description: string;
-  type: 'zero_disconnect' | 'zero_overuse' | 'zero_overlap' | 'rotate_zone' | 'multi_cluster' | 'fill_all_zones' | 'min_score';
+  type: 'zero_disconnect' | 'zero_overuse' | 'zero_overlap' | 'zero_offmap' | 'rotate_zone' | 'multi_cluster' | 'fill_all_zones' | 'min_score';
   targetValue?: number;
 }
 
@@ -84,10 +102,12 @@ export interface PhaseConfig {
     color: TileColor;
     coords: HexCoord[];
     name: string;
+    bossZoneType?: BossZoneType;
   }[];
   fogCoords?: HexCoord[];     // Fog Hexes previewing next phase boundaries
   riverCoords?: HexCoord[];   // Unbuildable natural river barrier cells
   rotationZones?: RotationZone[];
+  initialPlacedTiles?: { pieceId: string; q: number; r: number }[];
 }
 
 export interface LevelConfig {
@@ -102,10 +122,13 @@ export interface LevelConfig {
     star2: number;
     star3: number;
   };
+  lightbulbBudget?: number; // Available Lightbulbs for Building Mode
   masteryChallenge?: MasteryChallenge;
   isBossLevel?: boolean;
   bossName?: string;
   bossMaxHp?: number;
+  bossAtk?: number;
+  bossDef?: number;
   strictPenaltyLimit?: number; // Starting from level 20: max 3 penalties allowed
   uiConfig?: {
     hideLeftSidebar?: boolean;

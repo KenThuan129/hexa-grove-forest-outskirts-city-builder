@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { HexPiece, TileColor, AcePerkId } from '../types/game';
+import { HexPiece, TileColor, AcePerkId, PlayMode } from '../types/game';
 import { getHex3DThumbnail } from '../utils/thumbnailGenerator';
-import { Shield, Sun, Leaf, Droplets, Flame, MousePointerClick, RotateCw, Layers, Dices } from 'lucide-react';
+import { Shield, Sun, Leaf, Droplets, Flame, MousePointerClick, RotateCw, Layers, Dices, Lightbulb } from 'lucide-react';
 
 interface TileTrayProps {
   availablePieces: HexPiece[];
@@ -9,6 +9,9 @@ interface TileTrayProps {
   activeDragPiece: HexPiece | null;
   hasRotationZones?: boolean;
   equippedAce?: AcePerkId | null;
+  playMode?: PlayMode;
+  lightbulbsUsed?: number;
+  lightbulbBudget?: number;
   onSelectPiece: (piece: HexPiece | null) => void;
   onRightClickPiece: (piece: HexPiece) => void;
   onStartDragPiece: (piece: HexPiece, clientX: number, clientY: number) => void;
@@ -73,6 +76,9 @@ export const TileTray: React.FC<TileTrayProps> = ({
   activeDragPiece,
   hasRotationZones = false,
   equippedAce,
+  playMode = 'building',
+  lightbulbsUsed = 0,
+  lightbulbBudget = 25,
   onSelectPiece,
   onRightClickPiece,
   onStartDragPiece,
@@ -145,17 +151,17 @@ export const TileTray: React.FC<TileTrayProps> = ({
   return (
     <div
       data-tutorial-id="tile-tray-container"
-      className="w-full bg-slate-900/95 backdrop-blur-2xl border-t border-slate-700/80 shadow-[0_-10px_40px_rgba(0,0,0,0.5)] px-3 py-2 sm:px-6 sm:py-3 transition-all select-none font-sans text-slate-100"
+      className="w-full bg-gradient-to-t from-[#1f120a] via-[#3a2519] to-[#2b1a11] border-t-2 border-[#5c3d2e] shadow-[0_-10px_40px_rgba(0,0,0,0.6)] px-3 py-2 sm:px-6 sm:py-3 transition-all select-none font-sans text-[#f4ecd8]"
       onPointerEnter={onClearHover}
       onPointerDown={e => e.stopPropagation()}
       onPointerUp={e => e.stopPropagation()}
     >
       <div className="max-w-5xl mx-auto flex flex-col gap-2">
         {/* Top Control Bar: Color Filter Tabs & Action hints */}
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#5c3d2e] pb-2">
           {/* Color Type Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mr-1 hidden sm:inline font-mono">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-[#a8b89a] mr-1 hidden sm:inline font-rounded">
               Filter:
             </span>
             {FILTER_ITEMS.map(filter => {
@@ -170,10 +176,10 @@ export const TileTray: React.FC<TileTrayProps> = ({
                     e.stopPropagation();
                     setActiveFilter(filter.id);
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border transition-all cursor-pointer select-none ${
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none font-rounded ${
                     isActive
-                      ? 'bg-emerald-600 border-emerald-400 text-white shadow-md'
-                      : 'bg-slate-950/60 hover:bg-slate-800 border-slate-800 text-slate-300'
+                      ? 'btn-river-stone border-[#8fbc6f] text-[#f4ecd8]'
+                      : 'bg-[#1e3520]/60 hover:bg-[#2d4a2b] border-[#5c3d2e] text-[#a8b89a]'
                   }`}
                 >
                   <span
@@ -183,8 +189,8 @@ export const TileTray: React.FC<TileTrayProps> = ({
                   />
                   <span>{filter.label}</span>
                   <span
-                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
-                      isActive ? 'bg-emerald-950 text-emerald-200' : 'bg-slate-800 text-slate-400'
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded-md font-bold ${
+                      isActive ? 'bg-[#1e3520] text-[#8fbc6f]' : 'bg-[#2b1a11] text-[#a8b89a]'
                     }`}
                   >
                     {count}
@@ -304,6 +310,14 @@ export const TileTray: React.FC<TileTrayProps> = ({
                     <div className="absolute top-1 left-1 flex items-center gap-0.5 bg-slate-900/90 text-amber-300 text-[8.5px] font-black font-mono px-1.5 py-0.2 rounded-full border border-amber-500/40 shadow">
                       <Layers className="w-2.5 h-2.5 text-amber-400" />
                       <span>{clusterCount}H</span>
+                    </div>
+                  )}
+
+                  {/* Lightbulb Cost Badge (Building Mode) */}
+                  {playMode === 'building' && (
+                    <div className="absolute top-1 right-1 flex items-center gap-0.5 bg-amber-950/95 text-amber-300 text-[9px] font-black font-mono px-1.5 py-0.5 rounded-full border border-amber-500/60 shadow">
+                      <Lightbulb className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                      <span>{piece.lightbulbCost ?? (piece.clusterShape ? piece.clusterShape.length : 1)}</span>
                     </div>
                   )}
 

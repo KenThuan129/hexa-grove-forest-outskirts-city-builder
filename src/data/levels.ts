@@ -301,18 +301,19 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber']),
-    targetScore: { star1: 400, star2: 650, star3: 900 },
+    targetScore: { star1: 100, star2: 200, star3: 300 },
+    lightbulbBudget: 3,
   },
 
   // --------------------------------------------------------------------------
-  // LEVEL 2: Introduces Progression (Left Sidebar: Quota, Right Sidebar: Target Zones)
+  // LEVEL 2: Introduces Progression & Multi-Phase Expansion
   // --------------------------------------------------------------------------
   {
     id: 2,
     name: 'Frontier Horizons',
-    subtitle: 'Tutorial: Building Quota & Target Color Zones',
+    subtitle: 'Tutorial: Building Quota, Target Zones & Expand',
     description:
-      'Keep an eye on your Building Quota (Left) and fill the Target Color Zones (Right) to claim victory!',
+      'Keep an eye on your Building Quota (Left), fill the Target Color Zones (Right), and Expand into new territory!',
     uiConfig: {
       hideLeftSidebar: false,
       hideRightSidebar: false,
@@ -322,7 +323,7 @@ export const LEVELS: LevelConfig[] = [
     phases: [
       {
         phaseNumber: 1,
-        title: 'Twin Clearings',
+        title: 'Phase 1: Twin Clearings',
         objective: 'Fill the Amber Sunlit and Emerald Verdant zones within par quota.',
         targetTilesCount: 5,
         unlockedCoords: [
@@ -335,7 +336,6 @@ export const LEVELS: LevelConfig[] = [
           { q: -1, r: 0 },
           { q: 0, r: -1 },
           { q: 1, r: -1 },
-          { q: -1, r: 2 },
           { q: 1, r: 1 },
         ],
         coloredZones: [
@@ -351,31 +351,72 @@ export const LEVELS: LevelConfig[] = [
           },
         ],
       },
+      {
+        phaseNumber: 2,
+        title: 'Phase 2: Expanded Frontier',
+        objective: 'Expand through the newly cleared western terraces to complete the settlement.',
+        targetTilesCount: 9,
+        unlockedCoords: [
+          { q: 0, r: 0 },
+          { q: 1, r: 0 },
+          { q: 2, r: 0 },
+          { q: 0, r: 1 },
+          { q: 0, r: 2 },
+          { q: -1, r: 1 },
+          { q: -1, r: 0 },
+          { q: 0, r: -1 },
+          { q: 1, r: -1 },
+          { q: 1, r: 1 },
+          { q: -1, r: 2 },
+          { q: -2, r: 1 },
+          { q: -2, r: 0 },
+          { q: 2, r: -1 },
+          { q: 0, r: -2 },
+        ],
+        coloredZones: [
+          {
+            name: 'Sunlit Meadow',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
+          {
+            name: 'Verdant Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
+          },
+          {
+            name: 'Western Terraces',
+            color: 'emerald',
+            coords: [{ q: -1, r: 2 }, { q: -2, r: 1 }],
+          },
+        ],
+      },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald']),
     targetScore: { star1: 800, star2: 1200, star3: 1600 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
-  // LEVEL 3: Introduces Penalties & Settlement Scoring (Penalty Discovery Demo)
+  // LEVEL 3: Tri-Color Valley
   // --------------------------------------------------------------------------
   {
     id: 3,
     name: 'The Elder Stones',
-    subtitle: 'Tutorial: Penalties & Settlement Scoring',
+    subtitle: 'Stone Alignments & Tri-Color Valley',
     description:
-      'Discover how Overlap, Overuse, Disconnect, and Off-Map penalties affect your Settlement Score.',
+      'Harmonize the ancient stone clearing by filling the amber, emerald, and sapphire target zones.',
     uiConfig: {
       hideLeftSidebar: false,
       hideRightSidebar: false,
-      hidePenalties: false,
-      hideScore: false,
+      hidePenalties: true,
+      hideScore: true,
     },
     phases: [
       {
         phaseNumber: 1,
         title: 'Tri-Color Valley',
-        objective: 'Align Amber, Emerald, and Sapphire zones cleanly without penalties.',
+        objective: 'Align Amber, Emerald, and Sapphire target zones across the stone clearing.',
         targetTilesCount: 6,
         unlockedCoords: [
           { q: 0, r: 0 },
@@ -413,6 +454,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald', 'p-house-sapphire']),
     targetScore: { star1: 1200, star2: 1800, star3: 2400 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -485,6 +527,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald']),
     targetScore: { star1: 1600, star2: 2400, star3: 3100 },
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -568,23 +611,35 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald', 'p-house-sapphire']),
     targetScore: { star1: 2200, star2: 3200, star3: 4200 },
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
-  // LEVEL 6: Introduces "Cluster" Mechanics (2H & 3H Giant Multi-Hex Tiles)
+  // LEVEL 6: Introduces Mastery Challenge & Off-Map Penalty
   // --------------------------------------------------------------------------
   {
     id: 6,
     name: 'The Great Stoneworks',
-    subtitle: 'Mechanic: Multi-Hex Clusters & Rotation',
+    subtitle: 'Tutorial: Mastery Challenge & Off-Map Penalty',
     description:
-      'Introduces Giant Clusters! Multi-hex pieces (2H Duo and 3H Triad) that rotate with the "R" key and place as monolithic units.',
+      'Learn how Crown Mastery Challenges work: identify and remove Off-Map violations to claim victory with 0 penalties!',
+    masteryChallenge: {
+      id: 'mc-6',
+      title: 'No Off-map',
+      description: 'Settle all target zones cleanly with 0 Off-map penalty errors.',
+      type: 'zero_offmap',
+    },
     phases: [
       {
         phaseNumber: 1,
-        title: 'Cluster Masonry',
-        objective: 'Use Duo and Triad clusters to rapidly cover large zones and avoid individual placements.',
+        title: 'Surveyor Territory',
+        objective: 'Remove off-map placements and align all green and amber zones cleanly.',
         targetTilesCount: 8,
+        initialPlacedTiles: [
+          { pieceId: 'p-trees-emerald', q: 0, r: 1 },
+          { pieceId: 'p-trees-emerald', q: 0, r: 2 },
+          { pieceId: 'p-trees-emerald', q: 0, r: 3 }, // OUTSIDE MAP BOUNDARY -> Off-Map penalty!
+        ],
         unlockedCoords: [
           { q: 0, r: 0 },
           { q: 1, r: 0 },
@@ -602,20 +657,21 @@ export const LEVELS: LevelConfig[] = [
         ],
         coloredZones: [
           {
-            name: 'Sunstone Plaza',
-            color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 1, r: 1 }],
-          },
-          {
             name: 'Emerald Grove',
             color: 'emerald',
             coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
           },
+          {
+            name: 'Sunstone Plaza',
+            color: 'amber',
+            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+          },
         ],
       },
     ],
-    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-duo-amber', 'p-triad-amber', 'p-duo-emerald']),
+    availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald', 'p-duo-amber', 'p-duo-emerald']),
     targetScore: { star1: 1800, star2: 2600, star3: 3500 },
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -660,6 +716,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-quad-gray', 'p-quad-amber']),
     targetScore: { star1: 2000, star2: 2900, star3: 3800 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -708,6 +765,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-amber', 'p-triad-amber']),
     targetScore: { star1: 2200, star2: 3200, star3: 4200 },
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
@@ -757,6 +815,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-gray', 'p-pentad-emerald', 'p-duo-emerald', 'p-duo-amber']),
     targetScore: { star1: 2600, star2: 3800, star3: 4900 },
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
@@ -850,6 +909,7 @@ export const LEVELS: LevelConfig[] = [
       'p-triad-emerald',
     ]),
     targetScore: { star1: 3200, star2: 4500, star3: 5800 },
+    lightbulbBudget: 12,
   },
 
   // --------------------------------------------------------------------------
@@ -903,6 +963,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-sapphire', 'p-trees-emerald']),
     targetScore: { star1: 2200, star2: 3200, star3: 4200 },
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -956,6 +1017,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-triad-emerald', 'p-duo-gray']),
     targetScore: { star1: 2400, star2: 3500, star3: 4600 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -1017,6 +1079,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-triad-amber', 'p-quad-sapphire', 'p-duo-emerald']),
     targetScore: { star1: 2600, star2: 3800, star3: 5000 },
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
@@ -1063,6 +1126,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-quad-amber', 'p-triad-amber', 'p-duo-amber']),
     targetScore: { star1: 2400, star2: 3400, star3: 4500 },
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -1117,6 +1181,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-emerald', 'p-triad-emerald']),
     targetScore: { star1: 2800, star2: 4000, star3: 5200 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -1163,6 +1228,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-ruby', 'p-duo-ruby', 'p-duo-amber', 'p-triad-amber']),
     targetScore: { star1: 2800, star2: 4100, star3: 5400 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -1213,6 +1279,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-duo-emerald', 'p-duo-sapphire']),
     targetScore: { star1: 3200, star2: 4600, star3: 6000 },
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -1275,6 +1342,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-duo-ruby', 'p-triad-emerald']),
     targetScore: { star1: 3400, star2: 4800, star3: 6300 },
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
@@ -1347,6 +1415,7 @@ export const LEVELS: LevelConfig[] = [
       'p-quad-gray',
     ]),
     targetScore: { star1: 3800, star2: 5400, star3: 7000 },
+    lightbulbBudget: 11,
   },
 
   // --------------------------------------------------------------------------
@@ -1369,15 +1438,15 @@ export const LEVELS: LevelConfig[] = [
       {
         phaseNumber: 1,
         title: 'Phase 1: Metropolitan Core',
-        objective: 'Build the grand central blossom plaza.',
+        objective: 'Build the grand central blossom plaza around the rushing riverside crossing.',
         targetTilesCount: 8,
+        riverCoords: [{ q: 0, r: -1 }, { q: 1, r: -2 }],
         unlockedCoords: [
           { q: 0, r: 0 },
           { q: 1, r: 0 },
           { q: 0, r: 1 },
           { q: -1, r: 1 },
           { q: -1, r: 0 },
-          { q: 0, r: -1 },
           { q: 1, r: -1 },
           { q: 2, r: 0 },
           { q: -2, r: 0 },
@@ -1524,6 +1593,7 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-ruby',
     ]),
     targetScore: { star1: 1000, star2: 3200, star3: 5500 },
+    lightbulbBudget: 17,
   },
 
   // --------------------------------------------------------------------------

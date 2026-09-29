@@ -6,12 +6,14 @@ interface Resort3DSceneProps {
   constructions: ConstructionItem[];
   selectedConstructionId: ConstructionId | null;
   onSelectConstruction: (id: ConstructionId) => void;
+  performanceMode?: 'low' | 'high';
 }
 
 export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
   constructions,
   selectedConstructionId,
   onSelectConstruction,
+  performanceMode = 'low',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -39,6 +41,8 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
+    const isPerfLow = performanceMode === 'low';
+
     const scene = new THREE.Scene();
     sceneRef.current = scene;
     scene.background = new THREE.Color(0x0a1610); // Deep forest dusk
@@ -47,14 +51,13 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 100);
     cameraRef.current = camera;
 
-    const isLowEnd = typeof window !== 'undefined' && (window.navigator?.hardwareConcurrency || 4) <= 4;
     let renderer: THREE.WebGLRenderer | null = null;
     try {
       renderer = new THREE.WebGLRenderer({
         canvas: canvasRef.current,
-        antialias: !isLowEnd,
+        antialias: !isPerfLow,
         alpha: false,
-        powerPreference: isLowEnd ? 'default' : 'high-performance',
+        powerPreference: isPerfLow ? 'default' : 'high-performance',
         failIfMajorPerformanceCaveat: false,
       });
     } catch {
@@ -77,26 +80,29 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
 
     rendererRef.current = renderer;
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isLowEnd ? 1.5 : 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
+    renderer.setPixelRatio(isPerfLow ? 1.0 : Math.min(window.devicePixelRatio || 1, 1.5));
+    renderer.shadowMap.enabled = !isPerfLow;
+    if (!isPerfLow) {
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+    }
 
     // Ambient & Directional Lighting
-    const ambientLight = new THREE.AmbientLight(0xfff1e0, 0.75);
+    const ambientLight = new THREE.AmbientLight(0xfff1e0, isPerfLow ? 1.2 : 0.75);
     scene.add(ambientLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfffaed, 1.3);
+    const sunLight = new THREE.DirectionalLight(0xfffaed, isPerfLow ? 1.2 : 1.3);
     sunLight.position.set(12, 20, 10);
-    sunLight.castShadow = true;
-    const shadowRes = isLowEnd ? 512 : 1024;
-    sunLight.shadow.mapSize.width = shadowRes;
-    sunLight.shadow.mapSize.height = shadowRes;
-    sunLight.shadow.camera.near = 1;
-    sunLight.shadow.camera.far = 50;
-    sunLight.shadow.camera.left = -15;
-    sunLight.shadow.camera.right = 15;
-    sunLight.shadow.camera.top = 15;
-    sunLight.shadow.camera.bottom = -15;
+    sunLight.castShadow = !isPerfLow;
+    if (!isPerfLow) {
+      sunLight.shadow.mapSize.width = 512;
+      sunLight.shadow.mapSize.height = 512;
+      sunLight.shadow.camera.near = 1;
+      sunLight.shadow.camera.far = 50;
+      sunLight.shadow.camera.left = -15;
+      sunLight.shadow.camera.right = 15;
+      sunLight.shadow.camera.top = 15;
+      sunLight.shadow.camera.bottom = -15;
+    }
     scene.add(sunLight);
 
     const hemisphereLight = new THREE.HemisphereLight(0x7dd3fc, 0x166534, 0.5);

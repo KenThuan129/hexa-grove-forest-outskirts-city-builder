@@ -3,6 +3,53 @@ import * as THREE from 'three';
 import { GridCell, PlacedTile, HexPiece, TileColor, TileType, RotationZone } from '../types/game';
 import { hexToWorld, worldToHex, HEX_RADIUS, coordKey } from '../utils/hexMath';
 
+export interface RendererInfo {
+  drawCalls: number;
+  triangles: number;
+  geometries: number;
+  textures: number;
+  geometriesMemoryMb: number;
+  texturesVramMb: number;
+  totalVramMb: number;
+  jsHeapMemoryMb: number;
+  vramBudgetCapMb: number;
+  ramBudgetCapMb: number;
+  budgetUsagePercent: number;
+  isOverBudget: boolean;
+}
+
+interface PineAsset {
+  boundingSphere: THREE.Sphere;
+  trunkMatrix: THREE.Matrix4;
+  cone1Matrix: THREE.Matrix4;
+  cone2Matrix?: THREE.Matrix4;
+  cone3Matrix?: THREE.Matrix4;
+}
+
+interface DeciduousAsset {
+  boundingSphere: THREE.Sphere;
+  trunkMatrix: THREE.Matrix4;
+  canopyMatrix: THREE.Matrix4;
+}
+
+interface RockAsset {
+  boundingSphere: THREE.Sphere;
+  matrix: THREE.Matrix4;
+}
+
+interface ForestInstancedData {
+  pineTrees: PineAsset[];
+  deciduousTrees: DeciduousAsset[];
+  rocks: RockAsset[];
+  pineTrunksMesh: THREE.InstancedMesh;
+  cone1Mesh: THREE.InstancedMesh;
+  cone2Mesh: THREE.InstancedMesh | null;
+  cone3Mesh: THREE.InstancedMesh | null;
+  decTrunksMesh: THREE.InstancedMesh;
+  canopyMesh: THREE.InstancedMesh;
+  rockMesh: THREE.InstancedMesh | null;
+}
+
 interface ThreeSceneProps {
   unlockedCells: Map<string, GridCell>;
   placedTiles: Map<string, PlacedTile[]>;
@@ -17,6 +64,11 @@ interface ThreeSceneProps {
   onRightClickBoard: (coord: { q: number; r: number } | null) => void;
   onRotateZone?: (zoneId: string) => void;
   isExpansionAnimating: boolean;
+  performanceMode?: 'low' | 'high';
+  targetFps?: 60 | 30 | 24;
+  isLowPowerMode?: boolean;
+  textureQuality?: 'high' | 'low';
+  onUpdateRendererInfo?: (info: RendererInfo) => void;
 }
 
 // Color palette constants for 3D materials
@@ -42,6 +94,11 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   onRightClickBoard,
   onRotateZone,
   isExpansionAnimating,
+  performanceMode = 'low',
+  targetFps = 60,
+  isLowPowerMode = false,
+  textureQuality = 'high',
+  onUpdateRendererInfo,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -51,10 +108,16 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   const gridGroupRef = useRef<THREE.Group | null>(null);
   const tilesGroupRef = useRef<THREE.Group | null>(null);
   const forestGroupRef = useRef<THREE.Group | null>(null);
+  const forestInstancedDataRef = useRef<ForestInstancedData | null>(null);
   const rotationZonesGroupRef = useRef<THREE.Group | null>(null);
   const ghostMeshRef = useRef<THREE.Group | null>(null);
   const particlesRef = useRef<THREE.Points | null>(null);
   const [webGLError, setWebGLError] = useState(false);
+
+  const targetFpsRef = useRef(targetFps);
+  targetFpsRef.current = targetFps;
+  const onUpdateRendererInfoRef = useRef(onUpdateRendererInfo);
+  onUpdateRendererInfoRef.current = onUpdateRendererInfo;
 
   // Interaction & camera state refs
   const isPointerDownRef = useRef(false);
@@ -77,10 +140,12 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || window.innerHeight;
 
+    const isPerfLow = performanceMode === 'low';
+
     // Scene with atmospheric fog
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xd9edf7); // soft airy alpine sky
-    scene.fog = new THREE.FogExp2(0xd9edf7, 0.018);
+    scene.fog = new THREE.FogExp2(0xd9edf7, isPerfLow ? 0.022 : 0.018);
     sceneRef.current = scene;
 
     // Camera
@@ -91,13 +156,12 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
 
     // Robust WebGL Renderer creation with fallback on canvasRef
     let renderer: THREE.WebGLRenderer | null = null;
-    const isLowEnd = typeof window !== 'undefined' && (window.navigator?.hardwareConcurrency || 4) <= 4;
     try {
       renderer = new THREE.WebGLRenderer({
         canvas,
-        antialias: !isLowEnd,
+        antialias: !isPerfLow,
         alpha: false,
-        powerPreference: isLowEnd ? 'default' : 'high-performance',
+        powerPreference: isPerfLow ? 'default' : 'high-performance',
         failIfMajorPerformanceCaveat: false,
       });
     } catch {
@@ -120,9 +184,16 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     }
 
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isLowEnd ? 1.5 : 2));
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFShadowMap;
+    const activePixelRatio = isLowPowerMode
+      ? 0.75
+      : isPerfLow
+      ? 1.0
+      : Math.min(window.devicePixelRatio || 1, 1.5);
+    renderer.setPixelRatio(activePixelRatio);
+    renderer.shadowMap.enabled = !isPerfLow;
+    if (!isPerfLow) {
+      renderer.shadowMap.type = THREE.PCFShadowMap;
+    }
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.05;
     rendererRef.current = renderer;
@@ -149,25 +220,26 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     canvas.addEventListener('webglcontextrestored', handleContextRestored, false);
 
     // Lighting
-    const ambientLight = new THREE.AmbientLight(0xfff6ea, 1.2);
+    const ambientLight = new THREE.AmbientLight(0xfff6ea, isPerfLow ? 1.5 : 1.2);
     scene.add(ambientLight);
 
     const hemiLight = new THREE.HemisphereLight(0xffffff, 0x86a873, 0.6);
     scene.add(hemiLight);
 
-    const sunLight = new THREE.DirectionalLight(0xfff3cf, 1.8);
+    const sunLight = new THREE.DirectionalLight(0xfff3cf, isPerfLow ? 1.4 : 1.8);
     sunLight.position.set(18, 28, 14);
-    sunLight.castShadow = true;
-    const shadowRes = isLowEnd ? 512 : 1024;
-    sunLight.shadow.mapSize.width = shadowRes;
-    sunLight.shadow.mapSize.height = shadowRes;
-    sunLight.shadow.camera.near = 0.5;
-    sunLight.shadow.camera.far = 70;
-    sunLight.shadow.camera.left = -20;
-    sunLight.shadow.camera.right = 20;
-    sunLight.shadow.camera.top = 20;
-    sunLight.shadow.camera.bottom = -20;
-    sunLight.shadow.bias = -0.0005;
+    sunLight.castShadow = !isPerfLow;
+    if (!isPerfLow) {
+      sunLight.shadow.mapSize.width = 512;
+      sunLight.shadow.mapSize.height = 512;
+      sunLight.shadow.camera.near = 0.5;
+      sunLight.shadow.camera.far = 70;
+      sunLight.shadow.camera.left = -20;
+      sunLight.shadow.camera.right = 20;
+      sunLight.shadow.camera.top = 20;
+      sunLight.shadow.camera.bottom = -20;
+      sunLight.shadow.bias = -0.0005;
+    }
     scene.add(sunLight);
 
     // Subtle Rim Light for crisp silhouette separation
@@ -189,28 +261,59 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     forestGroupRef.current = forestGroup;
     rotationZonesGroupRef.current = rotationZonesGroup;
 
-    // Generate Ground Terrain & Vast Procedural Forest Outskirts
-    buildVastForestEnvironment(scene, forestGroup);
+    // Generate Ground Terrain & Vast Procedural Forest Outskirts with Frustum-Aware Instancing
+    forestInstancedDataRef.current = buildVastForestEnvironment(scene, forestGroup, isPerfLow);
 
     // Ghost / Hover cursor indicator
     const ghostGroup = createGhostPreviewGroup();
     scene.add(ghostGroup);
     ghostMeshRef.current = ghostGroup;
 
-    // Ambient floating pollen/firefly particles
-    const particles = createAmbientParticles();
-    scene.add(particles);
-    particlesRef.current = particles;
+    // Ambient floating pollen/firefly particles (skip on low performance or low-power mode)
+    if (!isPerfLow && !isLowPowerMode) {
+      const particles = createAmbientParticles();
+      scene.add(particles);
+      particlesRef.current = particles;
+    }
 
-    // Animation Loop with high-precision timestamp & zero-alloc vector reuse
+    // Animation Loop with high-precision timestamp, FPS throttling & zero-alloc vector reuse
     const startTimestamp = performance.now();
+    let lastRenderTimestamp = performance.now();
+    const lastMemoryCheckTimestampRef = { current: 0 };
+    const cachedMemoryStatsRef = {
+      current: {
+        geometriesMemoryMb: 0,
+        texturesVramMb: 0,
+        totalVramMb: 0,
+        jsHeapMemoryMb: 0,
+        vramBudgetCapMb: 64.0,
+        ramBudgetCapMb: 256.0,
+        budgetUsagePercent: 0,
+        isOverBudget: false,
+      },
+    };
     const tempTargetCamPos = new THREE.Vector3();
     const tempOffset = new THREE.Vector3();
+    const projScreenMatrix = new THREE.Matrix4();
+    const frustum = new THREE.Frustum();
+    const tileSphere = new THREE.Sphere(new THREE.Vector3(), 2.5);
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
       if (isContextLost) return;
-      const elapsedTime = (performance.now() - startTimestamp) * 0.001;
+
+      const now = performance.now();
+      const fpsLimit = targetFpsRef.current || 60;
+      const frameInterval = 1000 / fpsLimit;
+      const delta = now - lastRenderTimestamp;
+
+      // Frame rate throttling for 60 FPS, 30 FPS, or 24 FPS target
+      if (delta < frameInterval - 1) {
+        return;
+      }
+      lastRenderTimestamp = now - (delta % frameInterval);
+
+      const elapsedTime = (now - startTimestamp) * 0.001;
 
       // Camera lerp (zero GC allocations)
       if (cameraRef.current) {
@@ -218,6 +321,137 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         tempTargetCamPos.copy(cameraTargetRef.current).add(tempOffset);
         cameraRef.current.position.lerp(tempTargetCamPos, 0.12);
         cameraRef.current.lookAt(cameraTargetRef.current);
+
+        // Update Camera Frustum for Per-Tile Frustum Culling
+        cameraRef.current.updateMatrixWorld();
+        projScreenMatrix.multiplyMatrices(
+          cameraRef.current.projectionMatrix,
+          cameraRef.current.matrixWorldInverse
+        );
+        frustum.setFromProjectionMatrix(projScreenMatrix);
+
+        // Frustum Culling on Placed 3D Tile Meshes & Animation updates
+        if (tilesGroupRef.current) {
+          tilesGroupRef.current.children.forEach(child => {
+            tileSphere.center.copy(child.position);
+            tileSphere.center.y += 0.5; // Offset center for taller 3D structures
+            const isVisible = frustum.intersectsSphere(tileSphere);
+            child.visible = isVisible;
+
+            if (isVisible) {
+              if (child.userData?.isPickedUp) {
+                const targetY = 1.1 + Math.sin(elapsedTime * 5) * 0.1;
+                child.position.y += (targetY - child.position.y) * 0.2;
+                child.rotation.y = Math.sin(elapsedTime * 2.5) * 0.1;
+              } else {
+                child.position.y += (0.14 - child.position.y) * 0.2;
+                child.rotation.y += (0 - child.rotation.y) * 0.2;
+              }
+            }
+          });
+        }
+
+        // Frustum Culling on Special Grid Hexes, Borders & Markers
+        if (gridGroupRef.current) {
+          gridGroupRef.current.children.forEach(child => {
+            if (!(child as THREE.InstancedMesh).isInstancedMesh) {
+              tileSphere.center.copy(child.position);
+              tileSphere.center.y = 0.2;
+              child.visible = frustum.intersectsSphere(tileSphere);
+            }
+          });
+        }
+
+        // Frustum Culling on Rotation Zone Dials
+        if (rotationZonesGroupRef.current) {
+          rotationZonesGroupRef.current.children.forEach(child => {
+            tileSphere.center.copy(child.position);
+            tileSphere.center.y = 0.5;
+            child.visible = frustum.intersectsSphere(tileSphere);
+          });
+        }
+
+        // Frustum-Aware Instancing for Forest Background with extended Perimeter Buffer Zone
+        if (forestInstancedDataRef.current) {
+          const forest = forestInstancedDataRef.current;
+          const BUFFER_MARGIN = 9.0; // Invisible buffer zone around active camera frustum perimeter
+
+          // 1. Filter & Update Pine Trees inside Frustum Buffer Zone
+          let activePines = 0;
+          for (let i = 0; i < forest.pineTrees.length; i++) {
+            const pine = forest.pineTrees[i];
+            tileSphere.copy(pine.boundingSphere);
+            tileSphere.radius += BUFFER_MARGIN;
+
+            if (frustum.intersectsSphere(tileSphere)) {
+              forest.pineTrunksMesh.setMatrixAt(activePines, pine.trunkMatrix);
+              forest.cone1Mesh.setMatrixAt(activePines, pine.cone1Matrix);
+              if (forest.cone2Mesh && pine.cone2Matrix) {
+                forest.cone2Mesh.setMatrixAt(activePines, pine.cone2Matrix);
+              }
+              if (forest.cone3Mesh && pine.cone3Matrix) {
+                forest.cone3Mesh.setMatrixAt(activePines, pine.cone3Matrix);
+              }
+              activePines++;
+            }
+          }
+
+          if (forest.pineTrunksMesh.count !== activePines) {
+            forest.pineTrunksMesh.count = activePines;
+            forest.pineTrunksMesh.instanceMatrix.needsUpdate = true;
+            forest.cone1Mesh.count = activePines;
+            forest.cone1Mesh.instanceMatrix.needsUpdate = true;
+            if (forest.cone2Mesh) {
+              forest.cone2Mesh.count = activePines;
+              forest.cone2Mesh.instanceMatrix.needsUpdate = true;
+            }
+            if (forest.cone3Mesh) {
+              forest.cone3Mesh.count = activePines;
+              forest.cone3Mesh.instanceMatrix.needsUpdate = true;
+            }
+          }
+
+          // 2. Filter & Update Deciduous Trees inside Frustum Buffer Zone
+          let activeDeciduous = 0;
+          for (let i = 0; i < forest.deciduousTrees.length; i++) {
+            const dec = forest.deciduousTrees[i];
+            tileSphere.copy(dec.boundingSphere);
+            tileSphere.radius += BUFFER_MARGIN;
+
+            if (frustum.intersectsSphere(tileSphere)) {
+              forest.decTrunksMesh.setMatrixAt(activeDeciduous, dec.trunkMatrix);
+              forest.canopyMesh.setMatrixAt(activeDeciduous, dec.canopyMatrix);
+              activeDeciduous++;
+            }
+          }
+
+          if (forest.decTrunksMesh.count !== activeDeciduous) {
+            forest.decTrunksMesh.count = activeDeciduous;
+            forest.decTrunksMesh.instanceMatrix.needsUpdate = true;
+            forest.canopyMesh.count = activeDeciduous;
+            forest.canopyMesh.instanceMatrix.needsUpdate = true;
+          }
+
+          // 3. Filter & Update Rocks inside Frustum Buffer Zone
+          if (forest.rockMesh && forest.rocks.length > 0) {
+            let activeRocks = 0;
+            for (let i = 0; i < forest.rocks.length; i++) {
+              const rock = forest.rocks[i];
+              tileSphere.copy(rock.boundingSphere);
+              tileSphere.radius += BUFFER_MARGIN;
+
+              if (frustum.intersectsSphere(tileSphere)) {
+                forest.rockMesh.setMatrixAt(activeRocks, rock.matrix);
+                activeRocks++;
+              }
+            }
+
+            if (forest.rockMesh.count !== activeRocks) {
+              forest.rockMesh.count = activeRocks;
+              forest.rockMesh.instanceMatrix.needsUpdate = true;
+            }
+          }
+        }
       }
 
       // Animate floating pollen
@@ -228,9 +462,11 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       // Animate rotation zones dials
       if (rotationZonesGroupRef.current) {
         rotationZonesGroupRef.current.children.forEach(zg => {
-          const dial = zg.children.find(c => c.userData?.isRotationDial);
-          if (dial) {
-            dial.rotation.y = elapsedTime * 0.7;
+          if (zg.visible) {
+            const dial = zg.children.find(c => c.userData?.isRotationDial);
+            if (dial) {
+              dial.rotation.y = elapsedTime * 0.7;
+            }
           }
         });
       }
@@ -240,21 +476,92 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         ghostMeshRef.current.position.y = 0.35 + Math.sin(elapsedTime * 4) * 0.08;
       }
 
-      // Animate picked up tile floating bob
-      if (tilesGroupRef.current) {
-        tilesGroupRef.current.children.forEach(child => {
-          if (child.userData?.isPickedUp) {
-            const targetY = 1.1 + Math.sin(elapsedTime * 5) * 0.1;
-            child.position.y += (targetY - child.position.y) * 0.2;
-            child.rotation.y = Math.sin(elapsedTime * 2.5) * 0.1;
-          } else {
-            child.position.y += (0.14 - child.position.y) * 0.2;
-            child.rotation.y += (0 - child.rotation.y) * 0.2;
+      renderer.render(scene, camera);
+
+      // Throttled Asset RAM/VRAM Memory Calculation (every 500ms for zero rendering jitter)
+      if (now - lastMemoryCheckTimestampRef.current >= 500) {
+        lastMemoryCheckTimestampRef.current = now;
+
+        let geometryBytes = 0;
+        let textureBytes = 0;
+        const visitedGeometries = new Set<THREE.BufferGeometry>();
+        const visitedTextures = new Set<THREE.Texture>();
+
+        scene.traverse(obj => {
+          const mesh = obj as THREE.Mesh;
+          if (mesh.geometry && !visitedGeometries.has(mesh.geometry)) {
+            visitedGeometries.add(mesh.geometry);
+            const geo = mesh.geometry;
+            for (const attrName in geo.attributes) {
+              const attr = geo.attributes[attrName];
+              if (attr && attr.array) {
+                geometryBytes += attr.array.byteLength;
+              }
+            }
+            if (geo.index && geo.index.array) {
+              geometryBytes += geo.index.array.byteLength;
+            }
+          }
+
+          if (mesh.material) {
+            const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            materials.forEach((mat: any) => {
+              for (const key in mat) {
+                const val = mat[key];
+                if (val && val.isTexture && !visitedTextures.has(val)) {
+                  visitedTextures.add(val);
+                  if (val.image && val.image.width && val.image.height) {
+                    textureBytes += val.image.width * val.image.height * 4 * 1.33;
+                  } else {
+                    textureBytes += 512 * 512 * 4 * 1.33;
+                  }
+                }
+              }
+            });
           }
         });
+
+        const geometriesMemoryMb = parseFloat((geometryBytes / (1024 * 1024)).toFixed(2));
+        const texturesVramMb = parseFloat((textureBytes / (1024 * 1024)).toFixed(2));
+        const totalVramMb = parseFloat((geometriesMemoryMb + texturesVramMb).toFixed(2));
+
+        let jsHeapMemoryMb = 0;
+        if (typeof window !== 'undefined' && (performance as any).memory?.usedJSHeapSize) {
+          jsHeapMemoryMb = parseFloat(((performance as any).memory.usedJSHeapSize / (1024 * 1024)).toFixed(1));
+        } else {
+          jsHeapMemoryMb = parseFloat((geometriesMemoryMb * 2.2 + 28.5).toFixed(1));
+        }
+
+        const vramBudgetCapMb = 64.0;
+        const ramBudgetCapMb = 256.0;
+
+        const vramPct = (totalVramMb / vramBudgetCapMb) * 100;
+        const ramPct = (jsHeapMemoryMb / ramBudgetCapMb) * 100;
+        const budgetUsagePercent = parseFloat(Math.min(100, Math.max(vramPct, ramPct)).toFixed(1));
+        const isOverBudget = totalVramMb > vramBudgetCapMb || jsHeapMemoryMb > ramBudgetCapMb;
+
+        cachedMemoryStatsRef.current = {
+          geometriesMemoryMb,
+          texturesVramMb,
+          totalVramMb,
+          jsHeapMemoryMb,
+          vramBudgetCapMb,
+          ramBudgetCapMb,
+          budgetUsagePercent,
+          isOverBudget,
+        };
       }
 
-      renderer.render(scene, camera);
+      // Report renderer info stats for Device Debugger
+      if (onUpdateRendererInfoRef.current) {
+        onUpdateRendererInfoRef.current({
+          drawCalls: renderer.info.render.calls,
+          triangles: renderer.info.render.triangles,
+          geometries: renderer.info.memory.geometries,
+          textures: renderer.info.memory.textures,
+          ...cachedMemoryStatsRef.current,
+        });
+      }
     };
     animate();
 
@@ -291,6 +598,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     };
 
     return () => {
+      forestInstancedDataRef.current = null;
       (window as any).__hexaGetHexScreenPos = undefined;
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
@@ -306,7 +614,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     };
   }, []);
 
-  // Sync Unlocked Base Grid Hexes
+  // Sync Unlocked Base Grid Hexes with InstancedMesh geometry instancing for low-GPU optimization
   useEffect(() => {
     if (!gridGroupRef.current) return;
     const group = gridGroupRef.current;
@@ -321,7 +629,79 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     const hexGeometry = createHexPrismGeometry(HEX_RADIUS * 0.94, 0.28);
     const borderGeometry = createHexOutlineGeometry(HEX_RADIUS * 0.95);
 
+    // Separate basic forest hex tiles (instanced) vs special/animating hex tiles
+    const instancedCells: GridCell[] = [];
+    const specialCells: GridCell[] = [];
+
     unlockedCells.forEach(cell => {
+      if (cell.isRiver || cell.isFog || cell.isCrystalPink || (isExpansionAnimating && cell.unlockPhase > 1)) {
+        specialCells.push(cell);
+      } else {
+        instancedCells.push(cell);
+      }
+    });
+
+    // 1. InstancedMesh for basic forest hex tiles (batches all base hexes into 1 single draw call!)
+    if (instancedCells.length > 0) {
+      const baseMat = new THREE.MeshStandardMaterial({
+        roughness: 0.5,
+        metalness: 0.1,
+        flatShading: true,
+      });
+
+      const instancedHexes = new THREE.InstancedMesh(hexGeometry, baseMat, instancedCells.length);
+      instancedHexes.receiveShadow = true;
+      instancedHexes.castShadow = false;
+
+      const dummy = new THREE.Object3D();
+
+      instancedCells.forEach((cell, idx) => {
+        const { x, z } = hexToWorld(cell.q, cell.r);
+        dummy.position.set(x, 0, z);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+
+        instancedHexes.setMatrixAt(idx, dummy.matrix);
+
+        const colorData = COLOR_MAP[cell.colorRequirement] || COLOR_MAP.neutral;
+        const isColoredZone = cell.colorRequirement !== 'neutral' && cell.colorRequirement in COLOR_MAP;
+        const tileColorVal = isColoredZone ? colorData.base : 0xe2e8f0;
+        instancedHexes.setColorAt(idx, new THREE.Color(tileColorVal));
+
+        // Perimeter outline for instanced tile
+        const borderMat = new THREE.LineBasicMaterial({
+          color: isColoredZone ? colorData.border : 0x94a3b8,
+          linewidth: 2,
+        });
+        const borderLine = new THREE.LineSegments(borderGeometry, borderMat);
+        borderLine.position.set(x, 0.145, z);
+        group.add(borderLine);
+
+        // Gemstone marker for color zones
+        if (isColoredZone) {
+          const markerGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.08, 6);
+          const markerMat = new THREE.MeshStandardMaterial({
+            color: colorData.border,
+            emissive: colorData.border,
+            emissiveIntensity: 0.6,
+            roughness: 0.2,
+          });
+          const marker = new THREE.Mesh(markerGeo, markerMat);
+          marker.position.set(x, 0.16, z);
+          group.add(marker);
+        }
+      });
+
+      instancedHexes.instanceMatrix.needsUpdate = true;
+      if (instancedHexes.instanceColor) {
+        instancedHexes.instanceColor.needsUpdate = true;
+      }
+      group.add(instancedHexes);
+    }
+
+    // 2. Render Special Cells (River, Fog, Crystal Pink, or expanding phase rise)
+    specialCells.forEach(cell => {
       const { x, z } = hexToWorld(cell.q, cell.r);
       const cellGroup = new THREE.Group();
       cellGroup.position.set(x, 0, z);
@@ -329,12 +709,10 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       const colorData = COLOR_MAP[cell.colorRequirement] || COLOR_MAP.neutral;
       const isColoredZone = cell.colorRequirement !== 'neutral' && cell.colorRequirement in COLOR_MAP;
 
-      // Base tile material
       let baseMat: THREE.MeshStandardMaterial;
       let borderMat: THREE.LineBasicMaterial;
 
       if (cell.isRiver) {
-        // Shimmering natural river barrier
         baseMat = new THREE.MeshStandardMaterial({
           color: 0x38bdf8,
           roughness: 0.1,
@@ -344,12 +722,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
           transparent: true,
           opacity: 0.9,
         });
-        borderMat = new THREE.LineBasicMaterial({
-          color: 0x0ea5e9,
-          linewidth: 2,
-        });
+        borderMat = new THREE.LineBasicMaterial({ color: 0x0ea5e9, linewidth: 2 });
       } else if (cell.isFog) {
-        // Mystical Fog Hex (future phase prediction)
         baseMat = new THREE.MeshStandardMaterial({
           color: 0xc4b5fd,
           roughness: 0.85,
@@ -359,12 +733,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
           transparent: true,
           opacity: 0.5,
         });
-        borderMat = new THREE.LineBasicMaterial({
-          color: 0xa855f7,
-          linewidth: 2,
-        });
+        borderMat = new THREE.LineBasicMaterial({ color: 0xa855f7, linewidth: 2 });
       } else if (cell.isCrystalPink) {
-        // Expandacardia Special Crystal Pink Hex
         baseMat = new THREE.MeshStandardMaterial({
           color: 0xfdf2f8,
           roughness: 0.25,
@@ -372,10 +742,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
           emissive: 0xec4899,
           emissiveIntensity: 0.55,
         });
-        borderMat = new THREE.LineBasicMaterial({
-          color: 0xf43f5e,
-          linewidth: 3,
-        });
+        borderMat = new THREE.LineBasicMaterial({ color: 0xf43f5e, linewidth: 3 });
       } else {
         baseMat = new THREE.MeshStandardMaterial({
           color: isColoredZone ? colorData.base : 0xe2e8f0,
@@ -395,14 +762,11 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       mesh.castShadow = false;
       cellGroup.add(mesh);
 
-      // Glowing or defined perimeter border
       const borderLine = new THREE.LineSegments(borderGeometry, borderMat);
       borderLine.position.y = 0.145;
       cellGroup.add(borderLine);
 
-      // Markers for special tiles
       if (cell.isRiver) {
-        // Floating water currents
         const waterRipples = new THREE.Mesh(
           new THREE.CylinderGeometry(0.5, 0.5, 0.04, 6),
           new THREE.MeshStandardMaterial({
@@ -415,7 +779,6 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         waterRipples.position.y = 0.15;
         cellGroup.add(waterRipples);
       } else if (cell.isFog) {
-        // Floating mist orb
         const mistOrb = new THREE.Mesh(
           new THREE.SphereGeometry(0.3, 8, 8),
           new THREE.MeshStandardMaterial({
@@ -428,21 +791,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         );
         mistOrb.position.y = 0.3;
         cellGroup.add(mistOrb);
-      } else if (isColoredZone) {
-        // Inner magical rune gemstone marker
-        const markerGeo = new THREE.CylinderGeometry(0.35, 0.45, 0.08, 6);
-        const markerMat = new THREE.MeshStandardMaterial({
-          color: colorData.border,
-          emissive: colorData.border,
-          emissiveIntensity: 0.6,
-          roughness: 0.2,
-        });
-        const marker = new THREE.Mesh(markerGeo, markerMat);
-        marker.position.y = 0.16;
-        cellGroup.add(marker);
       }
 
-      // Initial rise animation if expanding
       if (isExpansionAnimating && cell.unlockPhase > 1) {
         cellGroup.position.y = -2;
         animateRise(cellGroup, 0, 400 + Math.random() * 200);
@@ -943,10 +1293,14 @@ function animateRise(group: THREE.Group, targetY: number, duration: number) {
   requestAnimationFrame(tick);
 }
 
-// Build Procedural Low-Poly Forest Outskirts
-function buildVastForestEnvironment(scene: THREE.Scene, forestGroup: THREE.Group) {
+// Build Procedural Low-Poly Forest Outskirts with Frustum-Aware Instancing Support
+function buildVastForestEnvironment(
+  scene: THREE.Scene,
+  forestGroup: THREE.Group,
+  isPerfLow: boolean = false
+): ForestInstancedData {
   // Rolling meadow floor
-  const terrainGeo = new THREE.PlaneGeometry(90, 90, 32, 32);
+  const terrainGeo = new THREE.PlaneGeometry(90, 90, isPerfLow ? 12 : 32, isPerfLow ? 12 : 32);
   terrainGeo.rotateX(-Math.PI / 2);
   const posAttr = terrainGeo.attributes.position;
   for (let i = 0; i < posAttr.count; i++) {
@@ -970,7 +1324,7 @@ function buildVastForestEnvironment(scene: THREE.Scene, forestGroup: THREE.Group
     flatShading: true,
   });
   const terrain = new THREE.Mesh(terrainGeo, terrainMat);
-  terrain.receiveShadow = true;
+  terrain.receiveShadow = !isPerfLow;
   forestGroup.add(terrain);
 
   // Distant River Stream
@@ -984,12 +1338,22 @@ function buildVastForestEnvironment(scene: THREE.Scene, forestGroup: THREE.Group
   });
   const river = new THREE.Mesh(riverGeo, riverMat);
   river.position.set(-18, -0.42, 0);
-  river.receiveShadow = true;
+  river.receiveShadow = !isPerfLow;
   forestGroup.add(river);
 
-  // Procedural Forest Trees (Evergreen pines & deciduous oaks ringed outside clearing)
-  const treeCount = 260;
-  for (let i = 0; i < treeCount; i++) {
+  // Procedural Forest Trees using InstancedMesh with pre-computed transform matrices
+  const totalTrees = isPerfLow ? 35 : 220;
+  interface TreeData {
+    x: number;
+    y: number;
+    z: number;
+    scale: number;
+    rotationY: number;
+  }
+  const pineTreesData: TreeData[] = [];
+  const deciduousTreesData: TreeData[] = [];
+
+  for (let i = 0; i < totalTrees; i++) {
     const angle = Math.random() * Math.PI * 2;
     const radius = 9 + Math.random() * 32;
     const tx = Math.cos(angle) * radius;
@@ -999,25 +1363,187 @@ function buildVastForestEnvironment(scene: THREE.Scene, forestGroup: THREE.Group
     if (tx < -14 && tx > -22) continue;
 
     const scale = 0.65 + Math.random() * 0.6;
+    const ty = -0.3 + (radius > 12 ? (radius - 12) * 0.06 : 0);
+    const rotationY = Math.random() * Math.PI * 2;
     const isPine = Math.random() > 0.45;
-    const tree = isPine ? createLowPolyPine(scale) : createLowPolyDeciduous(scale);
-    tree.position.set(tx, -0.3 + (radius > 12 ? (radius - 12) * 0.06 : 0), tz);
-    tree.rotation.y = Math.random() * Math.PI * 2;
-    forestGroup.add(tree);
+
+    if (isPine) {
+      pineTreesData.push({ x: tx, y: ty, z: tz, scale, rotationY });
+    } else {
+      deciduousTreesData.push({ x: tx, y: ty, z: tz, scale, rotationY });
+    }
   }
 
-  // Scattered boulders & wildflowers in clearing outskirts
-  for (let i = 0; i < 40; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const r = 6 + Math.random() * 14;
-    const rock = createLowPolyRock();
-    rock.position.set(Math.cos(angle) * r, -0.2, Math.sin(angle) * r);
-    rock.rotation.set(Math.random(), Math.random(), Math.random());
-    forestGroup.add(rock);
+  const dummy = new THREE.Object3D();
+
+  // 1. Instanced Pine Trees (Trunks & Cones)
+  const pineAssets: PineAsset[] = [];
+  const trunkGeo = new THREE.CylinderGeometry(0.12, 0.18, 0.9, 5);
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.9, flatShading: true });
+  const pineTrunksMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, Math.max(1, pineTreesData.length));
+  pineTrunksMesh.castShadow = !isPerfLow;
+
+  const cone1Geo = new THREE.ConeGeometry(1.1, 1.4, 6);
+  const cone2Geo = new THREE.ConeGeometry(0.85, 1.2, 6);
+  const cone3Geo = new THREE.ConeGeometry(0.55, 0.9, 6);
+  const foliageMat = new THREE.MeshStandardMaterial({ color: 0x2d6a4f, roughness: 0.8, flatShading: true });
+
+  const cone1Mesh = new THREE.InstancedMesh(cone1Geo, foliageMat, Math.max(1, pineTreesData.length));
+  cone1Mesh.castShadow = !isPerfLow;
+
+  let cone2Mesh: THREE.InstancedMesh | null = null;
+  let cone3Mesh: THREE.InstancedMesh | null = null;
+  if (!isPerfLow) {
+    cone2Mesh = new THREE.InstancedMesh(cone2Geo, foliageMat, Math.max(1, pineTreesData.length));
+    cone2Mesh.castShadow = true;
+    cone3Mesh = new THREE.InstancedMesh(cone3Geo, foliageMat, Math.max(1, pineTreesData.length));
+    cone3Mesh.castShadow = true;
   }
+
+  pineTreesData.forEach((t, i) => {
+    // Trunk
+    dummy.position.set(t.x, t.y + 0.45 * t.scale, t.z);
+    dummy.rotation.set(0, t.rotationY, 0);
+    dummy.scale.set(t.scale, t.scale, t.scale);
+    dummy.updateMatrix();
+    const trunkMatrix = dummy.matrix.clone();
+    pineTrunksMesh.setMatrixAt(i, trunkMatrix);
+
+    // Cone 1
+    dummy.position.set(t.x, t.y + 1.3 * t.scale, t.z);
+    dummy.updateMatrix();
+    const cone1Matrix = dummy.matrix.clone();
+    cone1Mesh.setMatrixAt(i, cone1Matrix);
+
+    let cone2Matrix: THREE.Matrix4 | undefined;
+    let cone3Matrix: THREE.Matrix4 | undefined;
+
+    if (!isPerfLow && cone2Mesh && cone3Mesh) {
+      dummy.position.set(t.x, t.y + 2.0 * t.scale, t.z);
+      dummy.updateMatrix();
+      cone2Matrix = dummy.matrix.clone();
+      cone2Mesh.setMatrixAt(i, cone2Matrix);
+
+      dummy.position.set(t.x, t.y + 2.65 * t.scale, t.z);
+      dummy.updateMatrix();
+      cone3Matrix = dummy.matrix.clone();
+      cone3Mesh.setMatrixAt(i, cone3Matrix);
+    }
+
+    const boundingSphere = new THREE.Sphere(new THREE.Vector3(t.x, t.y + 1.5 * t.scale, t.z), 2.2 * t.scale);
+
+    pineAssets.push({
+      boundingSphere,
+      trunkMatrix,
+      cone1Matrix,
+      cone2Matrix,
+      cone3Matrix,
+    });
+  });
+
+  pineTrunksMesh.instanceMatrix.needsUpdate = true;
+  cone1Mesh.instanceMatrix.needsUpdate = true;
+  forestGroup.add(pineTrunksMesh);
+  forestGroup.add(cone1Mesh);
+  if (cone2Mesh) {
+    cone2Mesh.instanceMatrix.needsUpdate = true;
+    forestGroup.add(cone2Mesh);
+  }
+  if (cone3Mesh) {
+    cone3Mesh.instanceMatrix.needsUpdate = true;
+    forestGroup.add(cone3Mesh);
+  }
+
+  // 2. Instanced Deciduous Trees (Trunks & Canopies)
+  const deciduousAssets: DeciduousAsset[] = [];
+  const decTrunkGeo = new THREE.CylinderGeometry(0.14, 0.22, 1.1, 5);
+  const decTrunkMat = new THREE.MeshStandardMaterial({ color: 0x6c584c, roughness: 0.9, flatShading: true });
+  const decTrunksMesh = new THREE.InstancedMesh(decTrunkGeo, decTrunkMat, Math.max(1, deciduousTreesData.length));
+  decTrunksMesh.castShadow = !isPerfLow;
+
+  const canopyGeo = new THREE.DodecahedronGeometry(0.9, isPerfLow ? 0 : 1);
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x52b788, roughness: 0.8, flatShading: true });
+  const canopyMesh = new THREE.InstancedMesh(canopyGeo, canopyMat, Math.max(1, deciduousTreesData.length));
+  canopyMesh.castShadow = !isPerfLow;
+
+  deciduousTreesData.forEach((t, i) => {
+    // Trunk
+    dummy.position.set(t.x, t.y + 0.55 * t.scale, t.z);
+    dummy.rotation.set(0, t.rotationY, 0);
+    dummy.scale.set(t.scale, t.scale, t.scale);
+    dummy.updateMatrix();
+    const trunkMatrix = dummy.matrix.clone();
+    decTrunksMesh.setMatrixAt(i, trunkMatrix);
+
+    // Canopy
+    dummy.position.set(t.x, t.y + 1.6 * t.scale, t.z);
+    dummy.updateMatrix();
+    const canopyMatrix = dummy.matrix.clone();
+    canopyMesh.setMatrixAt(i, canopyMatrix);
+
+    const boundingSphere = new THREE.Sphere(new THREE.Vector3(t.x, t.y + 1.2 * t.scale, t.z), 2.0 * t.scale);
+
+    deciduousAssets.push({
+      boundingSphere,
+      trunkMatrix,
+      canopyMatrix,
+    });
+  });
+
+  decTrunksMesh.instanceMatrix.needsUpdate = true;
+  canopyMesh.instanceMatrix.needsUpdate = true;
+  forestGroup.add(decTrunksMesh);
+  forestGroup.add(canopyMesh);
+
+  // 3. Instanced Scattered Boulders
+  const rockAssets: RockAsset[] = [];
+  const rockCount = isPerfLow ? 12 : 35;
+  let rockInstancedMesh: THREE.InstancedMesh | null = null;
+
+  if (rockCount > 0) {
+    const rockGeo = new THREE.DodecahedronGeometry(0.35, 0);
+    const rockMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9, flatShading: true });
+    rockInstancedMesh = new THREE.InstancedMesh(rockGeo, rockMat, rockCount);
+    rockInstancedMesh.castShadow = !isPerfLow;
+
+    for (let i = 0; i < rockCount; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r = 6 + Math.random() * 14;
+      const rx = Math.cos(angle) * r;
+      const rz = Math.sin(angle) * r;
+      const s = 0.8 + Math.random() * 0.5;
+
+      dummy.position.set(rx, -0.2, rz);
+      dummy.rotation.set(Math.random(), Math.random(), Math.random());
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      const rockMatrix = dummy.matrix.clone();
+      rockInstancedMesh.setMatrixAt(i, rockMatrix);
+
+      rockAssets.push({
+        boundingSphere: new THREE.Sphere(new THREE.Vector3(rx, -0.2, rz), 1.0 * s),
+        matrix: rockMatrix,
+      });
+    }
+    rockInstancedMesh.instanceMatrix.needsUpdate = true;
+    forestGroup.add(rockInstancedMesh);
+  }
+
+  return {
+    pineTrees: pineAssets,
+    deciduousTrees: deciduousAssets,
+    rocks: rockAssets,
+    pineTrunksMesh,
+    cone1Mesh,
+    cone2Mesh,
+    cone3Mesh,
+    decTrunksMesh,
+    canopyMesh,
+    rockMesh: rockInstancedMesh,
+  };
 }
 
-function createLowPolyPine(scale: number): THREE.Group {
+function createLowPolyPine(scale: number, isPerfLow: boolean = false): THREE.Group {
   const group = new THREE.Group();
   group.scale.set(scale, scale, scale);
 
@@ -1026,7 +1552,7 @@ function createLowPolyPine(scale: number): THREE.Group {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.9, flatShading: true });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = 0.45;
-  trunk.castShadow = true;
+  trunk.castShadow = !isPerfLow;
   group.add(trunk);
 
   // Foliage Cones
@@ -1038,23 +1564,25 @@ function createLowPolyPine(scale: number): THREE.Group {
 
   const cone1 = new THREE.Mesh(new THREE.ConeGeometry(1.1, 1.4, 6), foliageMat);
   cone1.position.y = 1.3;
-  cone1.castShadow = true;
+  cone1.castShadow = !isPerfLow;
   group.add(cone1);
 
-  const cone2 = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.2, 6), foliageMat);
-  cone2.position.y = 2.0;
-  cone2.castShadow = true;
-  group.add(cone2);
+  if (!isPerfLow) {
+    const cone2 = new THREE.Mesh(new THREE.ConeGeometry(0.85, 1.2, 6), foliageMat);
+    cone2.position.y = 2.0;
+    cone2.castShadow = true;
+    group.add(cone2);
 
-  const cone3 = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.9, 6), foliageMat);
-  cone3.position.y = 2.65;
-  cone3.castShadow = true;
-  group.add(cone3);
+    const cone3 = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.9, 6), foliageMat);
+    cone3.position.y = 2.65;
+    cone3.castShadow = true;
+    group.add(cone3);
+  }
 
   return group;
 }
 
-function createLowPolyDeciduous(scale: number): THREE.Group {
+function createLowPolyDeciduous(scale: number, isPerfLow: boolean = false): THREE.Group {
   const group = new THREE.Group();
   group.scale.set(scale, scale, scale);
 
@@ -1062,10 +1590,10 @@ function createLowPolyDeciduous(scale: number): THREE.Group {
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6c584c, roughness: 0.9, flatShading: true });
   const trunk = new THREE.Mesh(trunkGeo, trunkMat);
   trunk.position.y = 0.55;
-  trunk.castShadow = true;
+  trunk.castShadow = !isPerfLow;
   group.add(trunk);
 
-  const canopyGeo = new THREE.DodecahedronGeometry(0.9, 1);
+  const canopyGeo = new THREE.DodecahedronGeometry(0.9, isPerfLow ? 0 : 1);
   const canopyMat = new THREE.MeshStandardMaterial({
     color: 0x52b788,
     roughness: 0.8,
@@ -1073,17 +1601,17 @@ function createLowPolyDeciduous(scale: number): THREE.Group {
   });
   const canopy = new THREE.Mesh(canopyGeo, canopyMat);
   canopy.position.y = 1.6;
-  canopy.castShadow = true;
+  canopy.castShadow = !isPerfLow;
   group.add(canopy);
 
   return group;
 }
 
-function createLowPolyRock(): THREE.Mesh {
+function createLowPolyRock(isPerfLow: boolean = false): THREE.Mesh {
   const geo = new THREE.DodecahedronGeometry(0.3 + Math.random() * 0.2, 0);
   const mat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, roughness: 0.9, flatShading: true });
   const rock = new THREE.Mesh(geo, mat);
-  rock.castShadow = true;
+  rock.castShadow = !isPerfLow;
   return rock;
 }
 

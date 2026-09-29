@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode } from '../types/game';
+import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode, PlayMode } from '../types/game';
 import {
   Star,
   Compass,
@@ -14,6 +14,9 @@ import {
   Crown,
   RotateCw,
   Award,
+  Lightbulb,
+  Swords,
+  Trophy,
 } from 'lucide-react';
 import { coordKey } from '../utils/hexMath';
 
@@ -32,6 +35,7 @@ interface RightSidebarProps {
   masteryChallenge?: MasteryChallenge;
   isMasteryCompleted?: boolean;
   gameMode?: GameMode;
+  playMode?: PlayMode;
   rotationZones?: RotationZone[];
   overlapErrorCount?: number;
   hideScore?: boolean;
@@ -40,6 +44,7 @@ interface RightSidebarProps {
   isPenaltyLimitExceeded?: boolean;
   onRotateZone?: (zoneId: string) => void;
   onCompletePhase: () => void;
+  onOpenBossBattle?: () => void;
   onToggleSound: () => void;
   onResetBoard: () => void;
   onOpenRules: () => void;
@@ -60,6 +65,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   masteryChallenge,
   isMasteryCompleted = false,
   gameMode = 'tryhard',
+  playMode = 'building',
   rotationZones,
   overlapErrorCount = 0,
   hideScore = false,
@@ -68,10 +74,13 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   isPenaltyLimitExceeded = false,
   onRotateZone,
   onCompletePhase,
+  onOpenBossBattle,
   onToggleSound,
   onResetBoard,
   onOpenRules,
 }) => {
+  const isBuildingMode = playMode === 'building';
+  const isBossLevel = Boolean(currentLevel.isBossLevel);
   const [scrambleNum, setScrambleNum] = React.useState('742');
 
   React.useEffect(() => {
@@ -112,30 +121,30 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
       className="pointer-events-auto w-64 sm:w-72 flex flex-col gap-2 p-1 select-none font-sans"
     >
       {/* 1. Current Area & Biome Card */}
-      <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-3xl p-3 flex flex-col gap-2.5 text-slate-100">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+      <div className="wood-panel p-3.5 flex flex-col gap-2.5 text-[#f4ecd8] border-2 border-[#5c3d2e] shadow-2xl">
+        <div className="flex items-center justify-between border-b border-[#5c3d2e] pb-2">
+          <div className="flex items-center gap-2 font-rounded">
+            <div className="w-6 h-6 rounded-lg bg-[#6b8e5a]/30 border border-[#8fbc6f]/50 flex items-center justify-center text-[#f0c674]">
               <Compass className="w-3.5 h-3.5" />
             </div>
             <div>
-              <h1 className="text-xs font-black text-white leading-none">
+              <h1 className="text-xs font-bold text-[#f4ecd8] leading-none">
                 {currentLevel.name}
               </h1>
             </div>
           </div>
 
-          <span className="text-[9.5px] font-mono font-bold text-amber-300 bg-amber-950/80 border border-amber-500/40 px-2 py-0.5 rounded-full">
+          <span className="text-[9.5px] font-bold text-[#f0c674] bg-[#1e3520] border border-[#6b8e5a]/50 px-2 py-0.5 rounded-lg">
             Phase {currentPhaseIndex + 1}/{totalPhases}
           </span>
         </div>
 
         {/* Phase Objective Box */}
-        <div className="p-2.5 rounded-2xl bg-slate-950/70 border border-slate-800 text-[10.5px]">
-          <div className="font-bold text-amber-200 leading-tight">
+        <div className="p-2.5 parchment-panel text-[10.5px]">
+          <div className="font-bold text-[#3a2519] leading-tight font-rounded">
             {currentPhase.title}
           </div>
-          <p className="text-slate-300 line-clamp-2 mt-0.5 leading-normal text-[10px]">
+          <p className="text-[#5c3d2e] line-clamp-2 mt-0.5 leading-normal text-[10px]">
             {currentPhase.objective}
           </p>
         </div>
@@ -170,7 +179,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
         )}
 
         {/* Colored Zones Checklist */}
-        <div className="flex flex-col gap-1">
+        <div data-tutorial-id="tutorial-target-color-zones" className="flex flex-col gap-1">
           <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400 font-mono">
             Target Color Zones:
           </span>
@@ -277,9 +286,10 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           </div>
         )}
 
-        {/* Mastery Challenge */}
-        {masteryChallenge && (
+        {/* Mastery Challenge (Challenger Mode Only) */}
+        {!isBuildingMode && masteryChallenge && (
           <div
+            data-tutorial-id="tutorial-mastery-challenge"
             className={`p-2.5 rounded-2xl border flex flex-col gap-1 transition-all ${
               isMasteryCompleted
                 ? 'bg-gradient-to-r from-amber-950/60 to-emerald-950/60 border-amber-400/60 shadow-lg'
@@ -325,56 +335,49 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 {overlapErrorCount} Active Overlap Error{overlapErrorCount > 1 ? 's' : ''}!
               </span>
               <span className="text-orange-200/90 text-[9px]">
-                Remove overlapping tile(s) or -{overlapErrorCount * 100} pts penalty applied.
+                Remove overlapping tile(s) or placement invalidated.
               </span>
             </div>
           </div>
         )}
 
-        {/* Action Button: Expand Area or Claim Victory */}
-        {canCompletePhase && (
+        {/* Boss Battle Button (Building Mode / Boss Levels) */}
+        {isBossLevel && onOpenBossBattle && (
           <button
+            onClick={onOpenBossBattle}
+            className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-black text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-200 shadow-xl transition-all cursor-pointer animate-pulse"
+          >
+            <Swords className="w-4 h-4 text-slate-950" />
+            <span>COMMENCE 1v1 BOSS SHOWDOWN</span>
+          </button>
+        )}
+
+        {/* Action Button: Expand Area or Claim Victory */}
+        {!isBossLevel && canCompletePhase && (
+          <button
+            data-tutorial-id="btn-expand-action"
             onClick={() => {
-              if (canProceed) {
+              if (isBuildingMode || canProceed) {
                 onCompletePhase();
               }
             }}
-            disabled={!canProceed && isLastPhase}
+            disabled={!isBuildingMode && !canProceed && isLastPhase}
             className={`w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl text-xs font-black shadow-xl transition-all cursor-pointer ${
-              canProceed
+              isBuildingMode || canProceed
                 ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-400 hover:from-emerald-400 hover:to-teal-400 text-slate-950 animate-bounce'
                 : 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed opacity-90'
             }`}
           >
-            {canProceed ? (
-              <>
-                <CheckCircle2 className="w-4 h-4 text-slate-950" />
-                <span>
-                  {isLastPhase
-                    ? masteryChallenge
-                      ? isMasteryCompleted
-                        ? 'Claim Mastered Victory! ★'
-                        : isTryHard
-                        ? 'Claim Mastered Victory! ★'
-                        : 'Claim Settlement Victory (Casual)'
-                      : isTryHard
-                      ? 'Claim Settlement Victory'
-                      : 'Claim Settlement Victory (Casual)'
-                    : 'Expand Area (Next Phase)'}
-                </span>
-              </>
-            ) : (
-              <>
-                <Lock className="w-3.5 h-3.5" />
-                <span className="text-[10px]">1★ + Mastery Required</span>
-              </>
-            )}
+            <CheckCircle2 className="w-4 h-4 text-slate-950" />
+            <span>
+              {isLastPhase ? 'Complete Level & Frontier ✓' : 'Expand Area (Next Phase)'}
+            </span>
           </button>
         )}
       </div>
 
-      {/* 2. Settlement Star Progress Bar */}
-      {!hideScore && (
+      {/* 2. Settlement Star Progress Bar (Challenger Mode Only) */}
+      {!isBuildingMode && !hideScore && (
         <div
           className={`backdrop-blur-xl border shadow-2xl rounded-3xl p-3 flex flex-col gap-2 transition-all text-slate-100 ${
             isFalsehoodActive || isPenaltyLimitExceeded

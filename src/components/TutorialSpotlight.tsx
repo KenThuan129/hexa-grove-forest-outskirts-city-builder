@@ -1,14 +1,18 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Sparkles, ChevronRight, Check } from 'lucide-react';
-import { HexPiece, PlacedTile } from '../types/game';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { Sparkles, ChevronRight, Check, Crown, Waves, AlertTriangle } from 'lucide-react';
+import { HexPiece, PlacedTile, PenaltyRecord } from '../types/game';
 import { sounds } from '../utils/audio';
 
 interface TutorialSpotlightProps {
   levelId: number;
+  currentPhaseIndex?: number;
+  totalPhases?: number;
   selectedPiece: HexPiece | null;
   placedTiles: Map<string, PlacedTile[]>;
   canCompletePhase: boolean;
+  penalties?: PenaltyRecord;
   onCompleteTutorialStep?: () => void;
+  onAutoDemoBuild?: (coord: { q: number; r: number }, pieceId: string) => void;
 }
 
 interface TargetRect {
@@ -22,159 +26,446 @@ interface TargetRect {
   centerY: number;
 }
 
+interface ExtraFocalItem {
+  rect: TargetRect;
+  color?: string;
+  label?: string;
+}
+
 type PointerDirection = 'down' | 'left' | 'right' | 'up';
+
+const isRectDifferent = (a: TargetRect | null, b: TargetRect | null): boolean => {
+  if (!a && !b) return false;
+  if (!a || !b) return true;
+  return (
+    Math.abs(a.left - b.left) > 0.5 ||
+    Math.abs(a.top - b.top) > 0.5 ||
+    Math.abs(a.width - b.width) > 0.5 ||
+    Math.abs(a.height - b.height) > 0.5
+  );
+};
+
+const isExtrasEqual = (a: ExtraFocalItem[], b: ExtraFocalItem[]): boolean => {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].color !== b[i].color || a[i].label !== b[i].label) return false;
+    if (isRectDifferent(a[i].rect, b[i].rect)) return false;
+  }
+  return true;
+};
 
 export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
   levelId,
+  currentPhaseIndex = 0,
+  totalPhases = 1,
   selectedPiece,
   placedTiles,
   canCompletePhase,
+  penalties,
   onCompleteTutorialStep,
+  onAutoDemoBuild,
 }) => {
-  // Level 2 Sub-step Tracking: 1 = Left Sidebar, 2 = Right Sidebar, 3 = Tray list, 4 = Completed
+  // Step state per level
   const [level2Step, setLevel2Step] = useState<number>(1);
-  const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  const [level6Step, setLevel6Step] = useState<number>(1);
+  const [isLevelPhase2Dismissed, setIsLevelPhase2Dismissed] = useState<boolean>(false);
+  const [isPenaltyTutorialDismissed, setIsPenaltyTutorialDismissed] = useState<boolean>(false);
 
-  // Reset Level 2 step when switching to level 2
+  const [targetRect, setTargetRect] = useState<TargetRect | null>(null);
+  const [extraRects, setExtraRects] = useState<ExtraFocalItem[]>([]);
+  const hasTriggeredDemoRef = useRef(false);
+
+  // Reset steps when switching levels or phases
   useEffect(() => {
     if (levelId === 2) {
-      setLevel2Step(1);
+      if (currentPhaseIndex === 0) {
+        setLevel2Step(1);
+        hasTriggeredDemoRef.current = false;
+        setIsLevelPhase2Dismissed(false);
+      }
+    } else if (levelId === 6) {
+      setLevel6Step(1);
     }
-  }, [levelId]);
+    setIsPenaltyTutorialDismissed(false);
+  }, [levelId, currentPhaseIndex]);
+
+  // Step 3 Auto Demo Build Trigger for Level 2
+  useEffect(() => {
+    if (levelId === 2 && currentPhaseIndex === 0 && level2Step === 3 && !hasTriggeredDemoRef.current) {
+      hasTriggeredDemoRef.current = true;
+      if (onAutoDemoBuild && !placedTiles.get('1,0')?.length) {
+        onAutoDemoBuild({ q: 1, r: 0 }, 'p-house-amber');
+      }
+    }
+  }, [levelId, currentPhaseIndex, level2Step, onAutoDemoBuild, placedTiles]);
 
   // Level 1 Progress Detection
   const hasPlacedCenter = Boolean(placedTiles.get('0,0')?.length);
-  const hasPlacedAmber = Boolean(placedTiles.get('1,0')?.some(t => t.color === 'amber'));
+  const hasPlacedAmberL1 = Boolean(placedTiles.get('1,0')?.some(t => t.color === 'amber'));
   const isHoldingTimber = selectedPiece?.id === 'p-house-gray';
   const isHoldingAmber = selectedPiece?.color === 'amber';
+  const isHoldingEmerald = selectedPiece?.color === 'emerald';
 
-  // Advance Level 2 tutorial step when player clicks or acknowledges
+  // Level 2 Progress Detection
+  const hasPlacedYellow2_0 = Boolean(placedTiles.get('2,0')?.some(t => t.color === 'amber'));
+  const hasPlacedEmerald0_1 = Boolean(placedTiles.get('0,1')?.some(t => t.color === 'emerald'));
+  const hasPlacedEmerald0_2 = Boolean(placedTiles.get('0,2')?.some(t => t.color === 'emerald'));
+  const isPhase1AllZonesCompleted = hasPlacedYellow2_0 && hasPlacedEmerald0_1 && hasPlacedEmerald0_2;
+
+  // Level 6 Progress Detection (Misplaced tile at 0,3)
+  const hasTileAt0_3 = Boolean(placedTiles.get('0,3')?.length);
+
+  // Auto-advance Level 2 steps based on actual placements
+  useEffect(() => {
+    if (levelId === 2 && currentPhaseIndex === 0) {
+      if (level2Step === 4 && hasPlacedYellow2_0) {
+        setLevel2Step(5);
+        sounds.playZoneComplete();
+      } else if (level2Step === 5 && isPhase1AllZonesCompleted) {
+        setLevel2Step(6);
+        sounds.playVictory();
+      }
+    }
+  }, [levelId, currentPhaseIndex, level2Step, hasPlacedYellow2_0, isPhase1AllZonesCompleted]);
+
+  // Auto-advance Level 6 step 2 when user removes (0,3)
+  useEffect(() => {
+    if (levelId === 6 && level6Step === 2 && !hasTileAt0_3) {
+      setLevel6Step(3);
+      sounds.playVictory();
+    }
+  }, [levelId, level6Step, hasTileAt0_3]);
+
+  // Advance step handler
   const handleAdvanceLevel2 = () => {
     sounds.playPickup();
-    setLevel2Step(prev => Math.min(4, prev + 1));
+    setLevel2Step(prev => prev + 1);
   };
 
-  // If level 2 is at step 3 and user selects a piece, advance to step 4 (dismiss)
-  useEffect(() => {
-    if (levelId === 2 && level2Step === 3 && selectedPiece) {
-      setLevel2Step(4);
-    }
-  }, [levelId, level2Step, selectedPiece]);
+  const handleAdvanceLevel6 = () => {
+    sounds.playPickup();
+    setLevel6Step(prev => prev + 1);
+  };
 
-  // Determine current tutorial metadata
-  let targetSelector: string | null = null;
-  let targetHex: { q: number; r: number } | null = null;
-  let title = '';
-  let description = '';
-  let badgeLabel = 'CLICK';
-  let themeColor: 'emerald' | 'amber' | 'cyan' = 'emerald';
-  let pointerDirection: PointerDirection = 'down';
+  // Determine current tutorial metadata via useMemo for pure reference stability
+  const tutorialMeta = useMemo(() => {
+    let targetSelector: string | null = null;
+    let targetHex: { q: number; r: number } | null = null;
+    let extraFocalSelectors: { selector: string; color?: string; label?: string }[] = [];
+    let extraFocalHexes: { q: number; r: number; color?: string; label?: string }[] = [];
 
-  if (levelId === 1) {
-    if (!hasPlacedCenter) {
-      if (!isHoldingTimber) {
-        targetSelector = '[data-tutorial-id="tray-piece-p-house-gray"], [data-piece-index="0"]';
-        title = 'Step 1: Select Timber Cottage';
-        description = 'Click on the Timber Cottage tile in your inventory tray below to pick it up.';
-        badgeLabel = 'CLICK TO HOLD';
-        themeColor = 'emerald';
-        pointerDirection = 'down';
+    let title = '';
+    let description = '';
+    let badgeLabel = 'CLICK';
+    let themeColor: 'emerald' | 'amber' | 'cyan' | 'purple' | 'rose' = 'emerald';
+    let pointerDirection: PointerDirection = 'down';
+
+    // LEVEL 1
+    if (levelId === 1) {
+      if (!hasPlacedCenter) {
+        if (!isHoldingTimber) {
+          targetSelector = '[data-tutorial-id="tray-piece-p-house-gray"], [data-piece-index="0"]';
+          title = 'Step 1: Select Timber Cottage';
+          description = 'Click on the Timber Cottage tile in your inventory tray below to pick it up.';
+          badgeLabel = 'CLICK TO HOLD';
+          themeColor = 'emerald';
+          pointerDirection = 'down';
+        } else {
+          targetHex = { q: 0, r: 0 };
+          title = 'Step 2: Place on Center Hex (0,0)';
+          description = 'Click on the central clearing hex in the 3D scene to place your cottage.';
+          badgeLabel = 'PLACE HERE';
+          themeColor = 'emerald';
+          pointerDirection = 'down';
+        }
+      } else if (!hasPlacedAmberL1) {
+        if (!isHoldingAmber) {
+          targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"], [data-piece-index="1"]';
+          title = 'Step 3: Select Sunlit Townhall (Amber)';
+          description = 'Click on the golden Sunlit Townhall to prepare it for the sunlit zone.';
+          badgeLabel = 'CLICK TO HOLD';
+          themeColor = 'amber';
+          pointerDirection = 'down';
+        } else {
+          targetHex = { q: 1, r: 0 };
+          title = 'Step 4: Align with Golden Zone (1,0)';
+          description = 'Click on the glowing amber hex on the board to fulfill the color requirement!';
+          badgeLabel = 'MATCH AMBER';
+          themeColor = 'amber';
+          pointerDirection = 'down';
+        }
       } else {
-        targetHex = { q: 0, r: 0 };
-        title = 'Step 2: Place on Center Hex (0,0)';
-        description = 'Click on the central clearing hex in the 3D scene to place your cottage.';
-        badgeLabel = 'PLACE HERE';
+        targetSelector = null;
+        targetHex = null;
+        title = '🎉 Tutorial Step 1 Completed!';
+        description = 'All dwellings aligned perfectly! Click "Continue to Level 2" to advance.';
+        badgeLabel = 'CONTINUE';
         themeColor = 'emerald';
         pointerDirection = 'down';
       }
-    } else if (!hasPlacedAmber) {
-      if (!isHoldingAmber) {
-        targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"], [data-piece-index="1"]';
-        title = 'Step 3: Select Sunlit Townhall (Amber)';
-        description = 'Click on the golden Sunlit Townhall to prepare it for the sunlit zone.';
-        badgeLabel = 'CLICK TO HOLD';
-        themeColor = 'amber';
-        pointerDirection = 'down';
-      } else {
-        targetHex = { q: 1, r: 0 };
-        title = 'Step 4: Align with Golden Zone (1,0)';
-        description = 'Click on the glowing amber hex on the board to fulfill the color requirement!';
-        badgeLabel = 'MATCH AMBER';
-        themeColor = 'amber';
+    }
+    // LEVEL 2
+    else if (levelId === 2) {
+      if (currentPhaseIndex === 0) {
+        if (level2Step === 1) {
+          targetSelector = '[data-tutorial-id="tutorial-lightbulb-budget"]';
+          title = '1. Lightbulb Building Limit';
+          description = 'Look at your Lightbulb Budget! Every dwelling placed consumes lightbulbs. Once exhausted, you cannot place more — building has strict limits!';
+          badgeLabel = 'CHECK 💡 LIMIT';
+          themeColor = 'amber';
+          pointerDirection = 'left';
+        } else if (level2Step === 2) {
+          targetSelector = '[data-tutorial-id="tutorial-expanding-progress"]';
+          extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'cyan', label: 'Target Zones' }];
+          extraFocalHexes = [
+            { q: 1, r: 0, color: 'amber', label: 'Amber Zone' },
+            { q: 2, r: 0, color: 'amber', label: 'Amber Zone' },
+            { q: 0, r: 1, color: 'emerald', label: 'Emerald Zone' },
+            { q: 0, r: 2, color: 'emerald', label: 'Emerald Zone' },
+          ];
+          title = '2. Expanding Progress & Target Color Zones';
+          description = 'Look at the Target Color Zones checklist in the right sidebar and the glowing zones on the board (Amber Sunlit Meadow & Emerald Verdant Grove). Matching tiles to these designated zones is your goal!';
+          badgeLabel = 'TARGET ZONES';
+          themeColor = 'cyan';
+          pointerDirection = 'left';
+        } else if (level2Step === 3) {
+          targetHex = { q: 1, r: 0 };
+          extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'amber', label: 'Amber 1/2' }];
+          extraFocalHexes = [
+            { q: 2, r: 0, color: 'amber', label: 'Next Amber Zone' },
+          ];
+          title = '3. Sunlit Meadow (Amber) Auto-Placed!';
+          description = 'A Sunlit Townhall was auto-built on Amber Zone (1,0)! Notice the Target Color Zones checklist (Right) now tracks 1/2 Amber filled. Your goal is to fill all required Colored Zones!';
+          badgeLabel = 'MATCH AMBER (1,0)';
+          themeColor = 'amber';
+          pointerDirection = 'down';
+        } else if (level2Step === 4) {
+          if (!isHoldingAmber) {
+            targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"]';
+            extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'amber', label: 'Amber 1/2' }];
+            extraFocalHexes = [{ q: 2, r: 0, color: 'amber', label: 'Target (2,0)' }];
+            title = '4. Select Sunlit Townhall';
+            description = 'Click the Sunlit Townhall in your tray to prepare the second Amber dwelling for the Sunlit Meadow zone.';
+            badgeLabel = 'SELECT YELLOW';
+            themeColor = 'amber';
+            pointerDirection = 'down';
+          } else {
+            targetHex = { q: 2, r: 0 };
+            extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'amber', label: 'Amber Target' }];
+            title = '4. Place on Amber Target Zone (2,0)';
+            description = 'Place the Sunlit Townhall onto the second glowing Amber hex at (2,0) to complete the Sunlit Meadow objective!';
+            badgeLabel = 'PLACE ON (2,0)';
+            themeColor = 'amber';
+            pointerDirection = 'down';
+          }
+        } else if (level2Step === 5) {
+          if (!isHoldingEmerald) {
+            targetSelector = '[data-tutorial-id="tray-piece-p-trees-emerald"]';
+            extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'emerald', label: 'Emerald 0/2' }];
+            extraFocalHexes = [
+              { q: 0, r: 1, color: 'emerald', label: 'Grove (0,1)' },
+              { q: 0, r: 2, color: 'emerald', label: 'Grove (0,2)' },
+            ];
+            title = '5. Amber Complete! Select Verdant Shelter';
+            description = 'Target Zones: Sunlit Meadow is 100% complete! Now select Verdant Shelter (Emerald) from your tray to fill the remaining Verdant Grove target zones.';
+            badgeLabel = 'SELECT GREEN';
+            themeColor = 'emerald';
+            pointerDirection = 'down';
+          } else {
+            const nextGreenCoord = !hasPlacedEmerald0_1 ? { q: 0, r: 1 } : { q: 0, r: 2 };
+            targetHex = nextGreenCoord;
+            extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'emerald', label: 'Emerald Target' }];
+            title = `5. Fill Emerald Zone (${nextGreenCoord.q},${nextGreenCoord.r})`;
+            description = `Place your Verdant Shelter onto the Emerald Verdant Grove at (${nextGreenCoord.q},${nextGreenCoord.r}).`;
+            badgeLabel = 'PLACE ON GREEN';
+            themeColor = 'emerald';
+            pointerDirection = 'down';
+          }
+        } else if (level2Step === 6) {
+          targetSelector = '[data-tutorial-id="btn-expand-action"]';
+          extraFocalSelectors = [
+            { selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'emerald', label: 'Zones Complete ✓' },
+          ];
+          extraFocalHexes = [
+            { q: 1, r: 0, color: 'amber', label: 'Sunlit Meadow ✓' },
+            { q: 2, r: 0, color: 'amber', label: 'Sunlit Meadow ✓' },
+            { q: 0, r: 1, color: 'emerald', label: 'Verdant Grove ✓' },
+            { q: 0, r: 2, color: 'emerald', label: 'Verdant Grove ✓' },
+          ];
+          title = '🌟 All Target Zones Complete! The Expand Button';
+          description = 'Both Sunlit Meadow and Verdant Grove are 100% complete! Notice the button below has transformed into "Expand Area". Click Expand to push back boundaries and unlock Phase 2!';
+          badgeLabel = 'CLICK EXPAND';
+          themeColor = 'cyan';
+          pointerDirection = 'right';
+        }
+      } else if (currentPhaseIndex === 1 && !isLevelPhase2Dismissed) {
+        targetSelector = null;
+        targetHex = { q: -1, r: 2 };
+        title = '🗺️ Expanded Territory Unlocked!';
+        description = 'A new area opens with even more challenge! Some levels come with multiple lands to settle. Complete the newly opened Western Terraces to finish the level!';
+        badgeLabel = 'EXPANDED LAND';
+        themeColor = 'emerald';
         pointerDirection = 'down';
       }
-    } else {
-      // Level 1 Completed - Both pieces placed and verified!
-      targetSelector = null;
-      targetHex = null;
-      title = '🎉 Tutorial Step 1 Completed!';
-      description = 'All dwellings aligned perfectly! Click "Continue to Level 2" to advance.';
-      badgeLabel = 'CONTINUE';
-      themeColor = 'emerald';
-      pointerDirection = 'down';
     }
-  } else if (levelId === 2) {
-    if (level2Step === 1) {
-      targetSelector = '[data-tutorial-id="left-sidebar-panel"]';
-      title = 'Step 1: Frontier Building Quota';
-      description = 'The Left Sidebar tracks your Building Quota vs Par allowance. Click this panel to acknowledge.';
-      badgeLabel = 'CLICK PANEL';
-      themeColor = 'emerald';
-      pointerDirection = 'left';
-    } else if (level2Step === 2) {
-      targetSelector = '[data-tutorial-id="right-sidebar-panel"]';
-      title = 'Step 2: Target Color Zones';
-      description = 'The Right Sidebar shows Amber & Emerald objectives. Match tiles to clear them. Click this panel to acknowledge.';
-      badgeLabel = 'CLICK PANEL';
-      themeColor = 'cyan';
-      pointerDirection = 'right';
-    } else if (level2Step === 3) {
-      targetSelector = '[data-tutorial-id="tile-tray-container"]';
-      title = 'Step 3: Pick & Place Tiles';
-      description = 'Now click on any tile in the inventory tray below and place it on the board!';
-      badgeLabel = 'SELECT ANY TILE';
+    // LEVEL 6
+    else if (levelId === 6) {
+      if (level6Step === 1) {
+        targetSelector = '[data-tutorial-id="tutorial-mastery-challenge"]';
+        extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'purple', label: 'Target Zones' }];
+        extraFocalHexes = [{ q: 0, r: 3, color: 'rose', label: 'Off-Map Tile' }];
+        title = '👑 Mastery Challenge: No Off-Map!';
+        description = 'Look closely at the Crown condition in the sidebar: "No Off-map". Even though target zones look active, the pre-placed green cluster has a piece stranded outside the map border, incurring an Off-Map penalty!';
+        badgeLabel = 'CHECK CROWN 👑';
+        themeColor = 'purple';
+        pointerDirection = 'left';
+      } else if (level6Step === 2) {
+        targetHex = { q: 0, r: 3 };
+        extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-mastery-challenge"]', color: 'purple' }];
+        title = 'Remove the Off-Map Tile (0,3)';
+        description = 'Click on the stray green tile stranded at (0,3) outside the valid map boundary to pick it up/remove it and clear the penalty.';
+        badgeLabel = 'CLICK (0,3) TO REMOVE';
+        themeColor = 'rose';
+        pointerDirection = 'down';
+      } else if (level6Step === 3) {
+        if (!isHoldingAmber && !isHoldingEmerald) {
+          targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"], [data-tutorial-id="tray-piece-p-trees-emerald"]';
+          extraFocalHexes = [{ q: 1, r: 0, color: 'amber', label: 'Amber Zone' }];
+          title = 'Place Valid Tiles Inside Boundary';
+          description = 'Now pick an Amber or Emerald piece from your tray and place it cleanly within the unlocked zones to master the level with 0 penalties!';
+          badgeLabel = 'START BUILDING';
+          themeColor = 'emerald';
+          pointerDirection = 'down';
+        } else {
+          targetHex = { q: 1, r: 0 };
+          title = 'Align Inside Valid Sunstone Plaza';
+          description = 'Place your tile cleanly inside the valid boundary on (1,0) without causing off-map errors.';
+          badgeLabel = 'PLACE IN BOUNDS';
+          themeColor = 'amber';
+          pointerDirection = 'down';
+        }
+      }
+    }
+    // LEVEL 9
+    else if (levelId === 9 && !isPenaltyTutorialDismissed) {
+      title = '⚠️ Overlap Penalty Introduced';
+      description = 'Giant Multi-Hex Clusters (like the 5-Hex Canopy Pentad) must fit completely into open ground. Stacking tiles over existing ones incurs Overlap errors (-100 pts). Align clusters cleanly without overlapping!';
+      badgeLabel = 'NO OVERLAP';
       themeColor = 'amber';
+      targetSelector = '[data-tutorial-id="left-sidebar-panel"]';
+      pointerDirection = 'left';
+    }
+    // LEVEL 12
+    else if (levelId === 12 && !isPenaltyTutorialDismissed) {
+      title = '🔗 Disconnect Penalty Introduced';
+      description = 'Colonies must remain contiguous! Placing structures isolated from your existing settlement incurs Disconnect penalties (-120 pts). Connect every hex back to the central outpost!';
+      badgeLabel = 'KEEP CONNECTED';
+      themeColor = 'cyan';
+      targetSelector = '[data-tutorial-id="left-sidebar-panel"]';
+      pointerDirection = 'left';
+    }
+    // LEVEL 15
+    else if (levelId === 15 && !isPenaltyTutorialDismissed) {
+      title = '💡 Par Limit & Overuse Penalty';
+      description = 'Placing more tiles than the allotted Par Limit drains colony stamina and incurs Overuse penalties (-150 pts). Keep your layout efficient to earn all 3 Stars!';
+      badgeLabel = 'WATCH PAR QUOTA';
+      themeColor = 'amber';
+      targetSelector = '[data-tutorial-id="tutorial-lightbulb-budget"]';
+      pointerDirection = 'left';
+    }
+    // LEVEL 18
+    else if (levelId === 18 && !isPenaltyTutorialDismissed) {
+      title = '⚙️ Rotary Turntable Zones';
+      description = 'Manage two synchronized Rotary Turntables! Press [T] or click the Spin button in the sidebar to rotate single hexes into aligned color pathways.';
+      badgeLabel = 'SPIN TURNTABLE';
+      themeColor = 'cyan';
+      targetSelector = '[data-tutorial-id="right-sidebar-panel"]';
+      pointerDirection = 'right';
+    }
+    // LEVEL 20
+    else if (levelId === 20 && !isPenaltyTutorialDismissed) {
+      targetHex = { q: 0, r: -1 };
+      title = '🌊 Riverside Blocker!';
+      description = 'Try placing a piece on the rushing riverbank — it is blocked! Riverside cells are unbuildable natural water barriers where no structures can be built. Plan your metropolis around the river crossing!';
+      badgeLabel = 'RIVERSIDE BARRIER';
+      themeColor = 'cyan';
       pointerDirection = 'down';
     }
-  } else if (levelId === 3 && placedTiles.size === 0) {
-    targetHex = { q: 0, r: 0 };
-    title = 'Level 3: Penalty Discovery';
-    description = 'Place tiles to match the zones. Stacking on an occupied cell will demonstrate the Overlap Penalty!';
-    badgeLabel = 'TRY PLACING HERE';
-    themeColor = 'amber';
-    pointerDirection = 'down';
-  }
+
+    return {
+      targetSelector,
+      targetHex,
+      extraFocalSelectors,
+      extraFocalHexes,
+      title,
+      description,
+      badgeLabel,
+      themeColor,
+      pointerDirection,
+    };
+  }, [
+    levelId,
+    currentPhaseIndex,
+    level2Step,
+    level6Step,
+    hasPlacedCenter,
+    hasPlacedAmberL1,
+    isHoldingTimber,
+    isHoldingAmber,
+    isHoldingEmerald,
+    hasPlacedYellow2_0,
+    hasPlacedEmerald0_1,
+    hasPlacedEmerald0_2,
+    hasTileAt0_3,
+    isLevelPhase2Dismissed,
+    isPenaltyTutorialDismissed,
+  ]);
+
+  const {
+    targetSelector,
+    targetHex,
+    extraFocalSelectors,
+    extraFocalHexes,
+    title,
+    description,
+    badgeLabel,
+    themeColor,
+  } = tutorialMeta;
 
   const targetHexQ = targetHex ? targetHex.q : null;
   const targetHexR = targetHex ? targetHex.r : null;
 
-  // Update target bounding box dynamically with zero lag across window resize and DOM reflow
-  const updateTargetRect = useCallback(() => {
-    let newRect: TargetRect | null = null;
-
-    // 1. Try 3D Hex Projection if targeting board coordinate
-    if (targetHexQ !== null && targetHexR !== null) {
-      const getHexPos = (window as any).__hexaGetHexScreenPos;
-      if (typeof getHexPos === 'function') {
-        const hexRect = getHexPos(targetHexQ, targetHexR);
-        if (hexRect) {
-          newRect = {
-            left: hexRect.left,
-            top: hexRect.top,
-            width: hexRect.width,
-            height: hexRect.height,
-            right: hexRect.right,
-            bottom: hexRect.bottom,
-            centerX: hexRect.x,
-            centerY: hexRect.y,
-          };
-        }
+  // Helper to project 3D hex coordinates to screen bounding box
+  const getHexTargetRect = useCallback((q: number, r: number): TargetRect | null => {
+    const getHexPos = (window as any).__hexaGetHexScreenPos;
+    if (typeof getHexPos === 'function') {
+      const hexRect = getHexPos(q, r);
+      if (hexRect && hexRect.width > 0 && hexRect.height > 0) {
+        return {
+          left: hexRect.left,
+          top: hexRect.top,
+          width: hexRect.width,
+          height: hexRect.height,
+          right: hexRect.right,
+          bottom: hexRect.bottom,
+          centerX: hexRect.x,
+          centerY: hexRect.y,
+        };
       }
-      // Fallback: screen center if 3D scene is initializing
-      if (!newRect) {
+    }
+    return null;
+  }, []);
+
+  // Update target bounding boxes dynamically with strict deep equality checks
+  const updateTargetRects = useCallback(() => {
+    let mainRect: TargetRect | null = null;
+
+    if (targetHexQ !== null && targetHexR !== null) {
+      mainRect = getHexTargetRect(targetHexQ, targetHexR);
+      if (!mainRect) {
         const cx = window.innerWidth / 2;
         const cy = window.innerHeight / 2 - 20;
-        newRect = {
+        mainRect = {
           left: cx - 44,
           top: cy - 44,
           width: 88,
@@ -186,12 +477,11 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
         };
       }
     } else if (targetSelector) {
-      // 2. Try DOM element selector
       const el = document.querySelector(targetSelector);
       if (el) {
         const domRect = el.getBoundingClientRect();
         if (domRect.width > 0 && domRect.height > 0) {
-          newRect = {
+          mainRect = {
             left: domRect.left,
             top: domRect.top,
             width: domRect.width,
@@ -206,241 +496,387 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     }
 
     setTargetRect(prev => {
-      if (!prev && !newRect) return null;
-      if (prev && newRect) {
-        if (
-          Math.abs(prev.left - newRect.left) < 0.5 &&
-          Math.abs(prev.top - newRect.top) < 0.5 &&
-          Math.abs(prev.width - newRect.width) < 0.5 &&
-          Math.abs(prev.height - newRect.height) < 0.5
-        ) {
-          return prev;
+      if (!isRectDifferent(prev, mainRect)) return prev;
+      return mainRect;
+    });
+
+    // Compute extra focal items
+    const extras: ExtraFocalItem[] = [];
+
+    // 1. Extra DOM Selectors
+    for (const item of extraFocalSelectors) {
+      const el = document.querySelector(item.selector);
+      if (el) {
+        const domRect = el.getBoundingClientRect();
+        if (domRect.width > 0 && domRect.height > 0) {
+          extras.push({
+            rect: {
+              left: domRect.left,
+              top: domRect.top,
+              width: domRect.width,
+              height: domRect.height,
+              right: domRect.right,
+              bottom: domRect.bottom,
+              centerX: domRect.left + domRect.width / 2,
+              centerY: domRect.top + domRect.height / 2,
+            },
+            color: item.color,
+            label: item.label,
+          });
         }
       }
-      return newRect;
+    }
+
+    // 2. Extra 3D Board Hexes
+    for (const hex of extraFocalHexes) {
+      const hexRect = getHexTargetRect(hex.q, hex.r);
+      if (hexRect) {
+        extras.push({
+          rect: hexRect,
+          color: hex.color,
+          label: hex.label,
+        });
+      }
+    }
+
+    setExtraRects(prev => {
+      if (isExtrasEqual(prev, extras)) return prev;
+      return extras;
     });
-  }, [targetSelector, targetHexQ, targetHexR]);
+  }, [targetSelector, targetHexQ, targetHexR, extraFocalSelectors, extraFocalHexes, getHexTargetRect]);
 
-  // Keep target box synced with screen animations, layout shifts, resize, and scroll
   useEffect(() => {
-    updateTargetRect();
-    let animId: number;
-    const loop = () => {
-      updateTargetRect();
-      animId = requestAnimationFrame(loop);
-    };
-    animId = requestAnimationFrame(loop);
+    updateTargetRects();
+    const interval = setInterval(updateTargetRects, 150);
 
-    window.addEventListener('resize', updateTargetRect);
-    window.addEventListener('scroll', updateTargetRect, true);
+    window.addEventListener('resize', updateTargetRects);
+    window.addEventListener('scroll', updateTargetRects, true);
 
     return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', updateTargetRect);
-      window.removeEventListener('scroll', updateTargetRect, true);
+      clearInterval(interval);
+      window.removeEventListener('resize', updateTargetRects);
+      window.removeEventListener('scroll', updateTargetRects, true);
     };
-  }, [updateTargetRect]);
+  }, [updateTargetRects]);
 
-  // Dismiss conditions (only active on Levels 1, 2, 3)
-  if (levelId > 3) {
-    return null;
-  }
-  if (levelId === 2 && (level2Step >= 4 || placedTiles.size > 0)) {
-    return null;
-  }
-  if (levelId === 3 && placedTiles.size > 0) {
-    return null;
-  }
-  if (!title) {
-    return null;
-  }
+  // Dismiss conditions
+  if (levelId === 2 && currentPhaseIndex === 1 && isLevelPhase2Dismissed) return null;
+  if (levelId === 6 && level6Step >= 4) return null;
+  if ([9, 12, 15, 18, 20].includes(levelId) && isPenaltyTutorialDismissed) return null;
+  if (!title) return null;
 
-  // Padding around cutout hole
-  const padding = targetHex ? 6 : 8;
-  const rx = targetHex ? 24 : 20;
+  const colorStyles =
+    themeColor === 'amber'
+      ? {
+          border: 'border-amber-400',
+          glow: 'shadow-[0_0_24px_rgba(245,158,11,0.6)]',
+          badge: 'bg-amber-500 text-slate-950 font-black',
+          btn: 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950',
+          title: 'text-amber-300',
+        }
+      : themeColor === 'cyan'
+      ? {
+          border: 'border-cyan-400',
+          glow: 'shadow-[0_0_24px_rgba(34,211,238,0.6)]',
+          badge: 'bg-cyan-500 text-slate-950 font-black',
+          btn: 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-slate-950',
+          title: 'text-cyan-300',
+        }
+      : themeColor === 'purple'
+      ? {
+          border: 'border-purple-400',
+          glow: 'shadow-[0_0_24px_rgba(168,85,247,0.6)]',
+          badge: 'bg-purple-500 text-slate-950 font-black',
+          btn: 'bg-gradient-to-r from-purple-500 to-indigo-500 hover:from-purple-400 hover:to-indigo-400 text-white',
+          title: 'text-purple-300',
+        }
+      : themeColor === 'rose'
+      ? {
+          border: 'border-rose-400',
+          glow: 'shadow-[0_0_24px_rgba(244,63,94,0.6)]',
+          badge: 'bg-rose-500 text-white font-black',
+          btn: 'bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-white',
+          title: 'text-rose-300',
+        }
+      : {
+          border: 'border-emerald-400',
+          glow: 'shadow-[0_0_24px_rgba(52,211,153,0.6)]',
+          badge: 'bg-emerald-500 text-slate-950 font-black',
+          btn: 'bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950',
+          title: 'text-emerald-300',
+        };
 
-  const colorStyles = {
-    emerald: {
-      ring: 'ring-emerald-400 border-emerald-400',
-      badge: 'bg-emerald-400 text-slate-950 shadow-emerald-500/50',
-      glow: 'shadow-[0_0_35px_rgba(52,211,153,0.65)]',
-      text: 'text-emerald-300',
-      iconBg: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-400',
-      btn: 'bg-emerald-500 hover:bg-emerald-400 text-slate-950',
-    },
-    amber: {
-      ring: 'ring-amber-400 border-amber-400',
-      badge: 'bg-amber-400 text-slate-950 shadow-amber-500/50',
-      glow: 'shadow-[0_0_35px_rgba(245,158,11,0.65)]',
-      text: 'text-amber-300',
-      iconBg: 'bg-amber-500/20 border-amber-400/40 text-amber-400',
-      btn: 'bg-amber-500 hover:bg-amber-400 text-slate-950',
-    },
-    cyan: {
-      ring: 'ring-cyan-400 border-cyan-400',
-      badge: 'bg-cyan-400 text-slate-950 shadow-cyan-500/50',
-      glow: 'shadow-[0_0_35px_rgba(6,182,212,0.65)]',
-      text: 'text-cyan-300',
-      iconBg: 'bg-cyan-500/20 border-cyan-400/40 text-cyan-400',
-      btn: 'bg-cyan-500 hover:bg-cyan-400 text-slate-950',
-    },
-  }[themeColor];
+  // Guidance card position relative to primary target or highlighted 3D board cells
+  let cardTop = '50%';
+  let cardLeft = '50%';
+  let cardTransform = 'translate(-50%, -50%)';
 
-  // Determine smart placement of the guidance banner so it never overlaps the highlighted element
-  const isTargetAtTop = Boolean(targetRect && targetRect.top < 160 && targetSelector);
+  if (levelId === 2 && level2Step === 6) {
+    const hexRect = getHexTargetRect(1, 0) || getHexTargetRect(0, 1);
+    if (hexRect) {
+      cardTop = `${Math.max(80, Math.min(window.innerHeight - 220, hexRect.top - 100))}px`;
+      cardLeft = `${Math.max(320, Math.min(window.innerWidth - 420, hexRect.centerX + 160))}px`;
+      cardTransform = 'translateX(-50%)';
+    } else {
+      cardTop = '32%';
+      cardLeft = '54%';
+      cardTransform = 'translate(-50%, -50%)';
+    }
+  } else if (targetRect) {
+    if (
+      targetSelector?.includes('sidebar') ||
+      targetSelector?.includes('lightbulb') ||
+      targetSelector?.includes('progress') ||
+      targetSelector?.includes('btn-expand') ||
+      targetSelector?.includes('mastery')
+    ) {
+      cardTop = `${Math.max(70, Math.min(window.innerHeight - 220, targetRect.centerY))}px`;
+      cardLeft = `${Math.max(310, targetRect.right + 24)}px`;
+      cardTransform = 'translateY(-50%)';
+    } else if (targetSelector?.includes('tray')) {
+      cardTop = `${Math.max(60, targetRect.top - 160)}px`;
+      cardLeft = `${Math.max(200, Math.min(window.innerWidth - 400, targetRect.centerX))}px`;
+      cardTransform = 'translateX(-50%)';
+    } else if (targetHexQ !== null && targetHexR !== null) {
+      cardTop = `${Math.max(70, Math.min(window.innerHeight - 220, targetRect.bottom + 16))}px`;
+      cardLeft = `${Math.max(300, Math.min(window.innerWidth - 400, targetRect.centerX))}px`;
+      cardTransform = 'translateX(-50%)';
+    } else {
+      cardTop = `${Math.max(70, Math.min(window.innerHeight - 200, targetRect.bottom + 20))}px`;
+      cardLeft = `${Math.max(300, Math.min(window.innerWidth - 400, targetRect.centerX))}px`;
+      cardTransform = 'translateX(-50%)';
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-30 overflow-hidden select-none pointer-events-none">
-      {/* SVG Mask Cutout: Dims entire screen EXCEPT target bounding box (100% crystal clear & unclouded) */}
-      {targetRect && (
-        <svg
-          className="fixed inset-0 w-full h-full pointer-events-none"
-          style={{ width: '100vw', height: '100vh' }}
-        >
-          <defs>
-            <mask id="tutorial-spotlight-mask">
-              {/* White background: dark veil will show */}
-              <rect width="100%" height="100%" fill="white" />
-              {/* Black cutout: dark veil becomes 100% transparent here! */}
+    <div className="fixed inset-0 z-40 pointer-events-none select-none">
+      {/* Light Clean Ambient Vignette Mask */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+        <defs>
+          <mask id="tutorial-spotlight-mask">
+            <rect x="0" y="0" width="100%" height="100%" fill="white" />
+
+            {/* Primary Target Cutout */}
+            {targetRect && (
               <rect
-                x={targetRect.left - padding}
-                y={targetRect.top - padding}
-                width={targetRect.width + padding * 2}
-                height={targetRect.height + padding * 2}
-                rx={rx}
+                x={targetRect.left - 10}
+                y={targetRect.top - 10}
+                width={targetRect.width + 20}
+                height={targetRect.height + 20}
+                rx="24"
+                ry="24"
                 fill="black"
               />
-            </mask>
-          </defs>
+            )}
 
-          {/* Backdrop rect with mask applied */}
-          <rect
-            width="100%"
-            height="100%"
-            fill="rgba(2, 6, 23, 0.72)"
-            mask="url(#tutorial-spotlight-mask)"
-          />
-        </svg>
-      )}
+            {/* Extra Focal Cutouts for Target Zones & Colored Board Hexes */}
+            {extraRects.map((focal, idx) => (
+              <rect
+                key={idx}
+                x={focal.rect.left - 8}
+                y={focal.rect.top - 8}
+                width={focal.rect.width + 16}
+                height={focal.rect.height + 16}
+                rx="20"
+                ry="20"
+                fill="black"
+              />
+            ))}
+          </mask>
+        </defs>
 
-      {/* Click backdrop area for Level 2 interactive step progression */}
-      {levelId === 2 && (
-        <div
-          onClick={handleAdvanceLevel2}
-          className="fixed inset-0 pointer-events-auto cursor-pointer"
+        {/* Ambient Dimming Overlay (Gentle so HUD is always readable) */}
+        <rect
+          x="0"
+          y="0"
+          width="100%"
+          height="100%"
+          fill="rgba(15, 23, 42, 0.40)"
+          mask="url(#tutorial-spotlight-mask)"
         />
-      )}
+      </svg>
 
-      {/* Glowing Cutout Highlight Frame & Hand Pointer */}
+      {/* Primary Glowing Pulsing Target Halo */}
       {targetRect && (
         <div
+          className={`absolute rounded-3xl border-3 ${colorStyles.border} ${colorStyles.glow} pointer-events-none transition-all duration-150 animate-pulse`}
           style={{
-            position: 'fixed',
-            left: targetRect.left - padding,
-            top: targetRect.top - padding,
-            width: targetRect.width + padding * 2,
-            height: targetRect.height + padding * 2,
+            left: targetRect.left - 10,
+            top: targetRect.top - 10,
+            width: targetRect.width + 20,
+            height: targetRect.height + 20,
           }}
-          onClick={levelId === 2 ? handleAdvanceLevel2 : undefined}
-          className={`rounded-3xl ring-4 ${colorStyles.ring} ${colorStyles.glow} transition-all duration-150 animate-pulse pointer-events-none z-40`}
         >
-          {/* Hand Pointing Gesture with Direction & Action Badge */}
-          {(() => {
-            if (pointerDirection === 'down') {
-              return (
-                <div className="absolute -top-14 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
-                  <span className="text-4xl animate-bounce filter drop-shadow-lg">👇</span>
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-lg ${colorStyles.badge} whitespace-nowrap`}
-                  >
-                    {badgeLabel}
-                  </span>
-                </div>
-              );
-            }
-            if (pointerDirection === 'left') {
-              return (
-                <div className="absolute top-1/2 -right-16 -translate-y-1/2 flex flex-col items-center gap-1">
-                  <span className="text-4xl animate-bounce filter drop-shadow-lg">👈</span>
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-lg ${colorStyles.badge} whitespace-nowrap`}
-                  >
-                    {badgeLabel}
-                  </span>
-                </div>
-              );
-            }
-            if (pointerDirection === 'right') {
-              return (
-                <div className="absolute top-1/2 -left-16 -translate-y-1/2 flex flex-col items-center gap-1">
-                  <span className="text-4xl animate-bounce filter drop-shadow-lg">👉</span>
-                  <span
-                    className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-lg ${colorStyles.badge} whitespace-nowrap`}
-                  >
-                    {badgeLabel}
-                  </span>
-                </div>
-              );
-            }
-            return (
-              <div className="absolute -bottom-14 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1">
-                <span
-                  className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full shadow-lg ${colorStyles.badge} whitespace-nowrap`}
-                >
-                  {badgeLabel}
-                </span>
-                <span className="text-4xl animate-bounce filter drop-shadow-lg">👆</span>
-              </div>
-            );
-          })()}
+          {/* Target Badge Pin */}
+          <div className="absolute -top-3.5 left-1/2 transform -translate-x-1/2 flex items-center gap-1">
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-wider uppercase shadow-md ${colorStyles.badge} animate-bounce`}
+            >
+              {badgeLabel}
+            </span>
+          </div>
         </div>
       )}
 
-      {/* Floating Guidance Card (Placed opposite to target element to prevent collision) */}
+      {/* Extra Focal Target Halos (Target Color Zones Checklist & Board Hexes) */}
+      {extraRects.map((focal, idx) => (
+        <div
+          key={idx}
+          className={`absolute rounded-2xl border-2 pointer-events-none transition-all duration-150 animate-pulse ${
+            focal.color === 'amber'
+              ? 'border-amber-400 shadow-[0_0_20px_rgba(245,158,11,0.8)]'
+              : focal.color === 'emerald'
+              ? 'border-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.8)]'
+              : focal.color === 'purple'
+              ? 'border-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.8)]'
+              : focal.color === 'rose'
+              ? 'border-rose-400 shadow-[0_0_20px_rgba(244,63,94,0.8)]'
+              : 'border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.8)]'
+          }`}
+          style={{
+            left: focal.rect.left - 8,
+            top: focal.rect.top - 8,
+            width: focal.rect.width + 16,
+            height: focal.rect.height + 16,
+          }}
+        >
+          {focal.label && (
+            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+              <span
+                className={`px-2 py-0.2 rounded-full text-[8.5px] font-black uppercase tracking-wider shadow whitespace-nowrap ${
+                  focal.color === 'amber'
+                    ? 'bg-amber-400 text-slate-950'
+                    : focal.color === 'emerald'
+                    ? 'bg-emerald-400 text-slate-950'
+                    : 'bg-cyan-400 text-slate-950'
+                }`}
+              >
+                {focal.label}
+              </span>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Floating Guidance Card */}
       <div
-        className={`fixed left-1/2 -translate-x-1/2 z-50 w-full max-w-lg px-4 pointer-events-auto transition-all duration-300 ${
-          isTargetAtTop ? 'bottom-28' : 'top-14 sm:top-16'
-        }`}
+        className="absolute pointer-events-auto w-80 sm:w-96 p-4 rounded-3xl bg-slate-900/95 backdrop-blur-xl border-2 border-slate-700 shadow-2xl transition-all duration-200"
+        style={{
+          top: cardTop,
+          left: cardLeft,
+          transform: cardTransform,
+        }}
       >
-        <div className="p-3.5 bg-slate-900/95 backdrop-blur-xl border-2 border-slate-700/80 rounded-3xl shadow-2xl text-white flex items-center justify-between gap-3 animate-in fade-in slide-in-from-top-3">
-          <div className="flex items-center gap-2.5">
-            <div
-              className={`w-8 h-8 rounded-2xl flex items-center justify-center shrink-0 border ${colorStyles.iconBg}`}
-            >
-              {levelId === 2 ? (
-                <span className="font-black text-xs font-mono">{level2Step}/3</span>
-              ) : (
-                <Sparkles className="w-4 h-4 animate-spin-slow" />
-              )}
-            </div>
-            <div>
-              <h4 className={`text-xs font-black tracking-tight ${colorStyles.text}`}>
-                {title}
-              </h4>
-              <p className="text-[11px] text-slate-200 leading-snug">{description}</p>
-            </div>
+        <div className="flex items-start gap-3">
+          <div className="p-2 rounded-2xl bg-slate-800 border border-slate-700 shrink-0">
+            {levelId === 6 ? (
+              <Crown className="w-5 h-5 text-amber-400" />
+            ) : levelId === 20 ? (
+              <Waves className="w-5 h-5 text-cyan-400" />
+            ) : [9, 12, 15].includes(levelId) ? (
+              <AlertTriangle className="w-5 h-5 text-amber-400" />
+            ) : (
+              <Sparkles className="w-5 h-5 text-amber-400" />
+            )}
           </div>
 
-          {/* Level 1 Victory Continue Button */}
-          {levelId === 1 && (canCompletePhase || (hasPlacedCenter && hasPlacedAmber)) && onCompleteTutorialStep && (
+          <div className="flex-1">
+            <div className="flex items-center justify-between">
+              <h3 className={`text-sm font-black tracking-wide font-rounded ${colorStyles.title}`}>
+                {title}
+              </h3>
+              {levelId === 2 && currentPhaseIndex === 0 && (
+                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
+                  Step {level2Step}/6
+                </span>
+              )}
+              {levelId === 6 && (
+                <span className="text-[10px] font-mono font-bold text-purple-300 bg-purple-950 px-2 py-0.5 rounded-full border border-purple-500/40">
+                  Step {level6Step}/3
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-slate-200 mt-1 leading-relaxed">{description}</p>
+          </div>
+        </div>
+
+        {/* Action Buttons inside Card */}
+        <div className="mt-3.5 pt-2.5 border-t border-slate-800 flex items-center justify-between">
+          <span className="text-[10px] text-slate-400 font-mono">
+            {levelId === 1 && 'Tutorial 1/2'}
+            {levelId === 2 && 'Tutorial 2/2'}
+            {levelId === 6 && 'Mastery Challenge'}
+            {levelId === 20 && 'Riverside Terrain'}
+            {[9, 12, 15, 18].includes(levelId) && `Level ${levelId} Mechanic`}
+          </span>
+
+          {/* Level 1 Victory Button */}
+          {levelId === 1 && hasPlacedCenter && hasPlacedAmberL1 && (
             <button
-              data-tutorial-id="tutorial-continue-btn"
               onClick={onCompleteTutorialStep}
-              className={`px-4 py-2 ${colorStyles.btn} font-black text-xs sm:text-sm rounded-xl shadow-xl shadow-emerald-500/40 transition-all cursor-pointer shrink-0 flex items-center gap-1.5 animate-pulse hover:scale-105 active:scale-95`}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
             >
               <span>Continue to Level 2</span>
-              <ChevronRight className="w-4 h-4" />
+              <Check className="w-3.5 h-3.5" />
             </button>
           )}
 
-          {/* Level 2 Next Step Button */}
-          {levelId === 2 && (
+          {/* Level 2 Stepper Buttons */}
+          {levelId === 2 && currentPhaseIndex === 0 && level2Step < 4 && (
             <button
               onClick={handleAdvanceLevel2}
-              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer shrink-0 flex items-center gap-1`}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
             >
-              <span>{level2Step === 3 ? 'Got it!' : 'Next'}</span>
+              <span>
+                {level2Step === 1
+                  ? 'Next: Target Zones'
+                  : level2Step === 2
+                  ? 'Next: Watch Auto Demo'
+                  : 'Next: Place Yellow (2,0)'}
+              </span>
               <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {levelId === 2 && currentPhaseIndex === 1 && (
+            <button
+              onClick={() => setIsLevelPhase2Dismissed(true)}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
+            >
+              <span>Settle Expansion</span>
+              <Check className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Level 6 Stepper Button */}
+          {levelId === 6 && level6Step === 1 && (
+            <button
+              onClick={handleAdvanceLevel6}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
+            >
+              <span>Remove Stray Tile</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {levelId === 6 && level6Step === 3 && (
+            <button
+              onClick={() => setLevel6Step(4)}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
+            >
+              <span>Start Building</span>
+              <Check className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Penalties & Level 20 Dismiss Buttons */}
+          {[9, 12, 15, 18, 20].includes(levelId) && (
+            <button
+              onClick={() => setIsPenaltyTutorialDismissed(true)}
+              className={`px-3.5 py-1.5 ${colorStyles.btn} font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-1 hover:scale-105 active:scale-95`}
+            >
+              <span>Understood</span>
+              <Check className="w-3.5 h-3.5" />
             </button>
           )}
         </div>

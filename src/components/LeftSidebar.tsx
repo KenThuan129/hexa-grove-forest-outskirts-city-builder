@@ -1,5 +1,5 @@
 import React from 'react';
-import { PenaltyRecord, PenaltyBypassRecord, GameMode } from '../types/game';
+import { PenaltyRecord, PenaltyBypassRecord, GameMode, PlayMode, BossBattleStats } from '../types/game';
 import {
   AlertTriangle,
   Hammer,
@@ -11,6 +11,12 @@ import {
   MapPinOff,
   Shield,
   CheckCircle2,
+  Lightbulb,
+  Swords,
+  Zap,
+  Heart,
+  Sparkles,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -26,6 +32,11 @@ interface LeftSidebarProps {
   highlightPenalties?: boolean;
   bypasses?: PenaltyBypassRecord;
   gameMode?: GameMode;
+  playMode?: PlayMode;
+  lightbulbsUsed?: number;
+  lightbulbBudget?: number;
+  bossBattleStats?: BossBattleStats;
+  isBossLevel?: boolean;
   onClickPanel?: () => void;
   isPanelHighlighted?: boolean;
 }
@@ -43,9 +54,15 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   highlightPenalties = false,
   bypasses = { overlap: 0, overuse: 0, disconnect: 0, offMap: 0 },
   gameMode = 'casual',
+  playMode = 'building',
+  lightbulbsUsed = 0,
+  lightbulbBudget = 25,
+  bossBattleStats,
+  isBossLevel = false,
   onClickPanel,
   isPanelHighlighted = false,
 }) => {
+  const isBuildingMode = playMode === 'building';
   const isTryHard = gameMode === 'tryhard';
   const buildingPercent = Math.min(100, Math.round((placedCount / Math.max(1, parCount)) * 100));
   const isOveruse = placedCount > parCount;
@@ -100,83 +117,167 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
       {/* 1. Building & Expanding Progress Bars */}
       <div
         onClick={onClickPanel}
-        className={`bg-slate-900/95 backdrop-blur-xl border shadow-2xl rounded-3xl p-3.5 flex flex-col gap-2.5 transition-all text-slate-100 ${
+        className={`wood-panel p-3.5 flex flex-col gap-2.5 transition-all text-[#f4ecd8] ${
           isPanelHighlighted
-            ? 'ring-4 ring-emerald-400 border-emerald-500 shadow-emerald-500/30 scale-105 cursor-pointer animate-pulse'
-            : 'border-slate-700/80 hover:border-slate-600'
+            ? 'ring-4 ring-[#8fbc6f] border-[#8fbc6f] shadow-[#8fbc6f]/30 scale-105 cursor-pointer animate-pulse'
+            : 'border-2 border-[#5c3d2e] hover:border-[#6b8e5a]'
         }`}
       >
         {isPanelHighlighted && (
-          <div className="bg-emerald-600 text-white font-black text-[9.5px] uppercase tracking-widest px-2 py-0.5 rounded-full text-center shadow animate-bounce">
+          <div className="bg-[#6b8e5a] text-[#f4ecd8] font-bold text-[9.5px] uppercase tracking-widest px-2 py-0.5 rounded-lg text-center shadow animate-bounce font-rounded">
             👆 CLICK THIS PANEL TO ACKNOWLEDGE
           </div>
         )}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+        <div className="flex items-center justify-between border-b border-[#5c3d2e] pb-2">
+          <div className="flex items-center gap-2 font-rounded">
+            <div className="w-6 h-6 rounded-lg bg-[#6b8e5a]/30 border border-[#8fbc6f]/50 flex items-center justify-center text-[#8fbc6f]">
               <TrendingUp className="w-3.5 h-3.5" />
             </div>
-            <h2 className="text-xs font-black uppercase tracking-wider text-white">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-[#f4ecd8]">
               Frontier Progress
             </h2>
           </div>
 
           <span
-            className={`text-[9.5px] font-mono font-bold px-2 py-0.5 rounded-full border ${settlementStatus.color}`}
+            className="text-[9.5px] font-bold px-2 py-0.5 rounded-lg border border-[#8fbc6f]/50 bg-[#1e3520] text-[#8fbc6f]"
           >
             {settlementStatus.label}
           </span>
         </div>
 
-        {/* Building Progress */}
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 font-bold text-slate-300">
-              <Hammer className="w-3.5 h-3.5 text-amber-400" />
-              <span>Building Quota</span>
-            </span>
-            <span
-              className={`font-mono font-bold tabular-nums ${
-                isOveruse ? 'text-amber-400' : 'text-slate-200'
-              }`}
-            >
-              {placedCount} / {parCount} Par
-            </span>
-          </div>
+        {/* Building Mode: Lightbulb Currency Budget Meter */}
+        {isBuildingMode ? (
+          <div data-tutorial-id="tutorial-lightbulb-budget" className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-[11px] font-rounded">
+              <span className="flex items-center gap-1.5 font-bold text-[#a8b89a]">
+                <Lightbulb className="w-3.5 h-3.5 text-[#f0c674] fill-current" />
+                <span>Lightbulb Budget</span>
+              </span>
+              <span
+                className={`font-mono font-bold tabular-nums ${
+                  lightbulbsUsed > lightbulbBudget ? 'text-rose-400 font-black' : 'text-[#f0c674]'
+                }`}
+              >
+                {lightbulbsUsed} / {lightbulbBudget} 💡
+              </span>
+            </div>
 
-          <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 shadow-inner">
-            <div
-              className={`h-full transition-all duration-300 rounded-full ${
-                isOveruse ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]' : 'bg-gradient-to-r from-emerald-500 to-teal-400 shadow-[0_0_8px_rgba(16,185,129,0.6)]'
-              }`}
-              style={{ width: `${Math.min(100, buildingPercent)}%` }}
-            />
+            <div className="w-full h-2.5 bg-[#1e3520] rounded-full overflow-hidden border border-[#5c3d2e] shadow-inner">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  lightbulbsUsed > lightbulbBudget
+                    ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]'
+                    : 'bg-gradient-to-r from-[#e8b04b] to-[#f0c674]'
+                }`}
+                style={{ width: `${Math.min(100, Math.round((lightbulbsUsed / Math.max(1, lightbulbBudget)) * 100))}%` }}
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          /* Challenger Mode: Building Quota Par */
+          <div data-tutorial-id="tutorial-lightbulb-budget" className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between text-[11px] font-rounded">
+              <span className="flex items-center gap-1.5 font-bold text-[#a8b89a]">
+                <Hammer className="w-3.5 h-3.5 text-[#f0c674]" />
+                <span>Building Quota</span>
+              </span>
+              <span
+                className={`font-mono font-bold tabular-nums ${
+                  isOveruse ? 'text-[#f0c674]' : 'text-[#f4ecd8]'
+                }`}
+              >
+                {placedCount} / {parCount} Par
+              </span>
+            </div>
+
+            <div className="w-full h-2.5 bg-[#1e3520] rounded-full overflow-hidden border border-[#5c3d2e] shadow-inner">
+              <div
+                className={`h-full transition-all duration-300 rounded-full ${
+                  isOveruse ? 'bg-[#f0c674]' : 'bg-gradient-to-r from-[#6b8e5a] to-[#8fbc6f]'
+                }`}
+                style={{ width: `${Math.min(100, buildingPercent)}%` }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Expanding Progress */}
-        <div className="flex flex-col gap-1.5 border-t border-slate-800/80 pt-2">
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="flex items-center gap-1.5 font-bold text-slate-300">
-              <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />
+        <div data-tutorial-id="tutorial-expanding-progress" className="flex flex-col gap-1.5 border-t border-[#5c3d2e] pt-2">
+          <div className="flex items-center justify-between text-[11px] font-rounded">
+            <span className="flex items-center gap-1.5 font-bold text-[#a8b89a]">
+              <Maximize2 className="w-3.5 h-3.5 text-[#7a9b8e]" />
               <span>Expanding Progress</span>
             </span>
-            <span className="font-mono font-bold text-cyan-300 tabular-nums">
+            <span className="font-mono font-bold text-[#7a9b8e] tabular-nums">
               {matchedZonesCount} / {totalZonesCount} Zones
             </span>
           </div>
 
-          <div className="w-full h-2 bg-slate-950 rounded-full overflow-hidden border border-slate-800 shadow-inner">
+          <div className="w-full h-2.5 bg-[#1e3520] rounded-full overflow-hidden border border-[#5c3d2e] shadow-inner">
             <div
-              className="h-full bg-gradient-to-r from-cyan-500 to-emerald-400 transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(6,182,212,0.6)]"
+              className="h-full bg-gradient-to-r from-[#7a9b8e] to-[#8fbc6f] transition-all duration-300 rounded-full"
               style={{ width: `${expandingPercent}%` }}
             />
           </div>
         </div>
       </div>
 
-      {/* 2. Penalties 2x2 Grid */}
-      {!hidePenalties && (
+      {/* 2. Boss Battle Stats Preview Card */}
+      {bossBattleStats && (
+        <div className="bg-slate-900/95 backdrop-blur-xl border border-amber-500/50 shadow-2xl rounded-3xl p-3.5 flex flex-col gap-2 text-slate-100 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
+              <Swords className="w-4 h-4 text-amber-400" />
+              <span>BOSS BATTLE STATS</span>
+            </div>
+            <span className="text-[9.5px] font-mono px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/40 font-bold">
+              1v1 Active
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1.5 text-xs font-mono">
+            <div className="bg-slate-950 p-2 rounded-2xl border border-slate-800 flex flex-col">
+              <span className="text-[10px] text-slate-400 font-sans flex items-center gap-1">
+                <Zap className="w-3 h-3 text-amber-400" /> Hero ATK
+              </span>
+              <span className="text-sm font-black text-amber-300">{bossBattleStats.attack}</span>
+            </div>
+
+            <div className="bg-slate-950 p-2 rounded-2xl border border-slate-800 flex flex-col">
+              <span className="text-[10px] text-slate-400 font-sans flex items-center gap-1">
+                <Shield className="w-3 h-3 text-cyan-400" /> Hero DEF
+              </span>
+              <span className="text-sm font-black text-cyan-300">{bossBattleStats.defense}</span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-1 text-[9.5px]">
+            {bossBattleStats.traits.lifeStealPct > 0 && (
+              <span className="px-1.5 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
+                <Heart className="w-2.5 h-2.5 text-emerald-400" /> Life Steal {Math.round(bossBattleStats.traits.lifeStealPct * 100)}%
+              </span>
+            )}
+            {bossBattleStats.traits.aegisShield > 0 && (
+              <span className="px-1.5 py-0.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                <Shield className="w-2.5 h-2.5 text-cyan-400" /> Aegis +{bossBattleStats.traits.aegisShield}
+              </span>
+            )}
+            {bossBattleStats.traits.doubleStrikePct > 0 && (
+              <span className="px-1.5 py-0.5 rounded-lg bg-amber-950 text-amber-300 border border-amber-500/30 flex items-center gap-1">
+                <Zap className="w-2.5 h-2.5 text-amber-400" /> Double Strike {Math.round(bossBattleStats.traits.doubleStrikePct * 100)}%
+              </span>
+            )}
+            {bossBattleStats.traits.thornCounterPct > 0 && (
+              <span className="px-1.5 py-0.5 rounded-lg bg-rose-950 text-rose-300 border border-rose-500/30 flex items-center gap-1">
+                <ShieldAlert className="w-2.5 h-2.5 text-rose-400" /> Thorns {Math.round(bossBattleStats.traits.thornCounterPct * 100)}%
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 2. Penalties 2x2 Grid (Challenger Mode Only) */}
+      {!isBuildingMode && !hidePenalties && (
         <div
           className={`bg-slate-900/95 backdrop-blur-xl border shadow-2xl rounded-3xl p-3.5 flex flex-col gap-2.5 transition-all text-slate-100 ${
             isPenaltyLimitExceeded || isFalsehoodTriggered

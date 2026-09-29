@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { HomePage } from './components/HomePage';
 import { MemoriesPage } from './components/MemoriesPage';
-import { ThreeScene } from './components/ThreeScene';
+import { ThreeScene, RendererInfo } from './components/ThreeScene';
 import { TileTray } from './components/TileTray';
 import { LeftSidebar } from './components/LeftSidebar';
 import { RightSidebar } from './components/RightSidebar';
+import { UnifiedBuildingSidebar } from './components/UnifiedBuildingSidebar';
 import { RulesModal } from './components/RulesModal';
 import { PenaltyDiscoveryModal } from './components/PenaltyDiscoveryModal';
 import { SettingsModal } from './components/SettingsModal';
@@ -12,12 +13,17 @@ import { ComingSoonModal } from './components/ComingSoonModal';
 import { TutorialSpotlight } from './components/TutorialSpotlight';
 import { BoosterBar } from './components/BoosterBar';
 import { ShopModal } from './components/ShopModal';
+import { AdminAuthModal } from './components/AdminAuthModal';
+import { LevelEditorModal } from './components/LevelEditorModal';
 import { GoldenTicketModal } from './components/GoldenTicketModal';
+import { DeviceDebugger } from './components/DeviceDebugger';
+import { GraphicsReloadModal } from './components/GraphicsReloadModal';
+import { BossBattleModal } from './components/BossBattleModal';
 import { SpecialIntroLoader } from './components/SpecialIntroLoader';
 import { ScreenTransitionLoader } from './components/ScreenTransitionLoader';
 import { LevelTransitLoader } from './components/LevelTransitLoader';
 import { EndOfLevelCelebration, LevelCelebrationData } from './components/EndOfLevelCelebration';
-import { LEVELS } from './data/levels';
+import { LEVELS, PIECE_PALETTE } from './data/levels';
 import { INITIAL_MEMORIES } from './data/memories';
 import { BOOSTER_CATALOG, JOURNEY_CHESTS, INITIAL_CONSTRUCTIONS } from './data/economyData';
 import { BoosterId, BoosterItem, JourneyChest, ConstructionId, ConstructionItem } from './types/economy';
@@ -26,6 +32,7 @@ import {
   GridCell,
   PlacedTile,
   HexPiece,
+  LevelConfig,
   PenaltyRecord,
   HexCoord,
   TileColor,
@@ -34,6 +41,8 @@ import {
   PenaltyType,
   BypassablePenaltyType,
   GameMode,
+  PlayMode,
+  BossBattleStats,
 } from './types/game';
 import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors } from './utils/hexMath';
 import { sounds } from './utils/audio';
@@ -55,6 +64,7 @@ import {
   ShoppingBag,
   Eye,
   EyeOff,
+  Zap,
 } from 'lucide-react';
 
 export default function App() {
@@ -89,9 +99,26 @@ export default function App() {
     });
   };
 
-  const triggerLevelTransit = (targetIndex: number, phaseNum?: number) => {
-    const safeTargetIndex = Math.max(0, Math.min(LEVELS.length - 1, targetIndex));
-    const target = LEVELS[safeTargetIndex] || LEVELS[0];
+  // Custom Built Levels State from Level Editor
+  const [customLevels, setCustomLevels] = useState<LevelConfig[]>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_custom_levels');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const allLevels = useMemo<LevelConfig[]>(() => {
+    const customMap = new Map(customLevels.map(l => [l.id, l]));
+    const baseLevels = LEVELS.map(l => customMap.get(l.id) || l);
+    const brandNewCustom = customLevels.filter(l => !LEVELS.some(b => b.id === l.id));
+    return [...baseLevels, ...brandNewCustom];
+  }, [customLevels]);
+
+  const triggerLevelTransit = useCallback((targetIndex: number, phaseNum?: number) => {
+    const safeTargetIndex = Math.max(0, Math.min(allLevels.length - 1, targetIndex));
+    const target = allLevels[safeTargetIndex] || allLevels[0];
     setLevelTransit({
       levelId: target.id,
       levelName: target.name,
@@ -100,10 +127,23 @@ export default function App() {
     });
     setLevelIndex(safeTargetIndex);
     setPhaseIndex(phaseNum !== undefined ? phaseNum : 0);
-  };
+  }, [allLevels]);
 
   // Clean UI / Zen Mode for clutter-free viewport
   const [isCleanUiMode, setIsCleanUiMode] = useState(false);
+
+  // Play Mode State: 'building' (Standard Journey Mode) vs 'challenger' (Stars, Score, Par, Penalties)
+  const [playMode, setPlayMode] = useState<PlayMode>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_play_mode');
+      if (saved === 'building' || saved === 'challenger') return saved;
+      return 'building';
+    } catch {
+      return 'building';
+    }
+  });
+
+  const [isBossBattleOpen, setIsBossBattleOpen] = useState(false);
 
   // Game Mode State: 'casual' (relaxed, stress-free progression) vs 'tryhard' (1★ + Mastery required)
   const [gameMode, setGameMode] = useState<GameMode>(() => {
@@ -115,6 +155,156 @@ export default function App() {
       return 'casual';
     }
   });
+
+  // Performance Preset State ('low' = Ultra Performance 60 FPS, 'high' = Full FX)
+  const [performanceMode, setPerformanceMode] = useState<'low' | 'high'>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_perf_mode');
+      if (saved === 'high' || saved === 'low') return saved;
+      return 'low'; // Default to ultra-performance for maximum accessibility across lower-end devices
+    } catch {
+      return 'low';
+    }
+  });
+
+  // Target Frame Rate Cap State: 60 | 30 | 24 FPS
+  const [targetFps, setTargetFps] = useState<60 | 30 | 24>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_target_fps');
+      if (saved === '30' || saved === '24' || saved === '60') return parseInt(saved, 10) as 60 | 30 | 24;
+      return 60;
+    } catch {
+      return 60;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hexa_target_fps', targetFps.toString());
+    } catch {}
+  }, [targetFps]);
+
+  // Low-Power Mode State (Reduces ambient particles & lowers resolution scale to 0.75x)
+  const [isLowPowerMode, setIsLowPowerMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hexa_low_power_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hexa_low_power_mode', isLowPowerMode.toString());
+    } catch {}
+  }, [isLowPowerMode]);
+
+  // Texture Mipmap Quality State (Saves VRAM for devices < 2GB)
+  const [textureQuality, setTextureQuality] = useState<'high' | 'low'>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_texture_quality');
+      if (saved === 'low' || saved === 'high') return saved;
+      return 'high';
+    } catch {
+      return 'high';
+    }
+  });
+
+  // Admin Code Authorization System State
+  const [isAdminUnlocked, setIsAdminUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hexa_admin_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [adminAuthFeature, setAdminAuthFeature] = useState<string | null>(null);
+  const [isLevelEditorOpen, setIsLevelEditorOpen] = useState(false);
+
+  // Developer Device Debugger State (Password: 252324442)
+  const [isDevUnlocked, setIsDevUnlocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hexa_admin_unlocked') === 'true' || localStorage.getItem('hexa_dev_unlocked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isDevDebuggerOpen, setIsDevDebuggerOpen] = useState(false);
+  const [rendererInfo, setRendererInfo] = useState<RendererInfo>({
+    drawCalls: 0,
+    triangles: 0,
+    geometries: 0,
+    textures: 0,
+    geometriesMemoryMb: 0,
+    texturesVramMb: 0,
+    totalVramMb: 0,
+    jsHeapMemoryMb: 0,
+    vramBudgetCapMb: 64.0,
+    ramBudgetCapMb: 256.0,
+    budgetUsagePercent: 0,
+    isOverBudget: false,
+  });
+
+  // Pending Graphics Reload Confirmation State
+  const [pendingGraphicsReload, setPendingGraphicsReload] = useState<{
+    newMode: 'low' | 'high';
+    newFps: 60 | 30 | 24;
+    newTextureQuality: 'high' | 'low';
+  } | null>(null);
+
+  const handleRequestGraphicsReload = useCallback((
+    newMode: 'low' | 'high',
+    newFps: 60 | 30 | 24,
+    newTexQuality?: 'high' | 'low'
+  ) => {
+    setPendingGraphicsReload({
+      newMode,
+      newFps,
+      newTextureQuality: newTexQuality ?? textureQuality,
+    });
+  }, [textureQuality]);
+
+  const handleConfirmGraphicsReload = useCallback(() => {
+    if (!pendingGraphicsReload) return;
+    const { newMode, newFps, newTextureQuality } = pendingGraphicsReload;
+
+    setPerformanceMode(newMode);
+    setTargetFps(newFps);
+    setTextureQuality(newTextureQuality);
+    try {
+      localStorage.setItem('hexa_perf_mode', newMode);
+      localStorage.setItem('hexa_target_fps', newFps.toString());
+      localStorage.setItem('hexa_texture_quality', newTextureQuality);
+    } catch {}
+
+    setPendingGraphicsReload(null);
+    setIsSettingsModalOpen(false);
+    setIsDevDebuggerOpen(false);
+
+    setScreenTransition({
+      destination: activePage,
+      title: 'Applying Graphics & Texture Setup',
+      subtitle: `Re-initializing WebGL context (${newMode === 'low' ? 'Ultra-Perf' : 'High FX'} · ${newFps} FPS · ${newTextureQuality === 'low' ? 'Compressed Low-VRAM' : 'High Mipmaps'})...`,
+    });
+
+    sounds.playVictory();
+  }, [pendingGraphicsReload, activePage]);
+
+  // Listen for TAB key to toggle Developer Device Debugger HUD
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Tab') {
+        const targetTag = (e.target as HTMLElement)?.tagName;
+        if (targetTag === 'INPUT' || targetTag === 'TEXTAREA') {
+          return;
+        }
+        e.preventDefault();
+        setIsDevDebuggerOpen(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Level & Phase State
   const [levelIndex, setLevelIndex] = useState(0);
@@ -255,7 +445,7 @@ export default function App() {
     setIsTitanShieldActive(false);
   }, [levelIndex, phaseIndex]);
 
-  const currentLevel = LEVELS[levelIndex] || LEVELS[0];
+  const currentLevel = allLevels[levelIndex] || allLevels[0];
   const currentPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
 
   // Grid state: every cell key maps to an array/stack of placed tiles (to support overlapping error mechanics)
@@ -321,8 +511,8 @@ export default function App() {
 
   // Initialize Unlocked Grid Cells for current Phase (including Fog Hexes & River Separators)
   const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number) => {
-    const safeIdx = Math.max(0, Math.min(LEVELS.length - 1, lvlIdx));
-    const lvl = LEVELS[safeIdx] || LEVELS[0];
+    const safeIdx = Math.max(0, Math.min(allLevels.length - 1, lvlIdx));
+    const lvl = allLevels[safeIdx] || allLevels[0];
     if (!lvl || !lvl.phases || lvl.phases.length === 0) return;
     const newCells = new Map<string, GridCell>();
 
@@ -336,7 +526,7 @@ export default function App() {
         const key = coordKey(coord.q, coord.r);
         let colorReq: TileColor = 'neutral';
         for (const zone of phase.coloredZones) {
-          if (zone.coords.some(c => c.q === coord.q && c.r === coord.r)) {
+          if (zone.coords.some((c: HexCoord) => c.q === coord.q && c.r === coord.r)) {
             colorReq = zone.color;
             break;
           }
@@ -388,12 +578,30 @@ export default function App() {
     }
 
     setUnlockedCells(newCells);
-  }, []);
+  }, [allLevels]);
 
   // Reset or switch Level
   useEffect(() => {
     setPhaseIndex(0);
-    setPlacedTiles(new Map());
+    const initialMap = new Map<string, PlacedTile[]>();
+    const ph = currentLevel.phases[0];
+    if (ph && ph.initialPlacedTiles) {
+      ph.initialPlacedTiles.forEach((init, i) => {
+        const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+        if (piece) {
+          const key = coordKey(init.q, init.r);
+          const placed: PlacedTile = {
+            ...piece,
+            placementId: `init-${currentLevel.id}-${i}-${Date.now()}`,
+            placedAt: Date.now() + i,
+            q: init.q,
+            r: init.r,
+          };
+          initialMap.set(key, [placed]);
+        }
+      });
+    }
+    setPlacedTiles(initialMap);
     setRotationsPerformed(0);
     setSelectedPiece(null);
     setPickedUpCoord(null);
@@ -536,27 +744,32 @@ export default function App() {
     totalPenaltiesCount > strictPenaltyLimit;
   const isFalsehoodActive = !isTitanShieldActive && gameMode === 'tryhard' && penalties.falsehood > 0;
 
-  // Trigger Penalty Discovery in Level 3
-  useEffect(() => {
-    if (currentLevel.id === 3 && !hasDiscoveredPenalties) {
-      if (
-        rawOverlapErrorCount > 0 ||
-        rawOffMapCount > 0 ||
-        rawOveruseCount > 0 ||
-        connectivity.disconnectedCount > 0
-      ) {
-        setHasDiscoveredPenalties(true);
-        setIsPenaltyDiscoveryModalOpen(true);
-        setHighlightPenalties(true);
-        setHighlightScore(true);
-        sounds.playWarning();
-        setTimeout(() => {
-          setHighlightPenalties(false);
-          setHighlightScore(false);
-        }, 4000);
-      }
+  // Trigger Penalty Discovery when switching to Challenger Mode for the first time
+  const handleSwitchPlayMode = (mode: PlayMode) => {
+    setPlayMode(mode);
+    try {
+      localStorage.setItem('hexa_play_mode', mode);
+    } catch {}
+
+    if (mode === 'challenger' && !hasDiscoveredPenalties) {
+      setHasDiscoveredPenalties(true);
+      setIsPenaltyDiscoveryModalOpen(true);
+      setHighlightPenalties(true);
+      setHighlightScore(true);
+      sounds.playWarning();
+      setTimeout(() => {
+        setHighlightPenalties(false);
+        setHighlightScore(false);
+      }, 4000);
+    } else {
+      showToast(
+        mode === 'building'
+          ? 'Switched to Building Mode: Lightbulb currency, 0 stars, 0 penalties!'
+          : 'Switched to Challenger Mode: Stars, score target, par quota & penalties!',
+        'info'
+      );
     }
-  }, [currentLevel.id, hasDiscoveredPenalties, rawOverlapErrorCount, rawOffMapCount, rawOveruseCount, connectivity.disconnectedCount]);
+  };
 
   // Colored Zones Completion check & counts
   const { matchedZonesCount, totalZonesCount, coloredZonesCompleted } = useMemo(() => {
@@ -633,15 +846,82 @@ export default function App() {
     if (mc.type === 'zero_overlap') {
       return penalties.overlap === 0;
     }
+    if (mc.type === 'zero_offmap') {
+      return penalties.offMap === 0;
+    }
     if (mc.type === 'rotate_zone') {
       return rotationsPerformed >= 1;
     }
     return true;
   }, [currentLevel, penalties, rotationsPerformed, currentPhase, rawScore]);
 
+  // Building Mode: Lightbulbs Used & Level Budget Calculation
+  const lightbulbBudget = currentLevel.lightbulbBudget ?? (currentLevel.id * 5 + 20);
+  const lightbulbsUsed = useMemo(() => {
+    let total = 0;
+    placedTiles.forEach(stack => {
+      stack.forEach(tile => {
+        total += tile.lightbulbCost ?? (tile.clusterShape ? tile.clusterShape.length : 1);
+      });
+    });
+    return total;
+  }, [placedTiles]);
+
+  // Boss Battle Stats Calculation derived from tiles placed over Power, Defend & Traits Zones
+  const bossBattleStats = useMemo<BossBattleStats>(() => {
+    let atk = 30; // Baseline Hero ATK
+    let def = 20; // Baseline Hero DEF
+    let lifeStealPct = 0;
+    let aegisShield = 0;
+    let doubleStrikePct = 0;
+    let thornCounterPct = 0;
+    let criticalRatePct = 0;
+
+    placedTiles.forEach(stack => {
+      stack.forEach(tile => {
+        const key = coordKey(tile.q, tile.r);
+        const cell = unlockedCells.get(key);
+        if (cell) {
+          if (cell.bossZoneType === 'power' || cell.colorRequirement === 'amber' || cell.colorRequirement === 'ruby') {
+            atk += 15;
+          }
+          if (cell.bossZoneType === 'defend' || cell.colorRequirement === 'sapphire') {
+            def += 12;
+          }
+          if (cell.bossZoneType === 'traits' || cell.colorRequirement === 'emerald') {
+            lifeStealPct = Math.min(0.5, lifeStealPct + 0.1);
+            aegisShield += 15;
+            doubleStrikePct = Math.min(0.4, doubleStrikePct + 0.08);
+            thornCounterPct = Math.min(0.5, thornCounterPct + 0.1);
+            criticalRatePct = Math.min(0.5, criticalRatePct + 0.1);
+          }
+          if (cell.bossZoneType === 'mixed' || cell.colorRequirement === 'neutral') {
+            atk += 6;
+            def += 6;
+            criticalRatePct = Math.min(0.5, criticalRatePct + 0.05);
+          }
+        }
+      });
+    });
+
+    return {
+      attack: atk,
+      defense: def,
+      traits: {
+        lifeStealPct,
+        aegisShield,
+        doubleStrikePct,
+        thornCounterPct,
+        criticalRatePct,
+      },
+    };
+  }, [placedTiles, unlockedCells]);
+
   // Can the player complete / advance this phase?
   const canCompletePhase =
-    currentLevel.id === 1
+    playMode === 'building'
+      ? coloredZonesCompleted && rawOffMapCount === 0 && rawOverlapErrorCount === 0 && lightbulbsUsed <= lightbulbBudget
+      : currentLevel.id === 1
       ? coloredZonesCompleted && inBoundsPlacedCount >= 2
       : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
 
@@ -832,6 +1112,14 @@ export default function App() {
     },
     [unlockedCells, bypasses]
   );
+
+  // Auto-demo build helper for tutorial demonstration
+  const handleAutoDemoBuild = useCallback((coord: HexCoord, pieceId: string) => {
+    const piece = PIECE_PALETTE.find(p => p.id === pieceId) || currentLevel.availablePieces.find(p => p.id === pieceId);
+    if (piece) {
+      handlePlaceTile(coord, piece);
+    }
+  }, [currentLevel, handlePlaceTile]);
 
   // Rotate a Rotation Zone (Turntable mechanic)
   // Logic: Turntables only rotate SINGLE hexes; clusters are fixed monolithic structures!
@@ -1216,7 +1504,7 @@ export default function App() {
       return;
     }
 
-    if (levelIndex + 1 < LEVELS.length) {
+    if (levelIndex + 1 < allLevels.length) {
       triggerLevelTransit(levelIndex + 1);
     } else {
       navigateWithTransition('home', 'All 40 Levels Conquered!', 'Grand Archipelago Explorer');
@@ -1235,7 +1523,24 @@ export default function App() {
       levelName: currentLevel.name,
       parLimit: currentPhase?.targetTilesCount || 5,
     });
-    setPlacedTiles(new Map());
+    const initialMap = new Map<string, PlacedTile[]>();
+    if (currentPhase && currentPhase.initialPlacedTiles) {
+      currentPhase.initialPlacedTiles.forEach((init, i) => {
+        const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+        if (piece) {
+          const key = coordKey(init.q, init.r);
+          const placed: PlacedTile = {
+            ...piece,
+            placementId: `init-${currentLevel.id}-${i}-${Date.now()}`,
+            placedAt: Date.now() + i,
+            q: init.q,
+            r: init.r,
+          };
+          initialMap.set(key, [placed]);
+        }
+      });
+    }
+    setPlacedTiles(initialMap);
     setRotationsPerformed(0);
     setSelectedPiece(null);
     setPickedUpCoord(null);
@@ -1479,15 +1784,18 @@ export default function App() {
     <>
       {activePage === 'home' && (
         <HomePage
-          levels={LEVELS}
+          levels={allLevels}
           currentLevelIndex={levelIndex}
           isOpenShowcase={isOpenHomeShowcase}
           gameMode={gameMode}
+          playMode={playMode}
+          performanceMode={performanceMode}
           coins={coins}
           leaves={leaves}
           boosters={boosters}
           constructions={constructions}
           hasGoldenTicket={hasGoldenTicket}
+          isAdminUnlocked={isAdminUnlocked}
           unclaimedChestsCount={unclaimedChestsCount}
           onUpgradeConstruction={handleUpgradeConstruction}
           onChangeGameMode={mode => {
@@ -1496,6 +1804,18 @@ export default function App() {
               mode === 'casual'
                 ? 'Switched to Casual Mode: Relaxed rules & easy progression.'
                 : 'Switched to Try-Hard Mode: 1★ + Mastery required to win.',
+              'info'
+            );
+          }}
+          onChangePlayMode={mode => {
+            setPlayMode(mode);
+            try {
+              localStorage.setItem('hexa_play_mode', mode);
+            } catch {}
+            showToast(
+              mode === 'building'
+                ? 'Switched to Building Mode: Lightbulb currency, 0 stars, 0 penalties!'
+                : 'Switched to Challenger Mode: Stars, score target, par quota & penalties!',
               'info'
             );
           }}
@@ -1513,7 +1833,8 @@ export default function App() {
           }}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
           onOpenRules={() => setIsRulesModalOpen(true)}
-          onOpenLevelEditor={() => setIsComingSoonModalOpen(true)}
+          onOpenLevelEditor={() => setIsLevelEditorOpen(true)}
+          onOpenAdminAuth={feat => setAdminAuthFeature(feat || 'Admin Access')}
           onOpenShop={() => setIsShopModalOpen(true)}
           onShowGoldenTicket={() => setIsGoldenTicketModalOpen(true)}
           onPlayIntro={() => setShowSpecialIntro(true)}
@@ -1533,7 +1854,11 @@ export default function App() {
       )}
 
       {activePage === 'journey' && (
-        <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans flex flex-col justify-between select-none">
+        <div className="relative w-screen h-screen overflow-hidden bg-[#1e3520] font-sans flex flex-col justify-between select-none">
+          {/* Ambient Dappled Light & Mist Overlay */}
+          <div className="absolute inset-0 pointer-events-none z-[1] opacity-30 animate-dapple bg-radial from-[#f0c674]/20 via-transparent to-transparent" />
+          <div className="absolute inset-0 pointer-events-none z-[1] opacity-25 animate-mist bg-gradient-to-r from-transparent via-[#7a9b8e]/30 to-transparent" />
+
           {/* 3D WebGL Canvas Layer */}
           <div className="absolute inset-0 z-0">
         <ThreeScene
@@ -1550,17 +1875,26 @@ export default function App() {
           onRightClickBoard={handleRightClickBoard}
           onRotateZone={handleRotateZone}
           isExpansionAnimating={isExpansionAnimating}
+          performanceMode={performanceMode}
+          targetFps={targetFps}
+          isLowPowerMode={isLowPowerMode}
+          textureQuality={textureQuality}
+          onUpdateRendererInfo={setRendererInfo}
         />
       </div>
 
-      {/* Strict Tutorial Spotlight Overlay for Levels 1 -> 3 (Blackens irrelevant areas, tooltips, hand gesture) */}
-      {currentLevel.id <= 3 && (
+      {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
+      {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
         <TutorialSpotlight
           levelId={currentLevel.id}
+          currentPhaseIndex={phaseIndex}
+          totalPhases={currentLevel.phases.length}
           selectedPiece={selectedPiece}
           placedTiles={placedTiles}
           canCompletePhase={canCompletePhase}
+          penalties={penalties}
           onCompleteTutorialStep={handleCompletePhase}
+          onAutoDemoBuild={handleAutoDemoBuild}
         />
       )}
 
@@ -1569,9 +1903,9 @@ export default function App() {
         {/* Top Floating Row: Navigation, Level Switcher & System Controls */}
         {isCleanUiMode ? (
           <div className="w-full flex justify-between items-center pointer-events-none animate-in fade-in duration-200">
-            <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-slate-700 shadow-2xl text-white text-xs">
-              <span className="font-mono font-bold text-amber-300">Lvl {currentLevel.id}:</span>
-              <span className="font-bold text-slate-200">{currentLevel.name}</span>
+            <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-xs text-[#f4ecd8]">
+              <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
+              <span className="font-bold text-[#f4ecd8] font-rounded">{currentLevel.name}</span>
             </div>
 
             <button
@@ -1579,39 +1913,39 @@ export default function App() {
                 setIsCleanUiMode(false);
                 sounds.playClick();
               }}
-              className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-2xl bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/60 text-emerald-300 hover:text-white text-xs font-bold shadow-2xl transition-all cursor-pointer"
+              className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 btn-river-stone text-[#f4ecd8] text-xs font-bold shadow-2xl transition-all cursor-pointer"
               title="Show in-game HUD (or press H)"
             >
-              <Eye className="w-3.5 h-3.5 text-emerald-400" />
+              <Eye className="w-3.5 h-3.5 text-[#8fbc6f]" />
               <span>Show UI [H]</span>
             </button>
           </div>
         ) : (
           <div className="w-full flex justify-between items-start gap-2">
             {/* Top Left: Home, Memories & Level Name ONLY */}
-            <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-3.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-white text-xs whitespace-nowrap">
+            <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
               <button
                 onClick={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
-                className="flex items-center gap-1 text-slate-300 hover:text-white pr-2.5 border-r border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
                 title="Return to Home Menu"
               >
-                <Home className="w-3.5 h-3.5 text-emerald-400" />
+                <Home className="w-3.5 h-3.5 text-[#8fbc6f]" />
                 <span className="font-bold hidden sm:inline">Home</span>
               </button>
 
               <button
                 onClick={() => navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties')}
-                className="flex items-center gap-1 text-slate-300 hover:text-white pr-2.5 border-r border-slate-700 transition-colors cursor-pointer"
+                className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
                 title="Open Memories Gallery"
               >
-                <BookOpen className="w-3.5 h-3.5 text-cyan-400" />
+                <BookOpen className="w-3.5 h-3.5 text-[#7a9b8e]" />
                 <span className="font-bold hidden sm:inline">Memories</span>
               </button>
 
-              <div className="flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                <span className="font-mono font-bold text-amber-300">Lvl {currentLevel.id}:</span>
-                <span className="font-bold text-slate-200">
+              <div className="flex items-center gap-1.5 font-rounded">
+                <Compass className="w-3.5 h-3.5 text-[#f0c674] shrink-0" />
+                <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
+                <span className="font-bold text-[#f4ecd8]">
                   {currentLevel.name}
                 </span>
               </div>
@@ -1620,14 +1954,14 @@ export default function App() {
             {/* Tactical Boosters (All visible), Currency, Clean Mode & Settings */}
             <div className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap">
               {/* Currency Pill */}
-              <div className="hidden lg:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-mono">
-                <span className="flex items-center gap-1 text-amber-300 font-bold" title="Coins: Earned from levels and stars">
-                  <Coins className="w-3.5 h-3.5 text-amber-400" />
-                  <span>{coins}</span>
+              <div className="hidden lg:flex items-center gap-2 wood-panel px-3 py-1.5 shadow-xl text-xs font-bold">
+                <span className="flex items-center gap-1 text-[#f0c674]" title="Coins: Earned from levels and stars">
+                  <Coins className="w-3.5 h-3.5 text-[#f0c674]" />
+                  <span className="font-mono">{coins}</span>
                 </span>
-                <span className="flex items-center gap-1 text-emerald-300 font-bold" title="Leaves: Earned from Journey chests">
-                  <Leaf className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{leaves}</span>
+                <span className="flex items-center gap-1 text-[#8fbc6f]" title="Leaves: Earned from Journey chests">
+                  <Leaf className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                  <span className="font-mono">{leaves}</span>
                 </span>
               </div>
 
@@ -1653,10 +1987,27 @@ export default function App() {
                 <span className="hidden sm:inline">Clean UI</span>
               </button>
 
+              {/* 60 FPS Ultra-Performance Quick Toggle */}
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  handleRequestGraphicsReload(performanceMode === 'low' ? 'high' : 'low', targetFps);
+                }}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl border backdrop-blur-md shadow-xl text-xs font-bold transition-all cursor-pointer ${
+                  performanceMode === 'low'
+                    ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900'
+                    : 'bg-slate-900/90 text-amber-300 border-slate-700 hover:bg-slate-800'
+                }`}
+                title="Toggle Graphics & Performance (Ultra Performance vs High FX Quality)"
+              >
+                <Zap className={`w-3.5 h-3.5 ${performanceMode === 'low' ? 'text-cyan-400' : 'text-slate-400'}`} />
+                <span className="hidden sm:inline">{performanceMode === 'low' ? '⚡ Ultra-Perf' : '✨ High FX'}</span>
+              </button>
+
               <button
                 onClick={() => setIsSettingsModalOpen(true)}
                 className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
-                title="Settings (Sound, Game Mode & Preferences)"
+                title="Settings (Sound, Game Mode & Performance)"
               >
                 <span className="text-amber-400 text-xs">⚙️</span>
                 <span className="hidden sm:inline">Settings</span>
@@ -1665,66 +2016,106 @@ export default function App() {
           </div>
         )}
 
-        {/* Mid Row: Left Sidebar (Progress & Penalties) and Right Sidebar (Area, Action Button & Star Progress) */}
+        {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
         {!isCleanUiMode && (
-        <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
-          {/* Left Sidebar (Gated in Level 1) */}
-          {!currentLevel.uiConfig?.hideLeftSidebar ? (
-            <div onPointerEnter={() => setHoveredCoord(null)}>
-              <LeftSidebar
-                placedCount={inBoundsPlacedCount}
-                parCount={parCount}
-                matchedZonesCount={matchedZonesCount}
-                totalZonesCount={totalZonesCount}
-                penalties={penalties}
-                starsEarned={starsEarned}
-                levelId={currentLevel.id}
-                strictPenaltyLimit={strictPenaltyLimit}
-                hidePenalties={currentLevel.uiConfig?.hidePenalties}
-                highlightPenalties={highlightPenalties}
-                bypasses={bypasses}
-                gameMode={gameMode}
-              />
-            </div>
-          ) : (
-            <div />
-          )}
+          <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
+            {playMode === 'building' ? (
+              /* Single Merged Sidebar for Building Mode */
+              <div onPointerEnter={() => setHoveredCoord(null)}>
+                <UnifiedBuildingSidebar
+                  currentLevel={currentLevel}
+                  currentPhase={currentPhase}
+                  currentPhaseIndex={phaseIndex}
+                  totalPhases={currentLevel.phases.length}
+                  placedTiles={placedTiles}
+                  placedCount={inBoundsPlacedCount}
+                  parCount={parCount}
+                  matchedZonesCount={matchedZonesCount}
+                  totalZonesCount={totalZonesCount}
+                  lightbulbsUsed={lightbulbsUsed}
+                  lightbulbBudget={lightbulbBudget}
+                  bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                  rotationZones={currentPhase?.rotationZones}
+                  soundEnabled={soundEnabled}
+                  canCompletePhase={canCompletePhase}
+                  isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
+                  onRotateZone={handleRotateZone}
+                  onCompletePhase={handleCompletePhase}
+                  onOpenBossBattle={() => setIsBossBattleOpen(true)}
+                  onToggleSound={handleToggleSound}
+                  onResetBoard={handleResetBoard}
+                  onOpenRules={() => setIsRulesModalOpen(true)}
+                />
+              </div>
+            ) : (
+              /* Standard Split 2 Sidebars Layout for Challenger Mode */
+              <>
+                {/* Left Sidebar */}
+                {!currentLevel.uiConfig?.hideLeftSidebar ? (
+                  <div onPointerEnter={() => setHoveredCoord(null)}>
+                    <LeftSidebar
+                      placedCount={inBoundsPlacedCount}
+                      parCount={parCount}
+                      matchedZonesCount={matchedZonesCount}
+                      totalZonesCount={totalZonesCount}
+                      penalties={penalties}
+                      starsEarned={starsEarned}
+                      levelId={currentLevel.id}
+                      strictPenaltyLimit={strictPenaltyLimit}
+                      hidePenalties={currentLevel.uiConfig?.hidePenalties}
+                      highlightPenalties={highlightPenalties}
+                      bypasses={bypasses}
+                      gameMode={gameMode}
+                      playMode={playMode}
+                      lightbulbsUsed={lightbulbsUsed}
+                      lightbulbBudget={lightbulbBudget}
+                      bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                      isBossLevel={currentLevel.isBossLevel}
+                    />
+                  </div>
+                ) : (
+                  <div />
+                )}
 
-          {/* Right Sidebar (Gated in Level 1) */}
-          {!currentLevel.uiConfig?.hideRightSidebar ? (
-            <div onPointerEnter={() => setHoveredCoord(null)}>
-              <RightSidebar
-                currentLevel={currentLevel}
-                currentPhase={currentPhase}
-                currentPhaseIndex={phaseIndex}
-                totalPhases={currentLevel.phases.length}
-                placedTiles={placedTiles}
-                score={score}
-                starsEarned={starsEarned}
-                soundEnabled={soundEnabled}
-                canCompletePhase={canCompletePhase}
-                isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
-                hasCompletedFirstTrial={hasCompletedFirstTrial}
-                masteryChallenge={currentLevel.masteryChallenge}
-                isMasteryCompleted={isMasteryCompleted}
-                gameMode={gameMode}
-                rotationZones={currentPhase?.rotationZones}
-                overlapErrorCount={penalties.overlap}
-                hideScore={currentLevel.uiConfig?.hideScore}
-                highlightScore={highlightScore}
-                isFalsehoodActive={isFalsehoodActive}
-                isPenaltyLimitExceeded={isPenaltyLimitExceeded}
-                onRotateZone={handleRotateZone}
-                onCompletePhase={handleCompletePhase}
-                onToggleSound={handleToggleSound}
-                onResetBoard={handleResetBoard}
-                onOpenRules={() => setIsRulesModalOpen(true)}
-              />
-            </div>
-          ) : (
-            <div />
-          )}
-        </div>
+                {/* Right Sidebar */}
+                {!currentLevel.uiConfig?.hideRightSidebar ? (
+                  <div onPointerEnter={() => setHoveredCoord(null)}>
+                    <RightSidebar
+                      currentLevel={currentLevel}
+                      currentPhase={currentPhase}
+                      currentPhaseIndex={phaseIndex}
+                      totalPhases={currentLevel.phases.length}
+                      placedTiles={placedTiles}
+                      score={score}
+                      starsEarned={starsEarned}
+                      soundEnabled={soundEnabled}
+                      canCompletePhase={canCompletePhase}
+                      isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
+                      hasCompletedFirstTrial={hasCompletedFirstTrial}
+                      masteryChallenge={currentLevel.masteryChallenge}
+                      isMasteryCompleted={isMasteryCompleted}
+                      gameMode={gameMode}
+                      playMode={playMode}
+                      rotationZones={currentPhase?.rotationZones}
+                      overlapErrorCount={penalties.overlap}
+                      hideScore={currentLevel.uiConfig?.hideScore}
+                      highlightScore={highlightScore}
+                      isFalsehoodActive={isFalsehoodActive}
+                      isPenaltyLimitExceeded={isPenaltyLimitExceeded}
+                      onRotateZone={handleRotateZone}
+                      onCompletePhase={handleCompletePhase}
+                      onOpenBossBattle={() => setIsBossBattleOpen(true)}
+                      onToggleSound={handleToggleSound}
+                      onResetBoard={handleResetBoard}
+                      onOpenRules={() => setIsRulesModalOpen(true)}
+                    />
+                  </div>
+                ) : (
+                  <div />
+                )}
+              </>
+            )}
+          </div>
         )}
 
         {/* Relocating Hex Floating Pill */}
@@ -1753,6 +2144,9 @@ export default function App() {
             selectedPiece={selectedPiece}
             activeDragPiece={activeDragPiece}
             hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
+            playMode={playMode}
+            lightbulbsUsed={lightbulbsUsed}
+            lightbulbBudget={lightbulbBudget}
             onSelectPiece={piece => {
               selectTimestampRef.current = Date.now();
               setPickedUpCoord(null);
@@ -1828,8 +2222,47 @@ export default function App() {
       isOpen={isSettingsModalOpen}
       soundEnabled={soundEnabled}
       gameMode={gameMode}
+      playMode={playMode}
+      performanceMode={performanceMode}
+      targetFps={targetFps}
+      isLowPowerMode={isLowPowerMode}
+      textureQuality={textureQuality}
       highestCompletedLevel={highestCompletedLevel}
       onChangeGameMode={setGameMode}
+      onChangePlayMode={handleSwitchPlayMode}
+      onTogglePerformanceMode={setPerformanceMode}
+      onChangeTargetFps={setTargetFps}
+      onToggleLowPowerMode={enabled => {
+        setIsLowPowerMode(enabled);
+        showToast(
+          enabled
+            ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale & Particles Disabled'
+            : 'Low-Power Mode Disabled: Full Native Resolution',
+          'info'
+        );
+      }}
+      onToggleTextureQuality={quality => {
+        setTextureQuality(quality);
+        try {
+          localStorage.setItem('hexa_texture_quality', quality);
+        } catch {}
+      }}
+      onRequestGraphicsReload={handleRequestGraphicsReload}
+      onOpenDevDebugger={() => {
+        if (!isAdminUnlocked) {
+          setAdminAuthFeature('Developer Debugger');
+        } else {
+          setIsDevDebuggerOpen(true);
+        }
+      }}
+      onOpenLevelEditor={() => {
+        if (!isAdminUnlocked) {
+          setAdminAuthFeature('Level Editor');
+        } else {
+          setIsLevelEditorOpen(true);
+        }
+      }}
+      onOpenAdminAuth={feat => setAdminAuthFeature(feat || 'Admin Access')}
       onToggleSound={handleToggleSound}
       onResetTutorial={() => {
         setLevelIndex(0);
@@ -1838,6 +2271,85 @@ export default function App() {
       }}
       onPlayIntro={() => setShowSpecialIntro(true)}
       onClose={() => setIsSettingsModalOpen(false)}
+    />
+
+    {/* Developer Device Debugger Overlay & Password Authenticator */}
+    <DeviceDebugger
+      isOpen={isDevDebuggerOpen}
+      isUnlocked={isDevUnlocked}
+      targetFps={targetFps}
+      performanceMode={performanceMode}
+      isLowPowerMode={isLowPowerMode}
+      currentLevelId={currentLevel.id}
+      currentLevelName={currentLevel.name}
+      phaseIndex={phaseIndex}
+      unlockedHexCount={unlockedCells.size}
+      placedTilesCount={placedTiles.size}
+      rendererInfo={rendererInfo}
+      onAuthenticate={pass => {
+        if (pass === '252324442') {
+          setIsDevUnlocked(true);
+          try {
+            localStorage.setItem('hexa_dev_unlocked', 'true');
+          } catch {}
+          return true;
+        }
+        return false;
+      }}
+      onChangeTargetFps={setTargetFps}
+      onTogglePerformanceMode={setPerformanceMode}
+      onToggleLowPowerMode={enabled => {
+        setIsLowPowerMode(enabled);
+        showToast(
+          enabled
+            ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale'
+            : 'Low-Power Mode Disabled',
+          'info'
+        );
+      }}
+      onRequestGraphicsReload={handleRequestGraphicsReload}
+      onUnlockAllLevels={() => {
+        setHighestCompletedLevel(40);
+        showToast('Developer Utility: All 40 Levels Unlocked!', 'success');
+      }}
+      onAddDevCurrency={() => {
+        setCoins(c => c + 1000);
+        setLeaves(l => l + 1000);
+        showToast('Developer Utility: +1000 Coins & Leaves added!', 'success');
+      }}
+      onClose={() => setIsDevDebuggerOpen(false)}
+    />
+
+    {/* 1v1 Boss Showdown Battle Modal */}
+    <BossBattleModal
+      isOpen={isBossBattleOpen}
+      bossName={currentLevel.bossName || 'Goliath Stone Sovereign'}
+      bossMaxHp={currentLevel.bossMaxHp || 350}
+      bossAtk={currentLevel.bossAtk || 45}
+      bossDef={currentLevel.bossDef || 25}
+      playerStats={bossBattleStats}
+      onVictory={() => {
+        setIsBossBattleOpen(false);
+        handleCompletePhase();
+      }}
+      onDefeat={() => {
+        setIsBossBattleOpen(false);
+        showToast('Defeated! Re-adjust tile placements on Power & Defend zones for higher stats.', 'warn');
+      }}
+      onClose={() => setIsBossBattleOpen(false)}
+    />
+
+    {/* Graphics Setup Reload Confirmation Modal */}
+    <GraphicsReloadModal
+      isOpen={Boolean(pendingGraphicsReload)}
+      currentPerfMode={performanceMode}
+      newPerfMode={pendingGraphicsReload?.newMode || performanceMode}
+      currentTargetFps={targetFps}
+      newTargetFps={pendingGraphicsReload?.newFps || targetFps}
+      currentTextureQuality={textureQuality}
+      newTextureQuality={pendingGraphicsReload?.newTextureQuality || textureQuality}
+      onConfirm={handleConfirmGraphicsReload}
+      onCancel={() => setPendingGraphicsReload(null)}
     />
 
     <ComingSoonModal
@@ -1872,6 +2384,77 @@ export default function App() {
         } catch {}
       }}
       onClose={() => setIsGoldenTicketModalOpen(false)}
+    />
+
+    {/* Admin Code Authorization Modal */}
+    <AdminAuthModal
+      isOpen={Boolean(adminAuthFeature)}
+      featureName={adminAuthFeature || 'Admin Feature'}
+      onAuthenticate={code => {
+        const valid = ['252324442', 'ADMIN', 'admin', 'ADMIN2026', '8888'].includes(code.trim());
+        if (valid) {
+          setIsAdminUnlocked(true);
+          setIsDevUnlocked(true);
+          try {
+            localStorage.setItem('hexa_admin_unlocked', 'true');
+            localStorage.setItem('hexa_dev_unlocked', 'true');
+          } catch {}
+          showToast('Admin Access Unlocked! All features & Level Editor active.', 'success');
+          if (adminAuthFeature === 'Level Editor') {
+            setIsLevelEditorOpen(true);
+          }
+          if (adminAuthFeature === 'Golden Ticket') {
+            setIsGoldenTicketModalOpen(true);
+          }
+          setAdminAuthFeature(null);
+          return true;
+        }
+        return false;
+      }}
+      onClose={() => setAdminAuthFeature(null)}
+    />
+
+    {/* Fully Functional Map & Level Editor */}
+    <LevelEditorModal
+      isOpen={isLevelEditorOpen}
+      existingLevels={allLevels}
+      onSaveLevel={level => {
+        setCustomLevels(prev => {
+          const existingIdx = prev.findIndex(l => l.id === level.id);
+          let updated: LevelConfig[];
+          if (existingIdx >= 0) {
+            updated = [...prev];
+            updated[existingIdx] = level;
+          } else {
+            updated = [...prev, level];
+          }
+          try {
+            localStorage.setItem('hexa_custom_levels', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+        showToast(`Custom Level "${level.name}" saved!`, 'success');
+      }}
+      onTestLevel={level => {
+        const existingIdx = customLevels.findIndex(l => l.id === level.id);
+        const updatedCustom = existingIdx >= 0
+          ? customLevels.map((l, i) => i === existingIdx ? level : l)
+          : [...customLevels, level];
+
+        setCustomLevels(updatedCustom);
+        try {
+          localStorage.setItem('hexa_custom_levels', JSON.stringify(updatedCustom));
+        } catch {}
+
+        const combined = [...LEVELS, ...updatedCustom];
+        const targetIdx = combined.findIndex(l => l.id === level.id);
+        const safeIdx = targetIdx >= 0 ? targetIdx : combined.length - 1;
+
+        triggerLevelTransit(safeIdx);
+        setIsLevelEditorOpen(false);
+        showToast(`Launching test session for "${level.name}"...`, 'info');
+      }}
+      onClose={() => setIsLevelEditorOpen(false)}
     />
 
     {/* 1. Special Intro Loading Screen with animated intro and pickup line "Rejoyce, a journey up for the youth" */}

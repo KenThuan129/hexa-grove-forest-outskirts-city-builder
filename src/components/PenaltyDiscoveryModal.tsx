@@ -19,10 +19,10 @@ export const PenaltyDiscoveryModal: React.FC<PenaltyDiscoveryModalProps> = ({ is
           </div>
           <div>
             <span className="text-[10px] font-black uppercase tracking-wider text-rose-200 block">
-              Level 3 Tutorial Discovery
+              Challenger Mode Unlocked
             </span>
             <h2 className="text-lg font-black tracking-tight leading-tight">
-              Penalties & Settlement Scoring Discovered!
+              Penalties & Settlement Scoring Activated!
             </h2>
           </div>
         </div>
@@ -30,7 +30,7 @@ export const PenaltyDiscoveryModal: React.FC<PenaltyDiscoveryModalProps> = ({ is
         {/* Modal Body */}
         <div className="p-4 sm:p-5 flex flex-col gap-3.5 text-slate-800">
           <p className="text-xs text-slate-600 leading-relaxed">
-            You just triggered a <strong>Settlement Penalty</strong>! Your Settlement Score and Penalties have now been unlocked on your HUD.
+            Welcome to <strong>Challenger Mode</strong>! Your Settlement Score, 3-Star targets, and Penalty limits are now active on your HUD.
           </p>
 
           {/* 4 Penalty Rules Grid */}
