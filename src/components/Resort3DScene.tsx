@@ -37,6 +37,22 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
   // Initialize Three.js scene
   useEffect(() => {
     if (!containerRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current;
+
+    // Check if WebGL is supported by the browser/device before creating WebGLRenderer
+    let glContext: RenderingContext | null = null;
+    try {
+      glContext =
+        canvas.getContext('webgl2') ||
+        canvas.getContext('webgl') ||
+        canvas.getContext('experimental-webgl');
+    } catch {
+      glContext = null;
+    }
+
+    if (!glContext) {
+      return;
+    }
 
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
@@ -54,21 +70,29 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     let renderer: THREE.WebGLRenderer | null = null;
     try {
       renderer = new THREE.WebGLRenderer({
-        canvas: canvasRef.current,
+        canvas,
         antialias: !isPerfLow,
         alpha: false,
         powerPreference: isPerfLow ? 'default' : 'high-performance',
         failIfMajorPerformanceCaveat: false,
+        preserveDrawingBuffer: false,
       });
+      if (!renderer.getContext() || !renderer.capabilities) {
+        throw new Error('WebGL context unavailable');
+      }
     } catch {
       try {
         renderer = new THREE.WebGLRenderer({
-          canvas: canvasRef.current,
+          canvas,
           antialias: false,
           alpha: false,
           powerPreference: 'default',
           failIfMajorPerformanceCaveat: false,
+          preserveDrawingBuffer: false,
         });
+        if (!renderer.getContext() || !renderer.capabilities) {
+          throw new Error('WebGL context unavailable');
+        }
       } catch {
         renderer = null;
       }
@@ -275,9 +299,15 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
     return () => {
       window.removeEventListener('resize', handleResize);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-      renderer.dispose();
+      if (renderer) {
+        try {
+          renderer.dispose();
+        } catch {}
+      }
+      scene.clear();
+      rendererRef.current = null;
     };
-  }, []);
+  }, [performanceMode]);
 
   // Update Construction Meshes when constructions prop changes
   useEffect(() => {

@@ -85,6 +85,31 @@ function drawIsoHex(
     ctx.fillStyle = palette.accent;
     ctx.fill();
     ctx.stroke();
+  } else if (type === 'road') {
+    // Charcoal asphalt roadway with yellow dash
+    const rw = r * 0.9;
+    const rh = r * 0.45;
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(cx - rw / 2, cy - rh / 2, rw, rh);
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(cx - rw / 2, cy - rh / 2, rw, rh);
+    // Yellow centerline
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(cx - rw * 0.4, cy - 1, rw * 0.8, 2);
+  } else if (type === 'bridge') {
+    // Slate bridge deck with scarlet red railings
+    const bw = r * 0.9;
+    const bh = r * 0.45;
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(cx - bw / 2, cy - bh / 2, bw, bh);
+    // Scarlet red rails
+    ctx.fillStyle = '#be123c';
+    ctx.fillRect(cx - bw / 2, cy - bh / 2 - 2, bw, 2.5);
+    ctx.fillRect(cx - bw / 2, cy + bh / 2 - 0.5, bw, 2.5);
+    // Yellow center divider
+    ctx.fillStyle = '#facc15';
+    ctx.fillRect(cx - bw * 0.4, cy - 1, bw * 0.8, 2);
   } else if (type === 'trees') {
     // Pine trees
     const drawPine = (px: number, py: number, sc: number) => {

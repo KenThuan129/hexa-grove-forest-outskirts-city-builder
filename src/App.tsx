@@ -103,16 +103,20 @@ export default function App() {
   const [customLevels, setCustomLevels] = useState<LevelConfig[]>(() => {
     try {
       const saved = localStorage.getItem('hexa_custom_levels');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      // Clean up any stale overrides for official locked levels 3, 4, 5, 7, 8, 9, 10
+      const lockedIds = new Set([3, 4, 5, 7, 8, 9, 10]);
+      return Array.isArray(parsed) ? parsed.filter((l: any) => !lockedIds.has(l.id)) : [];
     } catch {
       return [];
     }
   });
 
   const allLevels = useMemo<LevelConfig[]>(() => {
-    const customMap = new Map(customLevels.map(l => [l.id, l]));
+    const lockedIds = new Set([3, 4, 5, 7, 8, 9, 10]);
+    const customMap = new Map(customLevels.filter(l => !lockedIds.has(l.id)).map(l => [l.id, l]));
     const baseLevels = LEVELS.map(l => customMap.get(l.id) || l);
-    const brandNewCustom = customLevels.filter(l => !LEVELS.some(b => b.id === l.id));
+    const brandNewCustom = customLevels.filter(l => !LEVELS.some(b => b.id === l.id) && !lockedIds.has(l.id));
     return [...baseLevels, ...brandNewCustom];
   }, [customLevels]);
 
@@ -620,7 +624,11 @@ export default function App() {
   const connectivity = useMemo(() => {
     const coords: HexCoord[] = [];
     placedTiles.forEach((stack, key) => {
-      if (stack.length > 0 && unlockedCells.has(key) && !unlockedCells.get(key)?.isRiver) {
+      if (stack.length === 0) return;
+      const cell = unlockedCells.get(key);
+      const isBridge = stack.some(t => t.type === 'bridge');
+      // Bridges act as path bridges even over water/void!
+      if (isBridge || (cell && (cell.isUnlocked || cell.isFog) && !cell.isRiver)) {
         coords.push({ q: stack[0].q, r: stack[0].r });
       }
     });
@@ -632,6 +640,8 @@ export default function App() {
     let count = 0;
     placedTiles.forEach((stack, key) => {
       const cell = unlockedCells.get(key);
+      const isBridge = stack.some(t => t.type === 'bridge');
+      if (isBridge) return; // Bridges are exempt from off-map/river penalties
       if (!cell || cell.isRiver) {
         count += stack.length;
       }
@@ -644,7 +654,8 @@ export default function App() {
     let count = 0;
     placedTiles.forEach((stack, key) => {
       const cell = unlockedCells.get(key);
-      if (cell && (cell.isUnlocked || cell.isFog) && !cell.isRiver) {
+      const isBridge = stack.some(t => t.type === 'bridge');
+      if (isBridge || (cell && (cell.isUnlocked || cell.isFog) && !cell.isRiver)) {
         count += stack.length;
       }
     });
@@ -724,14 +735,18 @@ export default function App() {
 
   // Penalties record with Memories Penalty Bypass Free Passes Applied!
   const penalties: PenaltyRecord = useMemo(() => {
+    // Overuse penalties are bypassed by default until Challenger Mode is entered
+    const isOveruseActive = playMode === 'challenger';
+    const effectiveOveruse = isOveruseActive ? Math.max(0, rawOveruseCount - bypasses.overuse) : 0;
+
     return {
-      overuse: Math.max(0, rawOveruseCount - bypasses.overuse),
+      overuse: effectiveOveruse,
       disconnect: Math.max(0, connectivity.disconnectedCount - bypasses.disconnect),
       overlap: Math.max(0, rawOverlapErrorCount - bypasses.overlap),
       offMap: Math.max(0, rawOffMapCount - bypasses.offMap),
       falsehood: dynamicFalsehoodCount,
     };
-  }, [rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, dynamicFalsehoodCount, bypasses]);
+  }, [playMode, rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, dynamicFalsehoodCount, bypasses]);
 
   // Strict Penalty Limit Check (Level 20+ max 3 penalties allowed in Try-Hard mode; relaxed in Casual mode)
   const totalPenaltiesCount =
@@ -917,12 +932,49 @@ export default function App() {
     };
   }, [placedTiles, unlockedCells]);
 
+  // Check Road / Bridge requirements for Level 16 and Level 23
+  const roadHexCount = useMemo(() => {
+    let count = 0;
+    placedTiles.forEach(stack => {
+      stack.forEach(tile => {
+        if (tile.type === 'road') count++;
+      });
+    });
+    return count;
+  }, [placedTiles]);
+
+  const bridgeHexCount = useMemo(() => {
+    let count = 0;
+    placedTiles.forEach(stack => {
+      stack.forEach(tile => {
+        if (tile.type === 'bridge') count++;
+      });
+    });
+    return count;
+  }, [placedTiles]);
+
+  const meetsLevelMechanicRequirement =
+    currentLevel.id === 16 ? roadHexCount >= 1 : currentLevel.id === 23 ? bridgeHexCount >= 1 : true;
+
+  // Counted blocking penalties for level victory: Overlap, Off-board, Falsehood, Disconnect (Overuse is bypassed)
+  const blockingPenaltiesCount =
+    (penalties.overlap || 0) +
+    (penalties.offMap || 0) +
+    (penalties.disconnect || 0) +
+    (penalties.falsehood || 0);
+
+  const isLastPhase = phaseIndex + 1 >= currentLevel.phases.length;
+
   // Can the player complete / advance this phase?
+  // - Expand for next phase: Available when colored zones are completed
+  // - Complete level (final phase): Blocked if Overlap, Off-board, Falsehood, or Disconnect penalties exist, or mechanic requirement unmet
   const canCompletePhase =
     playMode === 'building'
-      ? coloredZonesCompleted && rawOffMapCount === 0 && rawOverlapErrorCount === 0 && lightbulbsUsed <= lightbulbBudget
-      : currentLevel.id === 1
-      ? coloredZonesCompleted && inBoundsPlacedCount >= 2
+      ? isLastPhase
+        ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
+        : coloredZonesCompleted && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
+      : isLastPhase
+      ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
       : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
 
   // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
@@ -978,18 +1030,69 @@ export default function App() {
       const isCluster = Boolean(pieceToPlace.clusterShape && pieceToPlace.clusterShape.length > 1);
       const offsets = isCluster && pieceToPlace.clusterShape ? pieceToPlace.clusterShape : [{ q: 0, r: 0 }];
 
-      // 1. River Barrier Check: Waterways cannot be built on!
+      // 1. Road Placement Adjacency Check:
+      // Roads (single or multi-hex cluster) must be placed adjacent to at least one placed House, Tower, Landmark, Road, or Bridge structure.
+      const hasRoadCells = offsets.some(off => (off.type || pieceToPlace.type) === 'road');
+      let isRoadPlacedLegit = true;
+
+      if (hasRoadCells) {
+        isRoadPlacedLegit = offsets.some(off => {
+          const tQ = anchorCoord.q + off.q;
+          const tR = anchorCoord.r + off.r;
+          const neighbors = getHexNeighbors(tQ, tR);
+
+          return neighbors.some(n => {
+            // Ignore cells that are part of the piece currently being placed
+            const isInternal = offsets.some(other => anchorCoord.q + other.q === n.q && anchorCoord.r + other.r === n.r);
+            if (isInternal) return false;
+
+            const nKey = coordKey(n.q, n.r);
+            const stack = placedTiles.get(nKey) || [];
+            return stack.some(t => {
+              const types = ['house', 'tower', 'landmark', 'road', 'bridge'];
+              if (types.includes(t.type)) {
+                return true;
+              }
+              if (t.clusterShape) {
+                return t.clusterShape.some(o => types.includes(o.type || ''));
+              }
+              if (t.clusterPieceOriginal) {
+                if (types.includes(t.clusterPieceOriginal.type)) {
+                  return true;
+                }
+                if (t.clusterPieceOriginal.clusterShape) {
+                  return t.clusterPieceOriginal.clusterShape.some(o => types.includes(o.type || ''));
+                }
+              }
+              return false;
+            });
+          });
+        });
+      }
+
+      if (hasRoadCells && !isRoadPlacedLegit) {
+        sounds.playWarning();
+        showToast('🚧 Road Placement Error: Roads can only be built adjacent to a House, Tower, Landmark, Road, or Bridge!', 'warn');
+        return;
+      }
+
+      // 2. River Barrier Check: Waterways cannot be built on unless it's a bridge!
       const touchesRiver = offsets.some(off => {
-        const key = coordKey(anchorCoord.q + off.q, anchorCoord.r + off.r);
-        return unlockedCells.get(key)?.isRiver;
+        const tQ = anchorCoord.q + off.q;
+        const tR = anchorCoord.r + off.r;
+        const key = coordKey(tQ, tR);
+        const cell = unlockedCells.get(key);
+        const cellType = off.type || pieceToPlace.type;
+        return cell?.isRiver && cellType !== 'bridge';
       });
+
       if (touchesRiver) {
         sounds.playWarning();
         showToast('🌊 River Barrier: Natural waterways are unbuildable!', 'warn');
         return;
       }
 
-      // 2. Color Mismatch Check
+      // 3. Color Mismatch Check
       let hasMismatch = false;
       let mismatchName = '';
 
@@ -1010,7 +1113,7 @@ export default function App() {
         return;
       }
 
-      // 3. Fog Hex Check:
+      // 4. Fog Hex Check:
       let placedOnFog = false;
       let isFogLegit = false;
       for (const off of offsets) {
@@ -1054,8 +1157,10 @@ export default function App() {
           const tR = anchorCoord.r + off.r;
           const tKey = coordKey(tQ, tR);
           const targetCell = unlockedCells.get(tKey);
+          const cellType = off.type || pieceToPlace.type;
 
-          if (!targetCell || (targetCell.isFog && !isFogLegit)) {
+          // Bridges can build on empty / water areas, so they are never Off-Map!
+          if (cellType !== 'bridge' && (!targetCell || (targetCell.isFog && !isFogLegit))) {
             hadOffMap = true;
           }
 
@@ -1110,7 +1215,7 @@ export default function App() {
       setSelectedPiece(null);
       setPickedUpCoord(null);
     },
-    [unlockedCells, bypasses]
+    [unlockedCells, bypasses, placedTiles]
   );
 
   // Auto-demo build helper for tutorial demonstration
@@ -1428,6 +1533,24 @@ export default function App() {
       }, 1200);
     } else {
       // Final Phase: Level Victory Validation
+      if (blockingPenaltiesCount > 0) {
+        sounds.playWarning();
+        showToast(`Cannot complete level: ${blockingPenaltiesCount} active penalty error(s) (Overlap, Off-board, Falsehood, or Disconnect). Resolve them to achieve victory!`, 'warn');
+        return;
+      }
+
+      if (currentLevel.id === 16 && roadHexCount < 1) {
+        sounds.playWarning();
+        showToast('Level 16 Requirement: Place at least 1 Road hex to connect the settlements!', 'warn');
+        return;
+      }
+
+      if (currentLevel.id === 23 && bridgeHexCount < 1) {
+        sounds.playWarning();
+        showToast('Level 23 Requirement: Place at least 1 Bridge hex to span across the river!', 'warn');
+        return;
+      }
+
       const isTryHard = gameMode === 'tryhard';
       const hasMastery = Boolean(currentLevel.masteryChallenge);
 
@@ -1467,7 +1590,7 @@ export default function App() {
       sounds.playVictory();
 
       // Directly trigger the responsive End-of-Level Celebration Winning Modal!
-      const nextLvl = LEVELS[levelIndex + 1] || null;
+      const nextLvl = allLevels[levelIndex + 1] || null;
       const totalPen =
         penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood;
 
@@ -2036,6 +2159,7 @@ export default function App() {
                   lightbulbBudget={lightbulbBudget}
                   bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
                   rotationZones={currentPhase?.rotationZones}
+                  penalties={penalties}
                   soundEnabled={soundEnabled}
                   canCompletePhase={canCompletePhase}
                   isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
@@ -2097,6 +2221,7 @@ export default function App() {
                       gameMode={gameMode}
                       playMode={playMode}
                       rotationZones={currentPhase?.rotationZones}
+                      penalties={penalties}
                       overlapErrorCount={penalties.overlap}
                       hideScore={currentLevel.uiConfig?.hideScore}
                       highlightScore={highlightScore}

@@ -308,37 +308,197 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
     const jsonStr = JSON.stringify(levelConfig, null, 2);
     navigator.clipboard.writeText(jsonStr);
     sounds.playVictory();
-    showToast('Level JSON copied to clipboard!');
+    showToast(`Level ${levelConfig.id} JSON copied to clipboard!`);
+  };
+
+  const handleDownloadJSONFile = () => {
+    const levelConfig = buildCurrentLevelConfig();
+    const jsonStr = JSON.stringify(levelConfig, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `level_${levelConfig.id}_${levelConfig.name.toLowerCase().replace(/\s+/g, '_')}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    sounds.playVictory();
+    showToast(`Level ${levelConfig.id} JSON file downloaded!`);
+  };
+
+  const handleExportAllCustomJSON = () => {
+    try {
+      const rawCustom = localStorage.getItem('hexa_custom_levels');
+      const customArr = rawCustom ? JSON.parse(rawCustom) : [];
+      if (!customArr.length) {
+        showToast('No custom levels saved yet! Save some levels first.');
+        return;
+      }
+      const jsonStr = JSON.stringify(customArr, null, 2);
+      navigator.clipboard.writeText(jsonStr);
+      sounds.playVictory();
+      showToast(`Copied ${customArr.length} Custom Level(s) JSON to clipboard!`);
+    } catch {
+      showToast('Failed to export custom levels.');
+    }
+  };
+
+  const handleDownloadAllCustomJSONFile = () => {
+    try {
+      const rawCustom = localStorage.getItem('hexa_custom_levels');
+      const customArr = rawCustom ? JSON.parse(rawCustom) : [];
+      if (!customArr.length) {
+        showToast('No custom levels saved yet! Save some levels first.');
+        return;
+      }
+      const jsonStr = JSON.stringify(customArr, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'custom_levels_all.json';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      sounds.playVictory();
+      showToast(`Downloaded all ${customArr.length} custom levels as file!`);
+    } catch {
+      showToast('Failed to download custom levels file.');
+    }
+  };
+
+  const handleExportAllActiveLevelsJSON = () => {
+    try {
+      const jsonStr = JSON.stringify(existingLevels, null, 2);
+      navigator.clipboard.writeText(jsonStr);
+      sounds.playVictory();
+      showToast(`Copied all ${existingLevels.length} Game Levels JSON to clipboard!`);
+    } catch {
+      showToast('Failed to export all levels.');
+    }
+  };
+
+  const handleParseJSONAndLoad = (parsed: any, sourceText?: string) => {
+    if (parsed.id <= 2) {
+      throw new Error('Levels 1 & 2 are protected tutorial levels.');
+    }
+    setLevelId(parsed.id);
+    setLevelName(parsed.name);
+    setLevelSubtitle(parsed.subtitle || '');
+    setLevelDescription(parsed.description || '');
+    setLightbulbBudget(parsed.lightbulbBudget || 25);
+    setPhases(parsed.phases);
+    
+    if (parsed.targetScore) {
+      setStar1(parsed.targetScore.star1 || 1000);
+      setStar2(parsed.targetScore.star2 || 2000);
+      setStar3(parsed.targetScore.star3 || 3000);
+    }
+
+    if (parsed.availablePieces) {
+      const ids = parsed.availablePieces.map((p: any) => p.id);
+      setSelectedPieceIds(ids);
+      const stocks: Record<string, number | undefined> = {};
+      parsed.availablePieces.forEach((p: any) => {
+        if (p.stock !== undefined) {
+          stocks[p.id] = p.stock;
+        }
+      });
+      setPieceStocks(stocks);
+    }
+
+    if (parsed.masteryChallenge) {
+      setHasMastery(true);
+      setMasteryTitle(parsed.masteryChallenge.title || 'Frontier Mastery');
+      setMasteryDescription(parsed.masteryChallenge.description || 'Complete the settlement with zero disconnects.');
+      setMasteryType(parsed.masteryChallenge.type || 'min_score');
+      setMasteryValue(parsed.masteryChallenge.targetValue || 2000);
+    } else {
+      setHasMastery(false);
+    }
+
+    setIsBossLevel(Boolean(parsed.isBossLevel));
+    if (parsed.bossName) setBossName(parsed.bossName);
+    if (parsed.bossMaxHp) setBossMaxHp(parsed.bossMaxHp);
+    if (parsed.bossAtk) setBossAtk(parsed.bossAtk);
+    if (parsed.bossDef) setBossDef(parsed.bossDef);
+
+    if (sourceText) {
+      setJsonImportText(sourceText);
+    } else {
+      setJsonImportText(JSON.stringify(parsed, null, 2));
+    }
   };
 
   const handleImportJSON = () => {
     try {
-      const parsed: LevelConfig = JSON.parse(jsonImportText);
+      const parsed = JSON.parse(jsonImportText.trim());
+      if (Array.isArray(parsed)) {
+        // Bulk import multiple levels
+        let count = 0;
+        parsed.forEach((lvl: LevelConfig) => {
+          if (lvl && lvl.id && lvl.id > 2 && lvl.name && lvl.phases) {
+            onSaveLevel(lvl);
+            count++;
+          }
+        });
+        sounds.playVictory();
+        showToast(`Successfully imported & saved ${count} level(s)!`);
+        return;
+      }
+
       if (!parsed.id || !parsed.name || !parsed.phases) {
         throw new Error('Invalid level configuration schema');
       }
-      if (parsed.id <= 2) {
-        throw new Error('Levels 1 & 2 are protected tutorial levels.');
-      }
-      setLevelId(parsed.id);
-      setLevelName(parsed.name);
-      setLevelSubtitle(parsed.subtitle || '');
-      setLevelDescription(parsed.description || '');
-      setLightbulbBudget(parsed.lightbulbBudget || 25);
-      setPhases(parsed.phases);
-      setStar1(parsed.targetScore.star1);
-      setStar2(parsed.targetScore.star2);
-      setStar3(parsed.targetScore.star3);
-      setIsBossLevel(Boolean(parsed.isBossLevel));
-      if (parsed.bossName) setBossName(parsed.bossName);
-      if (parsed.bossMaxHp) setBossMaxHp(parsed.bossMaxHp);
 
+      handleParseJSONAndLoad(parsed);
       sounds.playVictory();
-      showToast('Level JSON imported successfully!');
+      showToast('Level JSON imported into editor! Click "Save Changes" to apply.');
     } catch (err: any) {
       sounds.playWarning();
       showToast(err?.message || 'Failed to import JSON! Ensure valid LevelConfig syntax.');
     }
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const text = event.target?.result as string;
+        const parsed = JSON.parse(text.trim());
+
+        if (Array.isArray(parsed)) {
+          let count = 0;
+          parsed.forEach((lvl: LevelConfig) => {
+            if (lvl && lvl.id && lvl.id > 2 && lvl.name && lvl.phases) {
+              onSaveLevel(lvl);
+              count++;
+            }
+          });
+          sounds.playVictory();
+          showToast(`Successfully uploaded and saved ${count} level(s)!`);
+          return;
+        }
+
+        if (!parsed.id || !parsed.name || !parsed.phases) {
+          throw new Error('Invalid level configuration schema');
+        }
+
+        handleParseJSONAndLoad(parsed, text);
+        sounds.playVictory();
+        showToast(`Uploaded & loaded level "${parsed.name}" into editor!`);
+      } catch (err: any) {
+        sounds.playWarning();
+        showToast(err?.message || 'Failed to upload/parse JSON file.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleLoadLevelForEdit = (targetLevel: LevelConfig) => {
@@ -1296,31 +1456,92 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
 
           {/* TAB 5: Export & JSON Import */}
           {activeTab === 'manage' && (
-            <div className="flex flex-col gap-5 max-w-2xl mx-auto">
-              {/* Quick Actions */}
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={handleExportJSON}
-                  className="p-3 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs text-white cursor-pointer shadow transition-all font-rounded"
-                >
-                  <Download className="w-4 h-4 text-cyan-400" />
-                  <span>Copy Level JSON to Clipboard</span>
-                </button>
+            <div className="flex flex-col gap-6 max-w-2xl mx-auto">
+              {/* File Export Downloads Section */}
+              <div className="flex flex-col gap-2.5">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 font-rounded">Export & Download Options</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col gap-2 shadow-inner">
+                    <span className="text-[10px] font-bold text-slate-500 font-rounded">Single Level ({levelId})</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleExportJSON}
+                        className="flex-1 p-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10.5px] text-white cursor-pointer shadow transition-all font-rounded"
+                        title="Copy to Clipboard"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Copy Clipboard</span>
+                      </button>
+                      <button
+                        onClick={handleDownloadJSONFile}
+                        className="flex-1 p-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10.5px] text-cyan-300 cursor-pointer shadow transition-all font-rounded"
+                        title="Download .json file"
+                      >
+                        <Download className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Download .json</span>
+                      </button>
+                    </div>
+                  </div>
 
-                <button
-                  onClick={handleImportJSON}
-                  className="p-3 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-2xl flex items-center justify-center gap-2 font-bold text-xs text-white cursor-pointer shadow transition-all font-rounded"
-                >
-                  <Upload className="w-4 h-4 text-emerald-400" />
-                  <span>Load JSON Below</span>
-                </button>
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col gap-2 shadow-inner">
+                    <span className="text-[10px] font-bold text-amber-500/80 font-rounded">All Custom Levels</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleExportAllCustomJSON}
+                        className="flex-1 p-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10.5px] text-white cursor-pointer shadow transition-all font-rounded"
+                        title="Copy all custom levels to Clipboard"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Copy Clipboard</span>
+                      </button>
+                      <button
+                        onClick={handleDownloadAllCustomJSONFile}
+                        className="flex-1 p-2 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-xl flex items-center justify-center gap-1.5 font-bold text-[10.5px] text-amber-300 cursor-pointer shadow transition-all font-rounded"
+                        title="Download all custom levels .json file"
+                      >
+                        <Download className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Download .json</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* JSON Paste Area */}
+              {/* Upload JSON Files Section */}
+              <div className="flex flex-col gap-2.5">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-400 font-rounded">Upload & Load JSON File</h4>
+                <div className="p-4 bg-slate-950 border border-dashed border-slate-800 hover:border-slate-700 rounded-2xl flex flex-col items-center justify-center gap-2 text-center transition-all">
+                  <Upload className="w-8 h-8 text-emerald-400 animate-pulse" />
+                  <div className="flex flex-col gap-1">
+                    <p className="text-xs font-bold text-slate-300 font-rounded">Drag & drop or browse to upload .json file</p>
+                    <p className="text-[10px] text-slate-500">Supports single level or bulk custom levels array</p>
+                  </div>
+                  <label className="mt-1 px-4 py-2 bg-emerald-950 hover:bg-emerald-900 border border-emerald-800 hover:border-emerald-700 text-emerald-300 font-extrabold text-xs rounded-xl shadow cursor-pointer transition-all font-rounded">
+                    Browse File
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* JSON Paste Area as safe fallback */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-bold text-slate-400 font-rounded">Paste Raw Level JSON Schema:</label>
+                <div className="flex justify-between items-center">
+                  <label className="text-xs font-bold text-slate-400 font-rounded">Paste Raw JSON Fallback:</label>
+                  <button
+                    onClick={handleImportJSON}
+                    className="px-3 py-1 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-emerald-400 font-extrabold text-[10.5px] rounded-lg shadow cursor-pointer transition-all font-rounded flex items-center gap-1"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Load/Import Pasted</span>
+                  </button>
+                </div>
                 <textarea
-                  rows={8}
+                  rows={5}
                   value={jsonImportText}
                   onChange={e => setJsonImportText(e.target.value)}
                   placeholder='Paste {"id": 101, "name": "Custom", "phases": [...]} here...'

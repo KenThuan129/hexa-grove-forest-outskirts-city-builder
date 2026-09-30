@@ -1,4 +1,4 @@
-export type TileType = 'house' | 'trees' | 'mixed';
+export type TileType = 'house' | 'trees' | 'mixed' | 'road' | 'bridge' | 'tower' | 'landmark';
 
 export type TileColor = 'neutral' | 'amber' | 'emerald' | 'sapphire' | 'ruby';
 

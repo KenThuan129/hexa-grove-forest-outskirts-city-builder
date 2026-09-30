@@ -112,8 +112,26 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
   const hasPlacedEmerald0_2 = Boolean(placedTiles.get('0,2')?.some(t => t.color === 'emerald'));
   const isPhase1AllZonesCompleted = hasPlacedYellow2_0 && hasPlacedEmerald0_1 && hasPlacedEmerald0_2;
 
-  // Level 6 Progress Detection (Misplaced tile at 0,3)
-  const hasTileAt0_3 = Boolean(placedTiles.get('0,3')?.length);
+  // Level 6 Progress Detection (Check if any tile is off map)
+  const hasOffMapTileL6 = useMemo(() => {
+    // Valid unlocked coords in Level 6 phase 1
+    const level6ValidCoords = new Set([
+      '0,0', '1,0', '2,0', '0,1', '1,1', '0,2', '-1,1', '-1,0', '-2,0', '0,-1', '1,-1', '-1,2', '2,-1'
+    ]);
+    for (const [key, stack] of placedTiles.entries()) {
+      if (stack && stack.length > 0) {
+        const isBridge = stack.some(t => t.type === 'bridge');
+        if (!isBridge && !level6ValidCoords.has(key)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }, [placedTiles]);
+
+  const hasPlacedCenterL6 = Boolean(placedTiles.get('0,0')?.length);
+  const hasPlacedAmber1_0 = Boolean(placedTiles.get('1,0')?.some(t => t.color === 'amber'));
+  const hasPlacedAmber2_0 = Boolean(placedTiles.get('2,0')?.some(t => t.color === 'amber'));
 
   // Auto-advance Level 2 steps based on actual placements
   useEffect(() => {
@@ -128,13 +146,18 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     }
   }, [levelId, currentPhaseIndex, level2Step, hasPlacedYellow2_0, isPhase1AllZonesCompleted]);
 
-  // Auto-advance Level 6 step 2 when user removes (0,3)
+  // Auto-advance Level 6 step based on user actions
   useEffect(() => {
-    if (levelId === 6 && level6Step === 2 && !hasTileAt0_3) {
-      setLevel6Step(3);
-      sounds.playVictory();
+    if (levelId === 6) {
+      if (level6Step === 2 && !hasOffMapTileL6) {
+        setLevel6Step(3);
+        sounds.playPickup();
+      } else if (level6Step === 3 && hasPlacedCenterL6 && !hasOffMapTileL6) {
+        setLevel6Step(4);
+        sounds.playZoneComplete();
+      }
     }
-  }, [levelId, level6Step, hasTileAt0_3]);
+  }, [levelId, level6Step, hasOffMapTileL6, hasPlacedCenterL6]);
 
   // Advance step handler
   const handleAdvanceLevel2 = () => {
@@ -311,36 +334,67 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     // LEVEL 6
     else if (levelId === 6) {
       if (level6Step === 1) {
-        targetSelector = '[data-tutorial-id="tutorial-mastery-challenge"]';
-        extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'purple', label: 'Target Zones' }];
-        extraFocalHexes = [{ q: 0, r: 3, color: 'rose', label: 'Off-Map Tile' }];
-        title = '👑 Mastery Challenge: No Off-Map!';
-        description = 'Look closely at the Crown condition in the sidebar: "No Off-map". Even though target zones look active, the pre-placed green cluster has a piece stranded outside the map border, incurring an Off-Map penalty!';
-        badgeLabel = 'CHECK CROWN 👑';
+        targetSelector = '[data-tutorial-id="tag-no-off-map"], [data-tutorial-id="tutorial-target-color-zones"]';
+        extraFocalSelectors = [
+          { selector: '[data-tutorial-id="tag-no-off-map"]', color: 'rose', label: 'No Off-map ✕' },
+          { selector: '[data-tutorial-id="tutorial-mastery-challenge"]', color: 'purple', label: 'Mastery Challenge' },
+        ];
+        extraFocalHexes = [{ q: 0, r: 3, color: 'rose', label: 'Off-Map Tile (0,3)' }];
+        title = '👑 Target Color Zones: "No Off-map" Tag';
+        description = 'Look at the "No Off-map" tag in the Target Color Zones checklist! Even though color zones look active, the pre-placed green cluster has a piece stranded outside the map border at (0,3), causing an Off-Map violation.';
+        badgeLabel = 'CHECK NO OFF-MAP';
         themeColor = 'purple';
         pointerDirection = 'left';
       } else if (level6Step === 2) {
         targetHex = { q: 0, r: 3 };
-        extraFocalSelectors = [{ selector: '[data-tutorial-id="tutorial-mastery-challenge"]', color: 'purple' }];
-        title = 'Remove the Off-Map Tile (0,3)';
-        description = 'Click on the stray green tile stranded at (0,3) outside the valid map boundary to pick it up/remove it and clear the penalty.';
-        badgeLabel = 'CLICK (0,3) TO REMOVE';
+        extraFocalSelectors = [
+          { selector: '[data-tutorial-id="tag-no-off-map"]', color: 'rose', label: 'No Off-map: Active Warning' },
+          { selector: '[data-tutorial-id="tutorial-mastery-challenge"]', color: 'purple' },
+        ];
+        title = 'Pick Up Stray Green Tile (0,3)';
+        description = 'Click on the stray green tile stranded at (0,3) outside the valid map boundary to pick it up. Watch the "No Off-map" tag turn green with a checkmark ✓!';
+        badgeLabel = 'PICK UP (0,3)';
         themeColor = 'rose';
         pointerDirection = 'down';
       } else if (level6Step === 3) {
-        if (!isHoldingAmber && !isHoldingEmerald) {
-          targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"], [data-tutorial-id="tray-piece-p-trees-emerald"]';
-          extraFocalHexes = [{ q: 1, r: 0, color: 'amber', label: 'Amber Zone' }];
-          title = 'Place Valid Tiles Inside Boundary';
-          description = 'Now pick an Amber or Emerald piece from your tray and place it cleanly within the unlocked zones to master the level with 0 penalties!';
-          badgeLabel = 'START BUILDING';
-          themeColor = 'emerald';
+        targetHex = { q: 0, r: 0 };
+        extraFocalSelectors = [
+          { selector: '[data-tutorial-id="tag-no-off-map"]', color: 'emerald', label: 'No Off-map ✓' },
+        ];
+        extraFocalHexes = [
+          { q: 1, r: 0, color: 'amber', label: 'Yellow Zone (1,0)' },
+          { q: 2, r: 0, color: 'amber', label: 'Yellow Zone (2,0)' },
+        ];
+        title = 'Move Green Tile to Center Hex (0,0)';
+        description = 'Move the green tile to the neutral center hex at (0,0) instead! Notice that (1,0) and (2,0) are yellow color tiles already, while (0,1) and (0,2) already satisfy Emerald Grove.';
+        badgeLabel = 'MOVE TO (0,0)';
+        themeColor = 'emerald';
+        pointerDirection = 'down';
+      } else if (level6Step === 4) {
+        if (!isHoldingAmber) {
+          targetSelector = '[data-tutorial-id="tray-piece-p-house-amber"]';
+          extraFocalSelectors = [
+            { selector: '[data-tutorial-id="tag-no-off-map"]', color: 'emerald', label: 'No Off-map ✓' },
+            { selector: '[data-tutorial-id="tutorial-target-color-zones"]', color: 'amber', label: 'Target Zones' },
+          ];
+          extraFocalHexes = [
+            { q: 1, r: 0, color: 'amber', label: 'Sunstone Plaza (1,0)' },
+            { q: 2, r: 0, color: 'amber', label: 'Sunstone Plaza (2,0)' },
+          ];
+          title = 'Select Amber Townhall';
+          description = 'Select the Sunlit Townhall (Amber) from your tray to fill the remaining Sunstone Plaza target zones at (1,0) and (2,0).';
+          badgeLabel = 'SELECT AMBER';
+          themeColor = 'amber';
           pointerDirection = 'down';
         } else {
-          targetHex = { q: 1, r: 0 };
-          title = 'Align Inside Valid Sunstone Plaza';
-          description = 'Place your tile cleanly inside the valid boundary on (1,0) without causing off-map errors.';
-          badgeLabel = 'PLACE IN BOUNDS';
+          const nextAmberHex = !hasPlacedAmber1_0 ? { q: 1, r: 0 } : { q: 2, r: 0 };
+          targetHex = nextAmberHex;
+          extraFocalSelectors = [
+            { selector: '[data-tutorial-id="tag-no-off-map"]', color: 'emerald', label: 'No Off-map ✓' },
+          ];
+          title = `Fill Sunstone Plaza (${nextAmberHex.q},${nextAmberHex.r})`;
+          description = `Place your Amber Townhall on the glowing golden Sunstone Plaza zone at (${nextAmberHex.q},${nextAmberHex.r}) to complete all color requirements with 0 penalties!`;
+          badgeLabel = 'PLACE ON AMBER';
           themeColor = 'amber';
           pointerDirection = 'down';
         }
@@ -373,6 +427,15 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
       targetSelector = '[data-tutorial-id="tutorial-lightbulb-budget"]';
       pointerDirection = 'left';
     }
+    // LEVEL 16
+    else if (levelId === 16 && !isPenaltyTutorialDismissed) {
+      title = '🛣️ Road Infrastructure Introduced';
+      description = 'Connect your frontier settlement! Place Road pieces across clearings to link structures. Check the "Use Road" badge in the Target Color Zone to verify road construction.';
+      badgeLabel = 'BUILD ROADS';
+      themeColor = 'amber';
+      targetSelector = '[data-tutorial-id="tag-use-road"]';
+      pointerDirection = 'left';
+    }
     // LEVEL 18
     else if (levelId === 18 && !isPenaltyTutorialDismissed) {
       title = '⚙️ Rotary Turntable Zones';
@@ -390,6 +453,15 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
       badgeLabel = 'RIVERSIDE BARRIER';
       themeColor = 'cyan';
       pointerDirection = 'down';
+    }
+    // LEVEL 23
+    else if (levelId === 23 && !isPenaltyTutorialDismissed) {
+      title = '🌉 River Crossing & Bridge Engineering';
+      description = 'A rushing river cuts through the valley! Normal structures cannot be placed in water, but Bridge pieces span across the river to connect both riverbanks. Check the "Use Bridge" tag in the Target Color Zone!';
+      badgeLabel = 'SPAN BRIDGES';
+      themeColor = 'cyan';
+      targetSelector = '[data-tutorial-id="tag-use-bridge"]';
+      pointerDirection = 'left';
     }
 
     return {
@@ -416,7 +488,7 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
     hasPlacedYellow2_0,
     hasPlacedEmerald0_1,
     hasPlacedEmerald0_2,
-    hasTileAt0_3,
+    hasOffMapTileL6,
     isLevelPhase2Dismissed,
     isPenaltyTutorialDismissed,
   ]);
