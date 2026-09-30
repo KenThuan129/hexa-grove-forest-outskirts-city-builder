@@ -2817,7 +2817,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-sapphire', 'p-trees-emerald']),
     targetScore: { star1: 2200, star2: 3200, star3: 4200 },
-    lightbulbBudget: 7,
+    lightbulbBudget: 60,
   },
 
   // --------------------------------------------------------------------------
@@ -2871,7 +2871,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-triad-emerald', 'p-duo-gray']),
     targetScore: { star1: 2400, star2: 3500, star3: 4600 },
-    lightbulbBudget: 8,
+    lightbulbBudget: 60,
   },
 
   // --------------------------------------------------------------------------
@@ -2883,7 +2883,7 @@ export const LEVELS: LevelConfig[] = [
     subtitle: 'Mechanic: Mastery Challenges (1★ + Mastery Required)',
     description:
       'Achieve 1 Star AND complete the Highland Mastery Challenge (Complete with at least 2500 points) to advance!',
-    lightbulbBudget: 9,
+    lightbulbBudget: 35,
     phases: [
       {
         phaseNumber: 1,
@@ -2993,7 +2993,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-quad-amber', 'p-triad-amber', 'p-duo-amber']),
     targetScore: { star1: 2400, star2: 3400, star3: 4500 },
-    lightbulbBudget: 7,
+    lightbulbBudget: 65,
   },
 
   // --------------------------------------------------------------------------
@@ -3048,7 +3048,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-emerald', 'p-triad-emerald']),
     targetScore: { star1: 2800, star2: 4000, star3: 5200 },
-    lightbulbBudget: 8,
+    lightbulbBudget: 65,
   },
 
   // --------------------------------------------------------------------------
@@ -3168,7 +3168,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-duo-emerald', 'p-duo-sapphire']),
     targetScore: { star1: 3200, star2: 4600, star3: 6000 },
-    lightbulbBudget: 8,
+    lightbulbBudget: 50,
   },
 
   // --------------------------------------------------------------------------
@@ -3231,7 +3231,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-duo-ruby', 'p-triad-emerald']),
     targetScore: { star1: 3400, star2: 4800, star3: 6300 },
-    lightbulbBudget: 9,
+    lightbulbBudget: 50,
   },
 
   // --------------------------------------------------------------------------
@@ -3304,7 +3304,7 @@ export const LEVELS: LevelConfig[] = [
       'p-quad-gray',
     ]),
     targetScore: { star1: 3800, star2: 5400, star3: 7000 },
-    lightbulbBudget: 11,
+    lightbulbBudget: 50,
   },
 
   // --------------------------------------------------------------------------
@@ -3495,7 +3495,7 @@ export const LEVELS: LevelConfig[] = [
       'p-causeway-triad',
     ]),
     targetScore: { star1: 1000, star2: 3200, star3: 5500 },
-    lightbulbBudget: 17,
+    lightbulbBudget: 75,
   },
 
   // --------------------------------------------------------------------------
@@ -3748,7 +3748,7 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-emerald',
     ]),
     targetScore: { star1: 1000, star2: 3600, star3: 5000 },
-    lightbulbBudget: 10,
+    lightbulbBudget: 50,
   },
 
   // --------------------------------------------------------------------------
