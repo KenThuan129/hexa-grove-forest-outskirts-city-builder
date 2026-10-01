@@ -6,15 +6,41 @@ export type PlayMode = 'building' | 'challenger';
 
 export type BossZoneType = 'power' | 'defend' | 'traits' | 'mixed';
 
+export type BossInspectionBenefitType = 'popularity' | 'ambience' | 'bonus_slot';
+
+export interface BossSectionInspection {
+  zoneIndex: number;
+  zoneName: string;
+  color: TileColor;
+  benefitType: BossInspectionBenefitType;
+  benefitValue: number;
+  isInspected: boolean;
+}
+
 export interface BossBattleStats {
+  popularity: number;
+  ambience: number;
+  bonusSlots: number;
+  inspectedSectionsCount: number;
+  totalSectionsCount: number;
+  inspectedBenefits: {
+    popularityGained: number;
+    ambienceGained: number;
+    bonusSlotsGained: number;
+  };
+
+  // Synthesia
+  synthesiaMultiplier: number;
+  zonesFulfilled: number;
+
   attack: number;
   defense: number;
   traits: {
-    lifeStealPct: number;    // e.g. 0.25 = 25% heal on hit
-    aegisShield: number;     // e.g. 50 starting shield
-    doubleStrikePct: number; // e.g. 0.20 = 20% double attack
-    thornCounterPct: number; // e.g. 0.30 = 30% reflect damage
-    criticalRatePct: number; // e.g. 0.25 = 25% critical hit chance
+    lifeStealPct: number;
+    aegisShield: number;
+    doubleStrikePct: number;
+    thornCounterPct: number;
+    criticalRatePct: number;
   };
 }
 
@@ -127,6 +153,8 @@ export interface LevelConfig {
   isBossLevel?: boolean;
   bossName?: string;
   bossMaxHp?: number;
+  bossPopularity?: number;
+  bossAmbience?: number;
   bossAtk?: number;
   bossDef?: number;
   strictPenaltyLimit?: number; // Starting from level 20: max 3 penalties allowed

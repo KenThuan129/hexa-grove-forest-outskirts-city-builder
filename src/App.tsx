@@ -112,6 +112,22 @@ export default function App() {
     }
   });
 
+  const [cursorScreenPos, setCursorScreenPos] = useState<{ x: number; y: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      setCursorScreenPos({ x: e.clientX, y: e.clientY });
+    };
+    const onLeave = () => setCursorScreenPos(null);
+
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('mouseleave', onLeave);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseleave', onLeave);
+    };
+  }, []);
+
   const allLevels = useMemo<LevelConfig[]>(() => {
     const lockedIds = new Set([3, 4, 5, 7, 8, 9, 10]);
     const customMap = new Map(customLevels.filter(l => !lockedIds.has(l.id)).map(l => [l.id, l]));
@@ -185,7 +201,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('hexa_target_fps', targetFps.toString());
-    } catch {}
+    } catch { }
   }, [targetFps]);
 
   // Low-Power Mode State (Reduces ambient particles & lowers resolution scale to 0.75x)
@@ -200,7 +216,7 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('hexa_low_power_mode', isLowPowerMode.toString());
-    } catch {}
+    } catch { }
   }, [isLowPowerMode]);
 
   // Texture Mipmap Quality State (Saves VRAM for devices < 2GB)
@@ -279,7 +295,7 @@ export default function App() {
       localStorage.setItem('hexa_perf_mode', newMode);
       localStorage.setItem('hexa_target_fps', newFps.toString());
       localStorage.setItem('hexa_texture_quality', newTextureQuality);
-    } catch {}
+    } catch { }
 
     setPendingGraphicsReload(null);
     setIsSettingsModalOpen(false);
@@ -330,13 +346,13 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('hexa_game_mode', gameMode);
-    } catch {}
+    } catch { }
   }, [gameMode]);
 
   useEffect(() => {
     try {
       localStorage.setItem('hexa_highest_level', highestCompletedLevel.toString());
-    } catch {}
+    } catch { }
   }, [highestCompletedLevel]);
 
   // Currency & Economy State
@@ -362,7 +378,7 @@ export default function App() {
     try {
       const saved = localStorage.getItem('hexa_boosters');
       if (saved) return JSON.parse(saved);
-    } catch {}
+    } catch { }
     return { chisel_brush: 1, cluster_splitter: 0, par_expander: 0, mist_piercer: 0, titan_shield: 0 };
   });
 
@@ -376,7 +392,7 @@ export default function App() {
           currentLevel: typeof parsed[item.id] === 'number' ? parsed[item.id] : item.currentLevel,
         }));
       }
-    } catch {}
+    } catch { }
     return INITIAL_CONSTRUCTIONS;
   });
 
@@ -406,19 +422,19 @@ export default function App() {
   useEffect(() => {
     try {
       localStorage.setItem('hexa_coins', coins.toString());
-    } catch {}
+    } catch { }
   }, [coins]);
 
   useEffect(() => {
     try {
       localStorage.setItem('hexa_leaves', leaves.toString());
-    } catch {}
+    } catch { }
   }, [leaves]);
 
   useEffect(() => {
     try {
       localStorage.setItem('hexa_boosters', JSON.stringify(boosters));
-    } catch {}
+    } catch { }
   }, [boosters]);
 
   useEffect(() => {
@@ -428,19 +444,19 @@ export default function App() {
         levelsMap[c.id] = c.currentLevel;
       });
       localStorage.setItem('hexa_constructions', JSON.stringify(levelsMap));
-    } catch {}
+    } catch { }
   }, [constructions]);
 
   useEffect(() => {
     try {
       localStorage.setItem('hexa_claimed_chests', JSON.stringify(claimedChestIds));
-    } catch {}
+    } catch { }
   }, [claimedChestIds]);
 
   useEffect(() => {
     try {
       localStorage.setItem('hexa_golden_ticket', hasGoldenTicket ? 'true' : 'false');
-    } catch {}
+    } catch { }
   }, [hasGoldenTicket]);
 
   // Reset transient booster buffs upon level/phase change
@@ -463,6 +479,9 @@ export default function App() {
   const [activeDragPiece, setActiveDragPiece] = useState<HexPiece | null>(null);
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
+
+  // Inspected Colored Zones in Boss Levels (Level 25)
+  const [inspectedZoneKeys, setInspectedZoneKeys] = useState<Set<string>>(new Set());
 
   const selectTimestampRef = useRef<number>(0);
   const dragStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -503,6 +522,40 @@ export default function App() {
     });
     return record;
   }, [memories]);
+
+  const isPickingTile = Boolean(selectedPiece || activeDragPiece);
+
+  const hoveredZoneInfo = useMemo(() => {
+    if (!hoveredCoord || !currentPhase) return null;
+
+    const hoveredKey = coordKey(hoveredCoord.q, hoveredCoord.r);
+
+    for (const zone of currentPhase.coloredZones) {
+      // Fast reject: is this coord inside the zone at all?
+      const isInZone = zone.coords.some(c => coordKey(c.q, c.r) === hoveredKey);
+      if (!isInZone) continue;
+
+      // Count how many zone cells have a matching-colored tile on top
+      let occupied = 0;
+      for (const c of zone.coords) {
+        const stack = placedTiles.get(coordKey(c.q, c.r));
+        if (stack && stack.length > 0) {
+          const top = stack[stack.length - 1];
+          if (top.color === zone.color) occupied++;
+        }
+      }
+
+      return {
+        name: zone.name,
+        color: zone.color,
+        bossZoneType: zone.bossZoneType,
+        occupied,
+        total: zone.coords.length,
+      };
+    }
+
+    return null;
+  }, [hoveredCoord, currentPhase, placedTiles]);
 
   // Handle player choosing a penalty bypass for a completed memory picture
   const handleSelectBypass = (pictureId: number, penalty: BypassablePenaltyType) => {
@@ -587,6 +640,7 @@ export default function App() {
   // Reset or switch Level
   useEffect(() => {
     setPhaseIndex(0);
+    setInspectedZoneKeys(new Set());
     const initialMap = new Map<string, PlacedTile[]>();
     const ph = currentLevel.phases[0];
     if (ph && ph.initialPlacedTiles) {
@@ -717,6 +771,12 @@ export default function App() {
       // Check if this component contains any tile placed on safe unlocked area (isUnlocked && !isFog && !isRiver)
       const hasSafeTile = component.some(c => {
         const cell = unlockedCells.get(coordKey(c.q, c.r));
+        const stack = placedTiles.get(coordKey(c.q, c.r));
+        const hasBridge = stack?.some(t => t.type === 'bridge') ?? false;
+
+        // Bridge tiles are always safe — they anchor otherwise-isolated fog components
+        if (hasBridge) return true;
+
         return cell && cell.isUnlocked && !cell.isFog && !cell.isRiver;
       });
 
@@ -764,7 +824,7 @@ export default function App() {
     setPlayMode(mode);
     try {
       localStorage.setItem('hexa_play_mode', mode);
-    } catch {}
+    } catch { }
 
     if (mode === 'challenger' && !hasDiscoveredPenalties) {
       setHasDiscoveredPenalties(true);
@@ -798,6 +858,10 @@ export default function App() {
         const stack = placedTiles.get(key);
         if (!stack || stack.length === 0) return false;
         const topTile = stack[stack.length - 1];
+
+        // Bridges never fulfill colored zones — they're infrastructure, not housing
+        if (topTile.type === 'bridge') return false;
+
         return topTile.color === zone.color;
       });
       if (isComplete) matched++;
@@ -836,9 +900,9 @@ export default function App() {
     const deductions = isTitanShieldActive
       ? 0
       : penalties.overuse * 150 +
-        penalties.disconnect * 120 +
-        penalties.overlap * 100 +
-        penalties.offMap * 80;
+      penalties.disconnect * 120 +
+      penalties.overlap * 100 +
+      penalties.offMap * 80;
 
     const surgeBonus = isTitanShieldActive ? 500 : 0;
     return Math.max(0, base - deductions) + surgeBonus;
@@ -882,55 +946,203 @@ export default function App() {
     return total;
   }, [placedTiles]);
 
-  // Boss Battle Stats Calculation derived from tiles placed over Power, Defend & Traits Zones
-  const bossBattleStats = useMemo<BossBattleStats>(() => {
-    let atk = 30; // Baseline Hero ATK
-    let def = 20; // Baseline Hero DEF
-    let lifeStealPct = 0;
-    let aegisShield = 0;
-    let doubleStrikePct = 0;
-    let thornCounterPct = 0;
-    let criticalRatePct = 0;
+  // Manual / sidebar inspection handler
+  const handleInspectZone = useCallback((zoneKey: string, zone: { name: string; color: TileColor }) => {
+    if (!currentLevel.isBossLevel) return;
+    if (!inspectedZoneKeys.has(zoneKey)) {
+      setInspectedZoneKeys(prev => {
+        const next = new Set(prev);
+        next.add(zoneKey);
+        return next;
+      });
+      sounds.playZoneComplete();
+      let benefitMsg = '';
+      if (zone.color === 'amber' || zone.color === 'ruby') {
+        benefitMsg = '+35 Popularity added to Business Showdown!';
+      } else if (zone.color === 'sapphire') {
+        benefitMsg = '+35 Ambience added to Business Showdown!';
+      } else {
+        benefitMsg = 'Bonus Activate! +1 Slot for Bonus Selection unlocked!';
+      }
+      showToast(`🔍 ${zone.name} Inspected: ${benefitMsg}`, 'success');
+    }
+  }, [currentLevel.isBossLevel, inspectedZoneKeys]);
 
+  // Hover inspection of colored zones in Boss Levels (Level 25) while not picking up anything
+  useEffect(() => {
+    if (!currentLevel.isBossLevel) return;
+    const isNotPickingUpAnything = !activeDragPiece && !selectedPiece && !pickedUpCoord;
+    if (!isNotPickingUpAnything || !hoveredCoord) return;
+
+    // Check if hoveredCoord matches any colored zone in currentPhase
+    const matchedZone = currentPhase?.coloredZones?.find(zone =>
+      zone.coords.some(c => c.q === hoveredCoord.q && c.r === hoveredCoord.r)
+    );
+
+    if (matchedZone) {
+      const zoneKey = `${currentLevel.id}-${matchedZone.name}`;
+      if (!inspectedZoneKeys.has(zoneKey)) {
+        setInspectedZoneKeys(prev => {
+          const next = new Set(prev);
+          next.add(zoneKey);
+          return next;
+        });
+
+        sounds.playZoneComplete();
+
+        let benefitMsg = '';
+        if (matchedZone.color === 'amber' || matchedZone.color === 'ruby') {
+          benefitMsg = '+35 Popularity added to Business Showdown!';
+        } else if (matchedZone.color === 'sapphire') {
+          benefitMsg = '+35 Ambience added to Business Showdown!';
+        } else {
+          benefitMsg = 'Bonus Activate! +1 Slot for Bonus Selection unlocked!';
+        }
+
+        showToast(`🔍 ${matchedZone.name} Inspected: ${benefitMsg}`, 'success');
+      }
+    }
+  }, [currentLevel.isBossLevel, currentLevel.id, currentPhase, hoveredCoord, activeDragPiece, selectedPiece, pickedUpCoord, inspectedZoneKeys]);
+
+  // Boss Battle Stats Calculation derived from inspected colored zones and placed tiles
+  const bossBattleStats = useMemo<BossBattleStats>(() => {
+    // ── Business Battle Player Stats — Zero Baseline ──────────────────
+    // Players start at 0 Pop/Amb. All stats come from zone fulfillment
+    // and inspection bonuses, then get multiplied by Synthesia.
+    let pop = 0;
+    let amb = 0;
+    let bonusSlots = 2; // Minimal baseline so milestone modals remain usable
+
+    let popGained = 0;
+    let ambGained = 0;
+    let slotsGained = 0;
+
+    // ── 1. Collect all unique colored zones across every phase ────────
+    const allLevelZonesMap = new Map<
+      string,
+      { name: string; color: TileColor; cellCount: number }
+    >();
+    currentLevel.phases.forEach(ph => {
+      ph.coloredZones.forEach(z => {
+        const key = `${currentLevel.id}-${z.name}`;
+        const existing = allLevelZonesMap.get(key);
+        if (existing) {
+          existing.cellCount += z.coords.length;
+        } else {
+          allLevelZonesMap.set(key, {
+            name: z.name,
+            color: z.color,
+            cellCount: z.coords.length,
+          });
+        }
+      });
+    });
+
+    const totalSectionsCount = allLevelZonesMap.size;
+    let inspectedCount = 0;
+
+    // ── 2. Inspection Bonuses (scaled by zone cell count) ─────────────
+    allLevelZonesMap.forEach((z, key) => {
+      if (inspectedZoneKeys.has(key)) {
+        inspectedCount++;
+
+        if (z.color === 'amber') {
+          popGained += 12 * z.cellCount;
+        } else if (z.color === 'ruby') {
+          popGained += 18 * z.cellCount;
+        } else if (z.color === 'sapphire') {
+          ambGained += 15 * z.cellCount;
+        } else if (z.color === 'emerald') {
+          slotsGained += Math.floor(z.cellCount / 2);
+        }
+      }
+    });
+
+    // ── 3. Tile Placement Bonuses (per placed tile on a colored cell) ─
     placedTiles.forEach(stack => {
       stack.forEach(tile => {
         const key = coordKey(tile.q, tile.r);
         const cell = unlockedCells.get(key);
         if (cell) {
-          if (cell.bossZoneType === 'power' || cell.colorRequirement === 'amber' || cell.colorRequirement === 'ruby') {
-            atk += 15;
-          }
-          if (cell.bossZoneType === 'defend' || cell.colorRequirement === 'sapphire') {
-            def += 12;
-          }
-          if (cell.bossZoneType === 'traits' || cell.colorRequirement === 'emerald') {
-            lifeStealPct = Math.min(0.5, lifeStealPct + 0.1);
-            aegisShield += 15;
-            doubleStrikePct = Math.min(0.4, doubleStrikePct + 0.08);
-            thornCounterPct = Math.min(0.5, thornCounterPct + 0.1);
-            criticalRatePct = Math.min(0.5, criticalRatePct + 0.1);
-          }
-          if (cell.bossZoneType === 'mixed' || cell.colorRequirement === 'neutral') {
-            atk += 6;
-            def += 6;
-            criticalRatePct = Math.min(0.5, criticalRatePct + 0.05);
+          if (cell.colorRequirement === 'amber') {
+            pop += 18;
+          } else if (cell.colorRequirement === 'ruby') {
+            pop += 24;
+          } else if (cell.colorRequirement === 'sapphire') {
+            amb += 22;
+          } else if (cell.colorRequirement === 'emerald') {
+            pop += 8;
+            amb += 8;
           }
         }
       });
     });
 
+    // ── 4. Count unique fulfilled zones across all phases ────────────
+    // A zone is "fulfilled" when every cell has a tile whose color
+    // matches the zone's required color (same logic as Target Color Zones).
+    const fulfilledZoneNames = new Set<string>();
+    const seenZoneNames = new Set<string>();
+    currentLevel.phases.forEach(ph => {
+      ph.coloredZones.forEach(zone => {
+        const zoneKey = `${currentLevel.id}-${zone.name}`;
+        if (seenZoneNames.has(zoneKey)) return;
+        seenZoneNames.add(zoneKey);
+
+        const isZoneComplete = zone.coords.every(c => {
+          const stack = placedTiles.get(coordKey(c.q, c.r));
+          if (!stack || stack.length === 0) return false;
+          const top = stack[stack.length - 1];
+
+          // Bridges don't count as zone fulfillment
+          if (top.type === 'bridge') return false;
+          
+          return top.color === zone.color;
+        });
+
+        if (isZoneComplete) fulfilledZoneNames.add(zoneKey);
+      });
+    });
+
+    const zonesFulfilled = fulfilledZoneNames.size;
+
+    // ── 5. Synthesia Multiplier ──────────────────────────────────────
+    // +0.05 per unique fulfilled zone, base 1.00, capped at 1.25.
+    const synthesiaMultiplier = Math.min(1.0 + 0.05 * zonesFulfilled, 1.25);
+
+    // ── 6. Apply Synthesia to combined stats and round ───────────────
+    const combinedPop = pop + popGained;
+    const combinedAmb = amb + ambGained;
+
+    const finalPop = Math.round(combinedPop * synthesiaMultiplier);
+    const finalAmb = Math.round(combinedAmb * synthesiaMultiplier);
+    const finalBonusSlots = bonusSlots + slotsGained;
+
     return {
-      attack: atk,
-      defense: def,
+      popularity: finalPop,
+      ambience: finalAmb,
+      bonusSlots: finalBonusSlots,
+      inspectedSectionsCount: inspectedCount,
+      totalSectionsCount,
+      inspectedBenefits: {
+        popularityGained: popGained,
+        ambienceGained: ambGained,
+        bonusSlotsGained: slotsGained,
+      },
+      // Synthesia diagnostics
+      synthesiaMultiplier,
+      zonesFulfilled,
+      attack: Math.round(finalPop / 3),
+      defense: Math.round(finalAmb / 3),
       traits: {
-        lifeStealPct,
-        aegisShield,
-        doubleStrikePct,
-        thornCounterPct,
-        criticalRatePct,
+        lifeStealPct: 0.1,
+        aegisShield: 20,
+        doubleStrikePct: 0.1,
+        thornCounterPct: 0.1,
+        criticalRatePct: 0.1,
       },
     };
-  }, [placedTiles, unlockedCells]);
+  }, [placedTiles, unlockedCells, currentLevel, inspectedZoneKeys]);
 
   // Check Road / Bridge requirements for Level 16 and Level 23
   const roadHexCount = useMemo(() => {
@@ -974,8 +1186,8 @@ export default function App() {
         ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
         : coloredZonesCompleted && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
       : isLastPhase
-      ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
-      : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
+        ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
+        : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
 
   // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
   const score = useMemo(() => {
@@ -1330,6 +1542,20 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleRotateCluster, handleRotateTurntableShortcut]);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      setCursorScreenPos({ x: e.clientX, y: e.clientY });
+    };
+    const onLeave = () => setCursorScreenPos(null);
+
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('mouseleave', onLeave);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseleave', onLeave);
+    };
+  }, []);
 
   // Right-Click Handler
   const handleRightClickBoard = useCallback(
@@ -1934,7 +2160,7 @@ export default function App() {
             setPlayMode(mode);
             try {
               localStorage.setItem('hexa_play_mode', mode);
-            } catch {}
+            } catch { }
             showToast(
               mode === 'building'
                 ? 'Switched to Building Mode: Lightbulb currency, 0 stars, 0 penalties!'
@@ -1984,249 +2210,186 @@ export default function App() {
 
           {/* 3D WebGL Canvas Layer */}
           <div className="absolute inset-0 z-0">
-        <ThreeScene
-          unlockedCells={unlockedCells}
-          placedTiles={placedTiles}
-          activeDragPiece={activeDragPiece || selectedPiece}
-          dragPointerPos={dragPointerPos}
-          hoveredCoord={hoveredCoord}
-          pickedUpCoord={pickedUpCoord}
-          disconnectedKeys={connectivity.disconnectedKeys}
-          rotationZones={currentPhase?.rotationZones}
-          onHoverCoordChange={setHoveredCoord}
-          onTileDroppedOnBoard={handleTileDroppedOnBoard}
-          onRightClickBoard={handleRightClickBoard}
-          onRotateZone={handleRotateZone}
-          isExpansionAnimating={isExpansionAnimating}
-          performanceMode={performanceMode}
-          targetFps={targetFps}
-          isLowPowerMode={isLowPowerMode}
-          textureQuality={textureQuality}
-          onUpdateRendererInfo={setRendererInfo}
-        />
-      </div>
-
-      {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
-      {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
-        <TutorialSpotlight
-          levelId={currentLevel.id}
-          currentPhaseIndex={phaseIndex}
-          totalPhases={currentLevel.phases.length}
-          selectedPiece={selectedPiece}
-          placedTiles={placedTiles}
-          canCompletePhase={canCompletePhase}
-          penalties={penalties}
-          onCompleteTutorialStep={handleCompletePhase}
-          onAutoDemoBuild={handleAutoDemoBuild}
-        />
-      )}
-
-      {/* Main Cockpit HUD: Left Sidebar, Right Sidebar, Top Action Bar */}
-      <div className="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-2 sm:p-3">
-        {/* Top Floating Row: Navigation, Level Switcher & System Controls */}
-        {isCleanUiMode ? (
-          <div className="w-full flex justify-between items-center pointer-events-none animate-in fade-in duration-200">
-            <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-xs text-[#f4ecd8]">
-              <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
-              <span className="font-bold text-[#f4ecd8] font-rounded">{currentLevel.name}</span>
-            </div>
-
-            <button
-              onClick={() => {
-                setIsCleanUiMode(false);
-                sounds.playClick();
-              }}
-              className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 btn-river-stone text-[#f4ecd8] text-xs font-bold shadow-2xl transition-all cursor-pointer"
-              title="Show in-game HUD (or press H)"
-            >
-              <Eye className="w-3.5 h-3.5 text-[#8fbc6f]" />
-              <span>Show UI [H]</span>
-            </button>
+            <ThreeScene
+              unlockedCells={unlockedCells}
+              placedTiles={placedTiles}
+              activeDragPiece={activeDragPiece || selectedPiece}
+              dragPointerPos={dragPointerPos}
+              hoveredCoord={hoveredCoord}
+              pickedUpCoord={pickedUpCoord}
+              disconnectedKeys={connectivity.disconnectedKeys}
+              rotationZones={currentPhase?.rotationZones}
+              onHoverCoordChange={setHoveredCoord}
+              onTileDroppedOnBoard={handleTileDroppedOnBoard}
+              onRightClickBoard={handleRightClickBoard}
+              onRotateZone={handleRotateZone}
+              isExpansionAnimating={isExpansionAnimating}
+              performanceMode={performanceMode}
+              targetFps={targetFps}
+              isLowPowerMode={isLowPowerMode}
+              textureQuality={textureQuality}
+              onUpdateRendererInfo={setRendererInfo}
+            />
           </div>
-        ) : (
-          <div className="w-full flex justify-between items-start gap-2">
-            {/* Top Left: Home, Memories & Level Name ONLY */}
-            <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
-              <button
-                onClick={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
-                className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
-                title="Return to Home Menu"
-              >
-                <Home className="w-3.5 h-3.5 text-[#8fbc6f]" />
-                <span className="font-bold hidden sm:inline">Home</span>
-              </button>
 
-              <button
-                onClick={() => navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties')}
-                className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
-                title="Open Memories Gallery"
-              >
-                <BookOpen className="w-3.5 h-3.5 text-[#7a9b8e]" />
-                <span className="font-bold hidden sm:inline">Memories</span>
-              </button>
+          {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
+          {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
+            <TutorialSpotlight
+              levelId={currentLevel.id}
+              currentPhaseIndex={phaseIndex}
+              totalPhases={currentLevel.phases.length}
+              selectedPiece={selectedPiece}
+              placedTiles={placedTiles}
+              canCompletePhase={canCompletePhase}
+              penalties={penalties}
+              onCompleteTutorialStep={handleCompletePhase}
+              onAutoDemoBuild={handleAutoDemoBuild}
+            />
+          )}
 
-              <div className="flex items-center gap-1.5 font-rounded">
-                <Compass className="w-3.5 h-3.5 text-[#f0c674] shrink-0" />
-                <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
-                <span className="font-bold text-[#f4ecd8]">
-                  {currentLevel.name}
-                </span>
-              </div>
-            </div>
+          {/* Main Cockpit HUD: Left Sidebar, Right Sidebar, Top Action Bar */}
+          <div className="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-2 sm:p-3">
+            {/* Top Floating Row: Navigation, Level Switcher & System Controls */}
+            {isCleanUiMode ? (
+              <div className="w-full flex justify-between items-center pointer-events-none animate-in fade-in duration-200">
+                <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-xs text-[#f4ecd8]">
+                  <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
+                  <span className="font-bold text-[#f4ecd8] font-rounded">{currentLevel.name}</span>
+                </div>
 
-            {/* Tactical Boosters (All visible), Currency, Clean Mode & Settings */}
-            <div className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap">
-              {/* Currency Pill */}
-              <div className="hidden lg:flex items-center gap-2 wood-panel px-3 py-1.5 shadow-xl text-xs font-bold">
-                <span className="flex items-center gap-1 text-[#f0c674]" title="Coins: Earned from levels and stars">
-                  <Coins className="w-3.5 h-3.5 text-[#f0c674]" />
-                  <span className="font-mono">{coins}</span>
-                </span>
-                <span className="flex items-center gap-1 text-[#8fbc6f]" title="Leaves: Earned from Journey chests">
-                  <Leaf className="w-3.5 h-3.5 text-[#8fbc6f]" />
-                  <span className="font-mono">{leaves}</span>
-                </span>
-              </div>
-
-              {/* All Boosters displayed on bar */}
-              <BoosterBar
-                boosterInventory={boosters}
-                highestCompletedLevel={highestCompletedLevel}
-                onActivateBooster={handleActivateBooster}
-                onOpenShop={() => setIsShopModalOpen(true)}
-              />
-
-              {/* Clean UI Mode Toggle Button */}
-              <button
-                onClick={() => {
-                  setIsCleanUiMode(true);
-                  sounds.playClick();
-                  showToast('Clean Mode active: UI hidden. Click Show UI or press H to restore.', 'info');
-                }}
-                className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
-                title="Hide UI for clean view (Press H)"
-              >
-                <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-                <span className="hidden sm:inline">Clean UI</span>
-              </button>
-
-              {/* 60 FPS Ultra-Performance Quick Toggle */}
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  handleRequestGraphicsReload(performanceMode === 'low' ? 'high' : 'low', targetFps);
-                }}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl border backdrop-blur-md shadow-xl text-xs font-bold transition-all cursor-pointer ${
-                  performanceMode === 'low'
-                    ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900'
-                    : 'bg-slate-900/90 text-amber-300 border-slate-700 hover:bg-slate-800'
-                }`}
-                title="Toggle Graphics & Performance (Ultra Performance vs High FX Quality)"
-              >
-                <Zap className={`w-3.5 h-3.5 ${performanceMode === 'low' ? 'text-cyan-400' : 'text-slate-400'}`} />
-                <span className="hidden sm:inline">{performanceMode === 'low' ? '⚡ Ultra-Perf' : '✨ High FX'}</span>
-              </button>
-
-              <button
-                onClick={() => setIsSettingsModalOpen(true)}
-                className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
-                title="Settings (Sound, Game Mode & Performance)"
-              >
-                <span className="text-amber-400 text-xs">⚙️</span>
-                <span className="hidden sm:inline">Settings</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
-        {!isCleanUiMode && (
-          <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
-            {playMode === 'building' ? (
-              /* Single Merged Sidebar for Building Mode */
-              <div onPointerEnter={() => setHoveredCoord(null)}>
-                <UnifiedBuildingSidebar
-                  currentLevel={currentLevel}
-                  currentPhase={currentPhase}
-                  currentPhaseIndex={phaseIndex}
-                  totalPhases={currentLevel.phases.length}
-                  placedTiles={placedTiles}
-                  placedCount={inBoundsPlacedCount}
-                  parCount={parCount}
-                  matchedZonesCount={matchedZonesCount}
-                  totalZonesCount={totalZonesCount}
-                  lightbulbsUsed={lightbulbsUsed}
-                  lightbulbBudget={lightbulbBudget}
-                  bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
-                  rotationZones={currentPhase?.rotationZones}
-                  penalties={penalties}
-                  soundEnabled={soundEnabled}
-                  canCompletePhase={canCompletePhase}
-                  isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
-                  onRotateZone={handleRotateZone}
-                  onCompletePhase={handleCompletePhase}
-                  onOpenBossBattle={() => setIsBossBattleOpen(true)}
-                  onToggleSound={handleToggleSound}
-                  onResetBoard={handleResetBoard}
-                  onOpenRules={() => setIsRulesModalOpen(true)}
-                />
+                <button
+                  onClick={() => {
+                    setIsCleanUiMode(false);
+                    sounds.playClick();
+                  }}
+                  className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 btn-river-stone text-[#f4ecd8] text-xs font-bold shadow-2xl transition-all cursor-pointer"
+                  title="Show in-game HUD (or press H)"
+                >
+                  <Eye className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                  <span>Show UI [H]</span>
+                </button>
               </div>
             ) : (
-              /* Standard Split 2 Sidebars Layout for Challenger Mode */
-              <>
-                {/* Left Sidebar */}
-                {!currentLevel.uiConfig?.hideLeftSidebar ? (
-                  <div onPointerEnter={() => setHoveredCoord(null)}>
-                    <LeftSidebar
-                      placedCount={inBoundsPlacedCount}
-                      parCount={parCount}
-                      matchedZonesCount={matchedZonesCount}
-                      totalZonesCount={totalZonesCount}
-                      penalties={penalties}
-                      starsEarned={starsEarned}
-                      levelId={currentLevel.id}
-                      strictPenaltyLimit={strictPenaltyLimit}
-                      hidePenalties={currentLevel.uiConfig?.hidePenalties}
-                      highlightPenalties={highlightPenalties}
-                      bypasses={bypasses}
-                      gameMode={gameMode}
-                      playMode={playMode}
-                      lightbulbsUsed={lightbulbsUsed}
-                      lightbulbBudget={lightbulbBudget}
-                      bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
-                      isBossLevel={currentLevel.isBossLevel}
-                    />
-                  </div>
-                ) : (
-                  <div />
-                )}
+              <div className="w-full flex justify-between items-start gap-2">
+                {/* Top Left: Home, Memories & Level Name ONLY */}
+                <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
+                  <button
+                    onClick={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
+                    className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
+                    title="Return to Home Menu"
+                  >
+                    <Home className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                    <span className="font-bold hidden sm:inline">Home</span>
+                  </button>
 
-                {/* Right Sidebar */}
-                {!currentLevel.uiConfig?.hideRightSidebar ? (
+                  <button
+                    onClick={() => navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties')}
+                    className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
+                    title="Open Memories Gallery"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-[#7a9b8e]" />
+                    <span className="font-bold hidden sm:inline">Memories</span>
+                  </button>
+
+                  <div className="flex items-center gap-1.5 font-rounded">
+                    <Compass className="w-3.5 h-3.5 text-[#f0c674] shrink-0" />
+                    <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
+                    <span className="font-bold text-[#f4ecd8]">
+                      {currentLevel.name}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Tactical Boosters (All visible), Currency, Clean Mode & Settings */}
+                <div className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap">
+                  {/* Currency Pill */}
+                  <div className="hidden lg:flex items-center gap-2 wood-panel px-3 py-1.5 shadow-xl text-xs font-bold">
+                    <span className="flex items-center gap-1 text-[#f0c674]" title="Coins: Earned from levels and stars">
+                      <Coins className="w-3.5 h-3.5 text-[#f0c674]" />
+                      <span className="font-mono">{coins}</span>
+                    </span>
+                    <span className="flex items-center gap-1 text-[#8fbc6f]" title="Leaves: Earned from Journey chests">
+                      <Leaf className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                      <span className="font-mono">{leaves}</span>
+                    </span>
+                  </div>
+
+                  {/* All Boosters displayed on bar */}
+                  <BoosterBar
+                    boosterInventory={boosters}
+                    highestCompletedLevel={highestCompletedLevel}
+                    onActivateBooster={handleActivateBooster}
+                    onOpenShop={() => setIsShopModalOpen(true)}
+                  />
+
+                  {/* Clean UI Mode Toggle Button */}
+                  <button
+                    onClick={() => {
+                      setIsCleanUiMode(true);
+                      sounds.playClick();
+                      showToast('Clean Mode active: UI hidden. Click Show UI or press H to restore.', 'info');
+                    }}
+                    className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
+                    title="Hide UI for clean view (Press H)"
+                  >
+                    <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                    <span className="hidden sm:inline">Clean UI</span>
+                  </button>
+
+                  {/* 60 FPS Ultra-Performance Quick Toggle */}
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      handleRequestGraphicsReload(performanceMode === 'low' ? 'high' : 'low', targetFps);
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl border backdrop-blur-md shadow-xl text-xs font-bold transition-all cursor-pointer ${performanceMode === 'low'
+                      ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900'
+                      : 'bg-slate-900/90 text-amber-300 border-slate-700 hover:bg-slate-800'
+                      }`}
+                    title="Toggle Graphics & Performance (Ultra Performance vs High FX Quality)"
+                  >
+                    <Zap className={`w-3.5 h-3.5 ${performanceMode === 'low' ? 'text-cyan-400' : 'text-slate-400'}`} />
+                    <span className="hidden sm:inline">{performanceMode === 'low' ? '⚡ Ultra-Perf' : '✨ High FX'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => setIsSettingsModalOpen(true)}
+                    className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
+                    title="Settings (Sound, Game Mode & Performance)"
+                  >
+                    <span className="text-amber-400 text-xs">⚙️</span>
+                    <span className="hidden sm:inline">Settings</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
+            {!isCleanUiMode && (
+              <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
+                {playMode === 'building' ? (
+                  /* Single Merged Sidebar for Building Mode */
                   <div onPointerEnter={() => setHoveredCoord(null)}>
-                    <RightSidebar
+                    <UnifiedBuildingSidebar
                       currentLevel={currentLevel}
                       currentPhase={currentPhase}
                       currentPhaseIndex={phaseIndex}
                       totalPhases={currentLevel.phases.length}
                       placedTiles={placedTiles}
-                      score={score}
-                      starsEarned={starsEarned}
+                      placedCount={inBoundsPlacedCount}
+                      parCount={parCount}
+                      matchedZonesCount={matchedZonesCount}
+                      totalZonesCount={totalZonesCount}
+                      lightbulbsUsed={lightbulbsUsed}
+                      lightbulbBudget={lightbulbBudget}
+                      bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                      inspectedZoneIds={inspectedZoneKeys}
+                      onInspectZone={handleInspectZone}
+                      rotationZones={currentPhase?.rotationZones}
+                      penalties={penalties}
                       soundEnabled={soundEnabled}
                       canCompletePhase={canCompletePhase}
                       isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
-                      hasCompletedFirstTrial={hasCompletedFirstTrial}
-                      masteryChallenge={currentLevel.masteryChallenge}
-                      isMasteryCompleted={isMasteryCompleted}
-                      gameMode={gameMode}
-                      playMode={playMode}
-                      rotationZones={currentPhase?.rotationZones}
-                      penalties={penalties}
-                      overlapErrorCount={penalties.overlap}
-                      hideScore={currentLevel.uiConfig?.hideScore}
-                      highlightScore={highlightScore}
-                      isFalsehoodActive={isFalsehoodActive}
-                      isPenaltyLimitExceeded={isPenaltyLimitExceeded}
                       onRotateZone={handleRotateZone}
                       onCompletePhase={handleCompletePhase}
                       onOpenBossBattle={() => setIsBossBattleOpen(true)}
@@ -2236,393 +2399,560 @@ export default function App() {
                     />
                   </div>
                 ) : (
-                  <div />
+                  /* Standard Split 2 Sidebars Layout for Challenger Mode */
+                  <>
+                    {/* Left Sidebar */}
+                    {!currentLevel.uiConfig?.hideLeftSidebar ? (
+                      <div onPointerEnter={() => setHoveredCoord(null)}>
+                        <LeftSidebar
+                          placedCount={inBoundsPlacedCount}
+                          parCount={parCount}
+                          matchedZonesCount={matchedZonesCount}
+                          totalZonesCount={totalZonesCount}
+                          penalties={penalties}
+                          starsEarned={starsEarned}
+                          levelId={currentLevel.id}
+                          strictPenaltyLimit={strictPenaltyLimit}
+                          hidePenalties={currentLevel.uiConfig?.hidePenalties}
+                          highlightPenalties={highlightPenalties}
+                          bypasses={bypasses}
+                          gameMode={gameMode}
+                          playMode={playMode}
+                          lightbulbsUsed={lightbulbsUsed}
+                          lightbulbBudget={lightbulbBudget}
+                          bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                          isBossLevel={currentLevel.isBossLevel}
+                        />
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+
+                    {/* Right Sidebar */}
+                    {!currentLevel.uiConfig?.hideRightSidebar ? (
+                      <div onPointerEnter={() => setHoveredCoord(null)}>
+                        <RightSidebar
+                          currentLevel={currentLevel}
+                          currentPhase={currentPhase}
+                          currentPhaseIndex={phaseIndex}
+                          totalPhases={currentLevel.phases.length}
+                          placedTiles={placedTiles}
+                          score={score}
+                          starsEarned={starsEarned}
+                          soundEnabled={soundEnabled}
+                          canCompletePhase={canCompletePhase}
+                          isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
+                          hasCompletedFirstTrial={hasCompletedFirstTrial}
+                          masteryChallenge={currentLevel.masteryChallenge}
+                          isMasteryCompleted={isMasteryCompleted}
+                          gameMode={gameMode}
+                          playMode={playMode}
+                          bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                          inspectedZoneIds={inspectedZoneKeys}
+                          onInspectZone={handleInspectZone}
+                          rotationZones={currentPhase?.rotationZones}
+                          penalties={penalties}
+                          overlapErrorCount={penalties.overlap}
+                          hideScore={currentLevel.uiConfig?.hideScore}
+                          highlightScore={highlightScore}
+                          isFalsehoodActive={isFalsehoodActive}
+                          isPenaltyLimitExceeded={isPenaltyLimitExceeded}
+                          onRotateZone={handleRotateZone}
+                          onCompletePhase={handleCompletePhase}
+                          onOpenBossBattle={() => setIsBossBattleOpen(true)}
+                          onToggleSound={handleToggleSound}
+                          onResetBoard={handleResetBoard}
+                          onOpenRules={() => setIsRulesModalOpen(true)}
+                        />
+                      </div>
+                    ) : (
+                      <div />
+                    )}
+                  </>
                 )}
-              </>
+              </div>
+            )}
+
+            {/* Relocating Hex Floating Pill */}
+            {!isCleanUiMode && pickedUpCoord && (
+              <div className="pointer-events-auto self-center mb-1 flex items-center gap-2 px-3 py-1 bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 shadow-xl text-xs text-white animate-in fade-in">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                <span className="text-slate-300 font-mono text-[11px]">Relocating hex ({pickedUpCoord.q}, {pickedUpCoord.r})</span>
+                <button
+                  onClick={handleReturnPickedUpTile}
+                  className="flex items-center gap-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                >
+                  <ArrowDownToLine className="w-3 h-3" />
+                  <span>Cancel</span>
+                </button>
+              </div>
+            )}
+
+            {/* Bottom Available Hex Tiles Tray with 3D Visual Demos & Color Filter */}
+            {!isCleanUiMode && (
+              <div
+                className="pointer-events-auto w-full animate-in fade-in duration-150"
+                onPointerEnter={() => setHoveredCoord(null)}
+              >
+                <TileTray
+                  availablePieces={currentLevel.availablePieces}
+                  selectedPiece={selectedPiece}
+                  activeDragPiece={activeDragPiece}
+                  hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
+                  playMode={playMode}
+                  lightbulbsUsed={lightbulbsUsed}
+                  lightbulbBudget={lightbulbBudget}
+                  onSelectPiece={piece => {
+                    selectTimestampRef.current = Date.now();
+                    setPickedUpCoord(null);
+                    setSelectedPiece(piece);
+                    if (piece) sounds.playPickup();
+                  }}
+                  onRightClickPiece={handleRightClickTrayPiece}
+                  onStartDragPiece={handleStartDrag}
+                  onClearHover={() => setHoveredCoord(null)}
+                  onEndDragPiece={() => {
+                    setActiveDragPiece(null);
+                    setDragPointerPos(null);
+                  }}
+                />
+              </div>
             )}
           </div>
-        )}
 
-        {/* Relocating Hex Floating Pill */}
-        {!isCleanUiMode && pickedUpCoord && (
-          <div className="pointer-events-auto self-center mb-1 flex items-center gap-2 px-3 py-1 bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 shadow-xl text-xs text-white animate-in fade-in">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-            <span className="text-slate-300 font-mono text-[11px]">Relocating hex ({pickedUpCoord.q}, {pickedUpCoord.r})</span>
-            <button
-              onClick={handleReturnPickedUpTile}
-              className="flex items-center gap-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+          {/* Floating Drag Avatar following cursor/touch on mobile */}
+          {activeDragPiece && dragPointerPos && (
+            <div
+              className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2 transition-opacity duration-75"
+              style={{
+                left: `${dragPointerPos.x}px`,
+                top: `${dragPointerPos.y - 42}px`,
+              }}
             >
-              <ArrowDownToLine className="w-3 h-3" />
-              <span>Cancel</span>
-            </button>
-          </div>
-        )}
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/95 rounded-2xl shadow-2xl border-2 border-emerald-500 scale-105 backdrop-blur-sm animate-pulse">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span className="text-[11px] font-bold text-slate-800">
+                  {activeDragPiece.name}
+                  {activeDragPiece.clusterShape && activeDragPiece.clusterShape.length > 1
+                    ? ` (${activeDragPiece.clusterShape.length}H)`
+                    : ''}
+                </span>
+              </div>
+            </div>
+          )}
 
-        {/* Bottom Available Hex Tiles Tray with 3D Visual Demos & Color Filter */}
-        {!isCleanUiMode && (
-        <div
-          className="pointer-events-auto w-full animate-in fade-in duration-150"
-          onPointerEnter={() => setHoveredCoord(null)}
-        >
-          <TileTray
-            availablePieces={currentLevel.availablePieces}
-            selectedPiece={selectedPiece}
-            activeDragPiece={activeDragPiece}
-            hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
-            playMode={playMode}
-            lightbulbsUsed={lightbulbsUsed}
-            lightbulbBudget={lightbulbBudget}
-            onSelectPiece={piece => {
-              selectTimestampRef.current = Date.now();
-              setPickedUpCoord(null);
-              setSelectedPiece(piece);
-              if (piece) sounds.playPickup();
-            }}
-            onRightClickPiece={handleRightClickTrayPiece}
-            onStartDragPiece={handleStartDrag}
-            onClearHover={() => setHoveredCoord(null)}
-            onEndDragPiece={() => {
-              setActiveDragPiece(null);
-              setDragPointerPos(null);
-            }}
+          {/* Floating Toast Notification */}
+          {alertToast && (
+            <div className="fixed top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all animate-in fade-in slide-in-from-top-3">
+              <div
+                className={`px-3.5 py-1.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-2 border ${alertToast.type === 'warn'
+                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                  : alertToast.type === 'success'
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                    : 'bg-slate-900 text-white border-slate-700'
+                  }`}
+              >
+                {alertToast.type === 'warn' && <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                <span>{alertToast.message}</span>
+              </div>
+            </div>
+          )}
+
+          {currentLevel.isBossLevel && !isPickingTile && hoveredZoneInfo && cursorScreenPos && (() => {
+            const TOOLTIP_W = 220;
+            const TOOLTIP_H = 130;
+            const OFFSET = 16;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            // Default: place to the right and above the cursor
+            let left = cursorScreenPos.x + OFFSET;
+            let top = cursorScreenPos.y - TOOLTIP_H - OFFSET;
+
+            // Flip horizontally if we'd clip the right edge
+            if (left + TOOLTIP_W > vw - 8) {
+              left = cursorScreenPos.x - TOOLTIP_W - OFFSET;
+            }
+            // Flip vertically if we'd clip the top edge
+            if (top < 8) {
+              top = cursorScreenPos.y + OFFSET;
+            }
+
+            // Per-color theme (dot, border glow, gradient bg, label text)
+            const theme =
+              hoveredZoneInfo.color === 'amber'
+                ? { bg: 'from-amber-950/95 to-amber-900/95', border: 'border-amber-500/70', dot: 'bg-amber-400', label: 'text-amber-200', ring: 'shadow-[0_0_18px_rgba(245,158,11,0.4)]' }
+                : hoveredZoneInfo.color === 'emerald'
+                  ? { bg: 'from-emerald-950/95 to-emerald-900/95', border: 'border-emerald-500/70', dot: 'bg-emerald-400', label: 'text-emerald-200', ring: 'shadow-[0_0_18px_rgba(16,185,129,0.4)]' }
+                  : hoveredZoneInfo.color === 'sapphire'
+                    ? { bg: 'from-cyan-950/95 to-cyan-900/95', border: 'border-cyan-500/70', dot: 'bg-cyan-400', label: 'text-cyan-200', ring: 'shadow-[0_0_18px_rgba(6,182,212,0.4)]' }
+                    : hoveredZoneInfo.color === 'ruby'
+                      ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
+                      : { bg: 'from-slate-900/95 to-slate-800/95', border: 'border-slate-600/70', dot: 'bg-slate-400', label: 'text-slate-200', ring: '' };
+
+            // Boss-zone bonus text
+            const bonusText =
+              hoveredZoneInfo.bossZoneType === 'power'
+                ? '+15 Hero ATK'
+                : hoveredZoneInfo.bossZoneType === 'defend'
+                  ? '+12 Hero DEF'
+                  : hoveredZoneInfo.bossZoneType === 'traits'
+                    ? '+10% Lifesteal · +15 Aegis'
+                    : hoveredZoneInfo.bossZoneType === 'mixed'
+                      ? '+6 ATK · +6 DEF'
+                      : '';
+
+            const isComplete = hoveredZoneInfo.occupied >= hoveredZoneInfo.total;
+
+            return (
+              <div
+                className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
+                style={{ left, top, width: TOOLTIP_W }}
+              >
+                <div
+                  className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
+                >
+                  {/* Header: color swatch + zone color name */}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${theme.dot} shadow`} />
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${theme.label}`}>
+                        {hoveredZoneInfo.color} Zone
+                      </span>
+                    </div>
+                    {isComplete && (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
+                        ✓ DONE
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Zone name */}
+                  <div className="text-xs font-bold text-white mb-1.5 truncate">
+                    {hoveredZoneInfo.name}
+                  </div>
+
+                  {/* Occupancy meter */}
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                      <div
+                        className={`h-full rounded-full transition-all duration-200 ${isComplete ? 'bg-emerald-400' : theme.dot
+                          }`}
+                        style={{ width: `${Math.round((hoveredZoneInfo.occupied / Math.max(1, hoveredZoneInfo.total)) * 100)}%` }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-white font-mono font-bold tabular-nums">
+                      {hoveredZoneInfo.occupied}/{hoveredZoneInfo.total}
+                    </span>
+                  </div>
+
+                  {/* Boss-zone bonus line (only shown when bossZoneType exists) */}
+                  {bonusText && (
+                    <div className="pt-1.5 border-t border-white/10 flex items-center gap-1.5">
+                      <span className="text-[10px]">⚔️</span>
+                      <span className="text-[10px] font-bold text-amber-200">
+                        {bonusText}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Level 3 Penalty Discovery Modal */}
+          <PenaltyDiscoveryModal
+            isOpen={isPenaltyDiscoveryModalOpen}
+            onClose={() => setIsPenaltyDiscoveryModalOpen(false)}
           />
         </div>
-        )}
-      </div>
-
-      {/* Floating Drag Avatar following cursor/touch on mobile */}
-      {activeDragPiece && dragPointerPos && (
-        <div
-          className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2 transition-opacity duration-75"
-          style={{
-            left: `${dragPointerPos.x}px`,
-            top: `${dragPointerPos.y - 42}px`,
-          }}
-        >
-          <div className="flex items-center gap-2 px-3 py-1.5 bg-white/95 rounded-2xl shadow-2xl border-2 border-emerald-500 scale-105 backdrop-blur-sm animate-pulse">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-            <span className="text-[11px] font-bold text-slate-800">
-              {activeDragPiece.name}
-              {activeDragPiece.clusterShape && activeDragPiece.clusterShape.length > 1
-                ? ` (${activeDragPiece.clusterShape.length}H)`
-                : ''}
-            </span>
-          </div>
-        </div>
       )}
 
-      {/* Floating Toast Notification */}
-      {alertToast && (
-        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all animate-in fade-in slide-in-from-top-3">
-          <div
-            className={`px-3.5 py-1.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-2 border ${
-              alertToast.type === 'warn'
-                ? 'bg-rose-50 text-rose-800 border-rose-300'
-                : alertToast.type === 'success'
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                : 'bg-slate-900 text-white border-slate-700'
-            }`}
-          >
-            {alertToast.type === 'warn' && <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
-            <span>{alertToast.message}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Level 3 Penalty Discovery Modal */}
-      <PenaltyDiscoveryModal
-        isOpen={isPenaltyDiscoveryModalOpen}
-        onClose={() => setIsPenaltyDiscoveryModalOpen(false)}
+      {/* Global System Modals */}
+      <RulesModal
+        isOpen={isRulesModalOpen}
+        onClose={() => setIsRulesModalOpen(false)}
       />
-    </div>
-    )}
 
-    {/* Global System Modals */}
-    <RulesModal
-      isOpen={isRulesModalOpen}
-      onClose={() => setIsRulesModalOpen(false)}
-    />
-
-    <SettingsModal
-      isOpen={isSettingsModalOpen}
-      soundEnabled={soundEnabled}
-      gameMode={gameMode}
-      playMode={playMode}
-      performanceMode={performanceMode}
-      targetFps={targetFps}
-      isLowPowerMode={isLowPowerMode}
-      textureQuality={textureQuality}
-      highestCompletedLevel={highestCompletedLevel}
-      onChangeGameMode={setGameMode}
-      onChangePlayMode={handleSwitchPlayMode}
-      onTogglePerformanceMode={setPerformanceMode}
-      onChangeTargetFps={setTargetFps}
-      onToggleLowPowerMode={enabled => {
-        setIsLowPowerMode(enabled);
-        showToast(
-          enabled
-            ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale & Particles Disabled'
-            : 'Low-Power Mode Disabled: Full Native Resolution',
-          'info'
-        );
-      }}
-      onToggleTextureQuality={quality => {
-        setTextureQuality(quality);
-        try {
-          localStorage.setItem('hexa_texture_quality', quality);
-        } catch {}
-      }}
-      onRequestGraphicsReload={handleRequestGraphicsReload}
-      onOpenDevDebugger={() => {
-        if (!isAdminUnlocked) {
-          setAdminAuthFeature('Developer Debugger');
-        } else {
-          setIsDevDebuggerOpen(true);
-        }
-      }}
-      onOpenLevelEditor={() => {
-        if (!isAdminUnlocked) {
-          setAdminAuthFeature('Level Editor');
-        } else {
-          setIsLevelEditorOpen(true);
-        }
-      }}
-      onOpenAdminAuth={feat => setAdminAuthFeature(feat || 'Admin Access')}
-      onToggleSound={handleToggleSound}
-      onResetTutorial={() => {
-        setLevelIndex(0);
-        setPhaseIndex(0);
-        setHasDiscoveredPenalties(false);
-      }}
-      onPlayIntro={() => setShowSpecialIntro(true)}
-      onClose={() => setIsSettingsModalOpen(false)}
-    />
-
-    {/* Developer Device Debugger Overlay & Password Authenticator */}
-    <DeviceDebugger
-      isOpen={isDevDebuggerOpen}
-      isUnlocked={isDevUnlocked}
-      targetFps={targetFps}
-      performanceMode={performanceMode}
-      isLowPowerMode={isLowPowerMode}
-      currentLevelId={currentLevel.id}
-      currentLevelName={currentLevel.name}
-      phaseIndex={phaseIndex}
-      unlockedHexCount={unlockedCells.size}
-      placedTilesCount={placedTiles.size}
-      rendererInfo={rendererInfo}
-      onAuthenticate={pass => {
-        if (pass === '252324442') {
-          setIsDevUnlocked(true);
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        soundEnabled={soundEnabled}
+        gameMode={gameMode}
+        playMode={playMode}
+        performanceMode={performanceMode}
+        targetFps={targetFps}
+        isLowPowerMode={isLowPowerMode}
+        textureQuality={textureQuality}
+        highestCompletedLevel={highestCompletedLevel}
+        onChangeGameMode={setGameMode}
+        onChangePlayMode={handleSwitchPlayMode}
+        onTogglePerformanceMode={setPerformanceMode}
+        onChangeTargetFps={setTargetFps}
+        onToggleLowPowerMode={enabled => {
+          setIsLowPowerMode(enabled);
+          showToast(
+            enabled
+              ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale & Particles Disabled'
+              : 'Low-Power Mode Disabled: Full Native Resolution',
+            'info'
+          );
+        }}
+        onToggleTextureQuality={quality => {
+          setTextureQuality(quality);
           try {
-            localStorage.setItem('hexa_dev_unlocked', 'true');
-          } catch {}
-          return true;
-        }
-        return false;
-      }}
-      onChangeTargetFps={setTargetFps}
-      onTogglePerformanceMode={setPerformanceMode}
-      onToggleLowPowerMode={enabled => {
-        setIsLowPowerMode(enabled);
-        showToast(
-          enabled
-            ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale'
-            : 'Low-Power Mode Disabled',
-          'info'
-        );
-      }}
-      onRequestGraphicsReload={handleRequestGraphicsReload}
-      onUnlockAllLevels={() => {
-        setHighestCompletedLevel(40);
-        showToast('Developer Utility: All 40 Levels Unlocked!', 'success');
-      }}
-      onAddDevCurrency={() => {
-        setCoins(c => c + 1000);
-        setLeaves(l => l + 1000);
-        showToast('Developer Utility: +1000 Coins & Leaves added!', 'success');
-      }}
-      onClose={() => setIsDevDebuggerOpen(false)}
-    />
-
-    {/* 1v1 Boss Showdown Battle Modal */}
-    <BossBattleModal
-      isOpen={isBossBattleOpen}
-      bossName={currentLevel.bossName || 'Goliath Stone Sovereign'}
-      bossMaxHp={currentLevel.bossMaxHp || 350}
-      bossAtk={currentLevel.bossAtk || 45}
-      bossDef={currentLevel.bossDef || 25}
-      playerStats={bossBattleStats}
-      onVictory={() => {
-        setIsBossBattleOpen(false);
-        handleCompletePhase();
-      }}
-      onDefeat={() => {
-        setIsBossBattleOpen(false);
-        showToast('Defeated! Re-adjust tile placements on Power & Defend zones for higher stats.', 'warn');
-      }}
-      onClose={() => setIsBossBattleOpen(false)}
-    />
-
-    {/* Graphics Setup Reload Confirmation Modal */}
-    <GraphicsReloadModal
-      isOpen={Boolean(pendingGraphicsReload)}
-      currentPerfMode={performanceMode}
-      newPerfMode={pendingGraphicsReload?.newMode || performanceMode}
-      currentTargetFps={targetFps}
-      newTargetFps={pendingGraphicsReload?.newFps || targetFps}
-      currentTextureQuality={textureQuality}
-      newTextureQuality={pendingGraphicsReload?.newTextureQuality || textureQuality}
-      onConfirm={handleConfirmGraphicsReload}
-      onCancel={() => setPendingGraphicsReload(null)}
-    />
-
-    <ComingSoonModal
-      isOpen={isComingSoonModalOpen}
-      onClose={() => setIsComingSoonModalOpen(false)}
-    />
-
-    <ShopModal
-      isOpen={isShopModalOpen}
-      coins={coins}
-      leaves={leaves}
-      highestCompletedLevel={highestCompletedLevel}
-      boosterInventory={boosters}
-      journeyChests={JOURNEY_CHESTS.map(c => ({
-        ...c,
-        isClaimed: claimedChestIds.includes(c.id),
-      }))}
-      onBuyBooster={handleBuyBooster}
-      onClaimChest={handleClaimChest}
-      onClose={() => setIsShopModalOpen(false)}
-    />
-
-    <GoldenTicketModal
-      isOpen={isGoldenTicketModalOpen}
-      hasGoldenTicket={hasGoldenTicket}
-      maxedBuildingsCount={constructions.filter(c => c.currentLevel === 3).length}
-      constructions={constructions}
-      onClaimTicket={() => {
-        setHasGoldenTicket(true);
-        try {
-          localStorage.setItem('hexa_golden_ticket', 'true');
-        } catch {}
-      }}
-      onClose={() => setIsGoldenTicketModalOpen(false)}
-    />
-
-    {/* Admin Code Authorization Modal */}
-    <AdminAuthModal
-      isOpen={Boolean(adminAuthFeature)}
-      featureName={adminAuthFeature || 'Admin Feature'}
-      onAuthenticate={code => {
-        const valid = ['252324442', 'ADMIN', 'admin', 'ADMIN2026', '8888'].includes(code.trim());
-        if (valid) {
-          setIsAdminUnlocked(true);
-          setIsDevUnlocked(true);
-          try {
-            localStorage.setItem('hexa_admin_unlocked', 'true');
-            localStorage.setItem('hexa_dev_unlocked', 'true');
-          } catch {}
-          showToast('Admin Access Unlocked! All features & Level Editor active.', 'success');
-          if (adminAuthFeature === 'Level Editor') {
+            localStorage.setItem('hexa_texture_quality', quality);
+          } catch { }
+        }}
+        onRequestGraphicsReload={handleRequestGraphicsReload}
+        onOpenDevDebugger={() => {
+          if (!isAdminUnlocked) {
+            setAdminAuthFeature('Developer Debugger');
+          } else {
+            setIsDevDebuggerOpen(true);
+          }
+        }}
+        onOpenLevelEditor={() => {
+          if (!isAdminUnlocked) {
+            setAdminAuthFeature('Level Editor');
+          } else {
             setIsLevelEditorOpen(true);
           }
-          if (adminAuthFeature === 'Golden Ticket') {
-            setIsGoldenTicketModalOpen(true);
-          }
-          setAdminAuthFeature(null);
-          return true;
-        }
-        return false;
-      }}
-      onClose={() => setAdminAuthFeature(null)}
-    />
-
-    {/* Fully Functional Map & Level Editor */}
-    <LevelEditorModal
-      isOpen={isLevelEditorOpen}
-      existingLevels={allLevels}
-      onSaveLevel={level => {
-        setCustomLevels(prev => {
-          const existingIdx = prev.findIndex(l => l.id === level.id);
-          let updated: LevelConfig[];
-          if (existingIdx >= 0) {
-            updated = [...prev];
-            updated[existingIdx] = level;
-          } else {
-            updated = [...prev, level];
-          }
-          try {
-            localStorage.setItem('hexa_custom_levels', JSON.stringify(updated));
-          } catch {}
-          return updated;
-        });
-        showToast(`Custom Level "${level.name}" saved!`, 'success');
-      }}
-      onTestLevel={level => {
-        const existingIdx = customLevels.findIndex(l => l.id === level.id);
-        const updatedCustom = existingIdx >= 0
-          ? customLevels.map((l, i) => i === existingIdx ? level : l)
-          : [...customLevels, level];
-
-        setCustomLevels(updatedCustom);
-        try {
-          localStorage.setItem('hexa_custom_levels', JSON.stringify(updatedCustom));
-        } catch {}
-
-        const combined = [...LEVELS, ...updatedCustom];
-        const targetIdx = combined.findIndex(l => l.id === level.id);
-        const safeIdx = targetIdx >= 0 ? targetIdx : combined.length - 1;
-
-        triggerLevelTransit(safeIdx);
-        setIsLevelEditorOpen(false);
-        showToast(`Launching test session for "${level.name}"...`, 'info');
-      }}
-      onClose={() => setIsLevelEditorOpen(false)}
-    />
-
-    {/* 1. Special Intro Loading Screen with animated intro and pickup line "Rejoyce, a journey up for the youth" */}
-    {showSpecialIntro && (
-      <SpecialIntroLoader
-        onComplete={() => setShowSpecialIntro(false)}
-      />
-    )}
-
-    {/* 2. Screen Transitions Loading Screen */}
-    {screenTransition && (
-      <ScreenTransitionLoader
-        destination={screenTransition.destination}
-        destinationTitle={screenTransition.title}
-        destinationSubtitle={screenTransition.subtitle}
-        onTransitionMidpoint={() => setActivePage(screenTransition.destination)}
-        onComplete={() => setScreenTransition(null)}
-      />
-    )}
-
-    {/* 3. Level Transit & Progression Loading Screen */}
-    {levelTransit && (
-      <LevelTransitLoader
-        levelId={levelTransit.levelId}
-        levelName={levelTransit.levelName}
-        parLimit={levelTransit.parLimit}
-        phaseNumber={levelTransit.phaseNumber}
-        onComplete={() => setLevelTransit(null)}
-      />
-    )}
-
-    {/* 4. End-of-Level Celebration Animation */}
-    {levelCelebration && (
-      <EndOfLevelCelebration
-        data={levelCelebration}
-        onContinue={handleCelebrationContinue}
-        onReplay={handleCelebrationReplay}
-        onViewMemories={() => {
-          setLevelCelebration(null);
-          navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties');
         }}
+        onOpenAdminAuth={feat => setAdminAuthFeature(feat || 'Admin Access')}
+        onToggleSound={handleToggleSound}
+        onResetTutorial={() => {
+          setLevelIndex(0);
+          setPhaseIndex(0);
+          setHasDiscoveredPenalties(false);
+        }}
+        onPlayIntro={() => setShowSpecialIntro(true)}
+        onClose={() => setIsSettingsModalOpen(false)}
       />
-    )}
-  </>
+
+      {/* Developer Device Debugger Overlay & Password Authenticator */}
+      <DeviceDebugger
+        isOpen={isDevDebuggerOpen}
+        isUnlocked={isDevUnlocked}
+        targetFps={targetFps}
+        performanceMode={performanceMode}
+        isLowPowerMode={isLowPowerMode}
+        currentLevelId={currentLevel.id}
+        currentLevelName={currentLevel.name}
+        phaseIndex={phaseIndex}
+        unlockedHexCount={unlockedCells.size}
+        placedTilesCount={placedTiles.size}
+        rendererInfo={rendererInfo}
+        onAuthenticate={pass => {
+          if (pass === '252324442') {
+            setIsDevUnlocked(true);
+            try {
+              localStorage.setItem('hexa_dev_unlocked', 'true');
+            } catch { }
+            return true;
+          }
+          return false;
+        }}
+        onChangeTargetFps={setTargetFps}
+        onTogglePerformanceMode={setPerformanceMode}
+        onToggleLowPowerMode={enabled => {
+          setIsLowPowerMode(enabled);
+          showToast(
+            enabled
+              ? '⚡ Low-Power Mode Active: 0.75x Resolution Scale'
+              : 'Low-Power Mode Disabled',
+            'info'
+          );
+        }}
+        onRequestGraphicsReload={handleRequestGraphicsReload}
+        onUnlockAllLevels={() => {
+          setHighestCompletedLevel(40);
+          showToast('Developer Utility: All 40 Levels Unlocked!', 'success');
+        }}
+        onAddDevCurrency={() => {
+          setCoins(c => c + 1000);
+          setLeaves(l => l + 1000);
+          showToast('Developer Utility: +1000 Coins & Leaves added!', 'success');
+        }}
+        onClose={() => setIsDevDebuggerOpen(false)}
+      />
+
+      {/* 1v1 Boss Showdown Battle Modal */}
+      <BossBattleModal
+        isOpen={isBossBattleOpen}
+        bossName={currentLevel.bossName || 'Tycoon Sterling Vance'}
+        bossPopularity={currentLevel.bossPopularity || 180}
+        bossAmbience={currentLevel.bossAmbience || 170}
+        playerStats={bossBattleStats}
+        onVictory={() => {
+          setIsBossBattleOpen(false);
+          handleCompletePhase();
+        }}
+        onDefeat={() => {
+          setIsBossBattleOpen(false);
+          showToast('Market Showdown Defeat! Hover over colored zones on the board without picking up tiles to inspect Popularity, Ambience, and +1 Bonus Slots before re-engaging!', 'warn');
+        }}
+        onClose={() => setIsBossBattleOpen(false)}
+      />
+
+      {/* Graphics Setup Reload Confirmation Modal */}
+      <GraphicsReloadModal
+        isOpen={Boolean(pendingGraphicsReload)}
+        currentPerfMode={performanceMode}
+        newPerfMode={pendingGraphicsReload?.newMode || performanceMode}
+        currentTargetFps={targetFps}
+        newTargetFps={pendingGraphicsReload?.newFps || targetFps}
+        currentTextureQuality={textureQuality}
+        newTextureQuality={pendingGraphicsReload?.newTextureQuality || textureQuality}
+        onConfirm={handleConfirmGraphicsReload}
+        onCancel={() => setPendingGraphicsReload(null)}
+      />
+
+      <ComingSoonModal
+        isOpen={isComingSoonModalOpen}
+        onClose={() => setIsComingSoonModalOpen(false)}
+      />
+
+      <ShopModal
+        isOpen={isShopModalOpen}
+        coins={coins}
+        leaves={leaves}
+        highestCompletedLevel={highestCompletedLevel}
+        boosterInventory={boosters}
+        journeyChests={JOURNEY_CHESTS.map(c => ({
+          ...c,
+          isClaimed: claimedChestIds.includes(c.id),
+        }))}
+        onBuyBooster={handleBuyBooster}
+        onClaimChest={handleClaimChest}
+        onClose={() => setIsShopModalOpen(false)}
+      />
+
+      <GoldenTicketModal
+        isOpen={isGoldenTicketModalOpen}
+        hasGoldenTicket={hasGoldenTicket}
+        maxedBuildingsCount={constructions.filter(c => c.currentLevel === 3).length}
+        constructions={constructions}
+        onClaimTicket={() => {
+          setHasGoldenTicket(true);
+          try {
+            localStorage.setItem('hexa_golden_ticket', 'true');
+          } catch { }
+        }}
+        onClose={() => setIsGoldenTicketModalOpen(false)}
+      />
+
+      {/* Admin Code Authorization Modal */}
+      <AdminAuthModal
+        isOpen={Boolean(adminAuthFeature)}
+        featureName={adminAuthFeature || 'Admin Feature'}
+        onAuthenticate={code => {
+          const valid = ['252324442', 'ADMIN', 'admin', 'ADMIN2026', '8888'].includes(code.trim());
+          if (valid) {
+            setIsAdminUnlocked(true);
+            setIsDevUnlocked(true);
+            try {
+              localStorage.setItem('hexa_admin_unlocked', 'true');
+              localStorage.setItem('hexa_dev_unlocked', 'true');
+            } catch { }
+            showToast('Admin Access Unlocked! All features & Level Editor active.', 'success');
+            if (adminAuthFeature === 'Level Editor') {
+              setIsLevelEditorOpen(true);
+            }
+            if (adminAuthFeature === 'Golden Ticket') {
+              setIsGoldenTicketModalOpen(true);
+            }
+            setAdminAuthFeature(null);
+            return true;
+          }
+          return false;
+        }}
+        onClose={() => setAdminAuthFeature(null)}
+      />
+
+      {/* Fully Functional Map & Level Editor */}
+      <LevelEditorModal
+        isOpen={isLevelEditorOpen}
+        existingLevels={allLevels}
+        onSaveLevel={level => {
+          setCustomLevels(prev => {
+            const existingIdx = prev.findIndex(l => l.id === level.id);
+            let updated: LevelConfig[];
+            if (existingIdx >= 0) {
+              updated = [...prev];
+              updated[existingIdx] = level;
+            } else {
+              updated = [...prev, level];
+            }
+            try {
+              localStorage.setItem('hexa_custom_levels', JSON.stringify(updated));
+            } catch { }
+            return updated;
+          });
+          showToast(`Custom Level "${level.name}" saved!`, 'success');
+        }}
+        onTestLevel={level => {
+          const existingIdx = customLevels.findIndex(l => l.id === level.id);
+          const updatedCustom = existingIdx >= 0
+            ? customLevels.map((l, i) => i === existingIdx ? level : l)
+            : [...customLevels, level];
+
+          setCustomLevels(updatedCustom);
+          try {
+            localStorage.setItem('hexa_custom_levels', JSON.stringify(updatedCustom));
+          } catch { }
+
+          const combined = [...LEVELS, ...updatedCustom];
+          const targetIdx = combined.findIndex(l => l.id === level.id);
+          const safeIdx = targetIdx >= 0 ? targetIdx : combined.length - 1;
+
+          triggerLevelTransit(safeIdx);
+          setIsLevelEditorOpen(false);
+          showToast(`Launching test session for "${level.name}"...`, 'info');
+        }}
+        onClose={() => setIsLevelEditorOpen(false)}
+      />
+
+      {/* 1. Special Intro Loading Screen with animated intro and pickup line "Rejoyce, a journey up for the youth" */}
+      {showSpecialIntro && (
+        <SpecialIntroLoader
+          onComplete={() => setShowSpecialIntro(false)}
+        />
+      )}
+
+      {/* 2. Screen Transitions Loading Screen */}
+      {screenTransition && (
+        <ScreenTransitionLoader
+          destination={screenTransition.destination}
+          destinationTitle={screenTransition.title}
+          destinationSubtitle={screenTransition.subtitle}
+          onTransitionMidpoint={() => setActivePage(screenTransition.destination)}
+          onComplete={() => setScreenTransition(null)}
+        />
+      )}
+
+      {/* 3. Level Transit & Progression Loading Screen */}
+      {levelTransit && (
+        <LevelTransitLoader
+          levelId={levelTransit.levelId}
+          levelName={levelTransit.levelName}
+          parLimit={levelTransit.parLimit}
+          phaseNumber={levelTransit.phaseNumber}
+          onComplete={() => setLevelTransit(null)}
+        />
+      )}
+
+      {/* 4. End-of-Level Celebration Animation */}
+      {levelCelebration && (
+        <EndOfLevelCelebration
+          data={levelCelebration}
+          onContinue={handleCelebrationContinue}
+          onReplay={handleCelebrationReplay}
+          onViewMemories={() => {
+            setLevelCelebration(null);
+            navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties');
+          }}
+        />
+      )}
+    </>
   );
 }

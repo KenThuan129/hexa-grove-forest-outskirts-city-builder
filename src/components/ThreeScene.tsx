@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import * as THREE from 'three';
 import { GridCell, PlacedTile, HexPiece, TileColor, TileType, RotationZone } from '../types/game';
-import { hexToWorld, worldToHex, HEX_RADIUS, coordKey, HEX_DIRECTIONS, hexDistance } from '../utils/hexMath';
+import { hexToWorld, worldToHex, HEX_RADIUS, coordKey, HEX_DIRECTIONS, hexDistance, getCoordsBounds } from '../utils/hexMath';
 
 export interface RendererInfo {
   drawCalls: number;
@@ -114,6 +114,13 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   const particlesRef = useRef<THREE.Points | null>(null);
   const [webGLError, setWebGLError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  const boardBounds = useMemo(() => {
+    const coords: { q: number; r: number }[] = [];
+    unlockedCells.forEach(cell => {
+      coords.push({ q: cell.q, r: cell.r });
+    });
+    return getCoordsBounds(coords);
+  }, [unlockedCells]);
 
   const targetFpsRef = useRef(targetFps);
   targetFpsRef.current = targetFps;
@@ -124,7 +131,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   const isPointerDownRef = useRef(false);
   const pointerStartPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const cameraTargetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 0, 0));
-  const cameraOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 16, 14));
+  const cameraOffsetRef = useRef<THREE.Vector3>(new THREE.Vector3(0, 20, 18));
   const pinchStartDistRef = useRef<number | null>(null);
   const currentZoomRef = useRef<number>(1);
   const hoveredCoordRef = useRef<{ q: number; r: number } | null>(null);
@@ -164,14 +171,28 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     // Scene with atmospheric fog
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xd9edf7); // soft airy alpine sky
-    scene.fog = new THREE.FogExp2(0xd9edf7, isPerfLow ? 0.022 : 0.018);
+    scene.fog = new THREE.FogExp2(0xd9edf7, isPerfLow ? 0.016 : 0.012);
     sceneRef.current = scene;
 
     // Camera
     const camera = new THREE.PerspectiveCamera(42, Math.max(0.1, width / Math.max(1, height)), 0.1, 100);
-    camera.position.set(0, 16, 14);
-    camera.lookAt(0, 0, 0);
+
+    // Frame the camera on the actual board, not the world origin.
+    // boardBounds comes from the memo above; falls back to sensible defaults if empty.
+    const bounds = boardBounds;
+    const maxSpan = Math.max(bounds.spanX, bounds.spanZ, 8);
+    const fitDistance = Math.max(14, maxSpan * 1.35);
+
+    const DEFAULT_CAMERA_HEIGHT = fitDistance * 1.05;
+    const DEFAULT_CAMERA_BACK   = fitDistance * 0.85;
+
+    camera.position.set(bounds.centerX, DEFAULT_CAMERA_HEIGHT, bounds.centerZ + DEFAULT_CAMERA_BACK);
+    camera.lookAt(bounds.centerX, 0, bounds.centerZ);
     cameraRef.current = camera;
+
+    // Sync the refs used by the animation loop so the camera doesn't snap back next frame
+    cameraTargetRef.current.set(bounds.centerX, 0, bounds.centerZ);
+    cameraOffsetRef.current.set(0, DEFAULT_CAMERA_HEIGHT, DEFAULT_CAMERA_BACK);
 
     // Robust WebGL Renderer creation with multi-level fallback
     let renderer: THREE.WebGLRenderer | null = null;
@@ -260,12 +281,17 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       sunLight.shadow.mapSize.width = 512;
       sunLight.shadow.mapSize.height = 512;
       sunLight.shadow.camera.near = 0.5;
-      sunLight.shadow.camera.far = 70;
-      sunLight.shadow.camera.left = -20;
-      sunLight.shadow.camera.right = 20;
-      sunLight.shadow.camera.top = 20;
-      sunLight.shadow.camera.bottom = -20;
+      sunLight.shadow.camera.far = 90;
+
+      // Size the shadow frustum to the board + margin so big boards don't clip
+      const maxSpan = Math.max(boardBounds.spanX, boardBounds.spanZ, 20);
+      const halfShadow = maxSpan * 0.75 + 8;
+      sunLight.shadow.camera.left = -halfShadow;
+      sunLight.shadow.camera.right = halfShadow;
+      sunLight.shadow.camera.top = halfShadow;
+      sunLight.shadow.camera.bottom = -halfShadow;
       sunLight.shadow.bias = -0.0005;
+      sunLight.shadow.camera.updateProjectionMatrix();
     }
     scene.add(sunLight);
 
@@ -641,7 +667,20 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       scene.clear();
       rendererRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryKey, performanceMode]);
+
+  useEffect(() => {
+    if (unlockedCells.size === 0) return;
+
+    const bounds = boardBounds;
+    const maxSpan = Math.max(bounds.spanX, bounds.spanZ, 8);
+    const fitDistance = Math.max(14, maxSpan * 1.35);
+
+    cameraTargetRef.current.set(bounds.centerX, 0, bounds.centerZ);
+    cameraOffsetRef.current.set(0, fitDistance * 1.05, fitDistance * 0.85);
+    currentZoomRef.current = 1;
+  }, [boardBounds, unlockedCells.size]);
 
   // Sync Unlocked Base Grid Hexes with InstancedMesh geometry instancing for low-GPU optimization
   useEffect(() => {
@@ -850,7 +889,9 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         const { x, z } = hexToWorld(tile.q, tile.r);
         const isDisconnected = disconnectedKeys.has(coordKey(tile.q, tile.r));
         const isPickedUp = pickedUpCoord ? tile.q === pickedUpCoord.q && tile.r === pickedUpCoord.r : false;
-        const isOffMap = !unlockedCells.has(coordKey(tile.q, tile.r));
+        const isOffMap =
+          tile.type !== 'bridge' &&
+          !unlockedCells.has(coordKey(tile.q, tile.r));
         const isOverlapping = isCellOverlapped && stackIdx > 0;
         const tileObject = create3DTileMesh(tile, isDisconnected, isPickedUp, isOffMap, isOverlapping, unlockedCells, placedTiles);
         const baseHeight = isPickedUp ? 1.1 : 0.14 + stackIdx * 0.38;
@@ -1170,7 +1211,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     }
   };
 
-  const handlePointerMove = (e: React.PointerEvent) => {
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
     // If dragging a tile from the tray or board, calculate hover hex
     if (activeDragPieceRef.current) {
       const hit = getPointerGroundIntersection(e.clientX, e.clientY);
@@ -1196,9 +1237,17 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       cameraTargetRef.current.x -= dx * panSpeed;
       cameraTargetRef.current.z -= dy * panSpeed;
 
-      // Bound camera panning within reasonable outskirts range
-      cameraTargetRef.current.x = Math.max(-16, Math.min(16, cameraTargetRef.current.x));
-      cameraTargetRef.current.z = Math.max(-16, Math.min(16, cameraTargetRef.current.z));
+      // Bound camera panning to the board footprint (plus a small margin)
+      const halfSpanX = boardBounds.spanX / 2 + 2;
+      const halfSpanZ = boardBounds.spanZ / 2 + 2;
+      cameraTargetRef.current.x = Math.max(
+        boardBounds.centerX - halfSpanX,
+        Math.min(boardBounds.centerX + halfSpanX, cameraTargetRef.current.x)
+      );
+      cameraTargetRef.current.z = Math.max(
+        boardBounds.centerZ - halfSpanZ,
+        Math.min(boardBounds.centerZ + halfSpanZ, cameraTargetRef.current.z)
+      );
     } else {
       // Desktop hover cursor check
       const hit = getPointerGroundIntersection(e.clientX, e.clientY);
@@ -1209,7 +1258,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         }
       }
     }
-  };
+  }, [boardBounds, onHoverCoordChange]);
 
   const handlePointerUp = (e: React.PointerEvent) => {
     if (!isPointerDownRef.current) return;
@@ -1261,7 +1310,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const zoomDelta = e.deltaY * 0.0012;
-    currentZoomRef.current = Math.max(0.55, Math.min(1.85, currentZoomRef.current + zoomDelta));
+    currentZoomRef.current = Math.max(0.45, Math.min(1.85, currentZoomRef.current + zoomDelta));
   };
 
   // Touch Pinch-to-zoom for mobile
@@ -1275,7 +1324,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       if (pinchStartDistRef.current !== null) {
         const diff = pinchStartDistRef.current - dist;
         const zoomDelta = diff * 0.005;
-        currentZoomRef.current = Math.max(0.55, Math.min(1.85, currentZoomRef.current + zoomDelta));
+        currentZoomRef.current = Math.max(0.45, Math.min(1.85, currentZoomRef.current + zoomDelta));
       }
       pinchStartDistRef.current = dist;
     }
@@ -2145,6 +2194,32 @@ function create3DTileMesh(
     const liftRing = new THREE.Mesh(liftRingGeo, liftRingMat);
     liftRing.position.y = -0.95;
     group.add(liftRing);
+  }
+
+  const isBridgeOnOffMap = !unlockedCells?.has(coordKey(tile.q, tile.r)) && tile.type === 'bridge';
+  if (isBridgeOnOffMap) {
+    const safeRingGeo = new THREE.RingGeometry(0.85, 1.05, 20);
+    safeRingGeo.rotateX(-Math.PI / 2);
+    const safeRingMat = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.6,
+    });
+    const safeRing = new THREE.Mesh(safeRingGeo, safeRingMat);
+    safeRing.position.y = 0.05;
+    group.add(safeRing);
+
+    // Subtle vertical light beam to signal "connector"
+    const beamGeo = new THREE.CylinderGeometry(0.05, 0.12, 1.4, 8, 1, true);
+    const beamMat = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+      transparent: true,
+      opacity: 0.35,
+    });
+    const beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.y = 0.7;
+    group.add(beam);
   }
 
   // Highlighted warning border outline for Off-Map placed tiles

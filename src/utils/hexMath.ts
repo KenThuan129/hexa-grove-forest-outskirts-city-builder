@@ -176,3 +176,31 @@ export function getCoordsInRadius(center: HexCoord, radius: number): HexCoord[] 
   return results;
 }
 
+export function getCoordsBounds(coords: HexCoord[]): {
+  minX: number; maxX: number;
+  minZ: number; maxZ: number;
+  centerX: number; centerZ: number;
+  spanX: number; spanZ: number;
+} {
+  if (coords.length === 0) {
+    return { minX: 0, maxX: 0, minZ: 0, maxZ: 0, centerX: 0, centerZ: 0, spanX: 0, spanZ: 0 };
+  }
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  for (const c of coords) {
+    const { x, z } = hexToWorld(c.q, c.r);
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (z < minZ) minZ = z;
+    if (z > maxZ) maxZ = z;
+  }
+  const PAD = HEX_RADIUS; // include tile radius so edges aren't clipped
+  minX -= PAD; maxX += PAD; minZ -= PAD; maxZ += PAD;
+  return {
+    minX, maxX, minZ, maxZ,
+    centerX: (minX + maxX) / 2,
+    centerZ: (minZ + maxZ) / 2,
+    spanX: maxX - minX,
+    spanZ: maxZ - minZ,
+  };
+}
+

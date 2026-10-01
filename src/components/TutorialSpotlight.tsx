@@ -463,6 +463,15 @@ export const TutorialSpotlight: React.FC<TutorialSpotlightProps> = ({
       targetSelector = '[data-tutorial-id="tag-use-bridge"]';
       pointerDirection = 'left';
     }
+    // LEVEL 25: BUSINESS BATTLE
+    else if (levelId === 25 && !isPenaltyTutorialDismissed) {
+      title = '💼 Business Battle · Section Inspection & Revenue Showdown';
+      description = 'Rival Tycoon Sterling Vance challenges you to a Revenue Battle! Inspect each section by hovering over colored zones without picking up pieces to earn Popularity, Ambience, or +1 Bonus Slot. Then enter the Business Showdown to attract staying guests and dominate the market!';
+      badgeLabel = 'BUSINESS SHOWDOWN';
+      themeColor = 'amber';
+      targetSelector = '[data-tutorial-id="target-color-zones"]';
+      pointerDirection = 'left';
+    }
 
     return {
       targetSelector,

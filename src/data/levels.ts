@@ -2817,7 +2817,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-sapphire', 'p-trees-emerald']),
     targetScore: { star1: 2200, star2: 3200, star3: 4200 },
-    lightbulbBudget: 60,
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -2871,7 +2871,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-triad-emerald', 'p-duo-gray']),
     targetScore: { star1: 2400, star2: 3500, star3: 4600 },
-    lightbulbBudget: 60,
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -2883,7 +2883,7 @@ export const LEVELS: LevelConfig[] = [
     subtitle: 'Mechanic: Mastery Challenges (1★ + Mastery Required)',
     description:
       'Achieve 1 Star AND complete the Highland Mastery Challenge (Complete with at least 2500 points) to advance!',
-    lightbulbBudget: 35,
+    lightbulbBudget: 9,
     phases: [
       {
         phaseNumber: 1,
@@ -2993,7 +2993,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-quad-amber', 'p-triad-amber', 'p-duo-amber']),
     targetScore: { star1: 2400, star2: 3400, star3: 4500 },
-    lightbulbBudget: 65,
+    lightbulbBudget: 7,
   },
 
   // --------------------------------------------------------------------------
@@ -3048,7 +3048,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-emerald', 'p-triad-emerald']),
     targetScore: { star1: 2800, star2: 4000, star3: 5200 },
-    lightbulbBudget: 65,
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -3168,7 +3168,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-duo-emerald', 'p-duo-sapphire']),
     targetScore: { star1: 3200, star2: 4600, star3: 6000 },
-    lightbulbBudget: 50,
+    lightbulbBudget: 8,
   },
 
   // --------------------------------------------------------------------------
@@ -3231,7 +3231,7 @@ export const LEVELS: LevelConfig[] = [
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-duo-ruby', 'p-triad-emerald']),
     targetScore: { star1: 3400, star2: 4800, star3: 6300 },
-    lightbulbBudget: 50,
+    lightbulbBudget: 9,
   },
 
   // --------------------------------------------------------------------------
@@ -3304,7 +3304,7 @@ export const LEVELS: LevelConfig[] = [
       'p-quad-gray',
     ]),
     targetScore: { star1: 3800, star2: 5400, star3: 7000 },
-    lightbulbBudget: 50,
+    lightbulbBudget: 11,
   },
 
   // --------------------------------------------------------------------------
@@ -3495,7 +3495,7 @@ export const LEVELS: LevelConfig[] = [
       'p-causeway-triad',
     ]),
     targetScore: { star1: 1000, star2: 3200, star3: 5500 },
-    lightbulbBudget: 75,
+    lightbulbBudget: 17,
   },
 
   // --------------------------------------------------------------------------
@@ -3748,7 +3748,7 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-emerald',
     ]),
     targetScore: { star1: 1000, star2: 3600, star3: 5000 },
-    lightbulbBudget: 50,
+    lightbulbBudget: 10,
   },
 
   // --------------------------------------------------------------------------
@@ -3812,214 +3812,220 @@ export const LEVELS: LevelConfig[] = [
   },
 
   // --------------------------------------------------------------------------
-  // LEVEL 25: TITAN OF THE MIST (BOSS CHALLENGE)
+  // LEVEL 25: THE GRAND TYCOON EXCHANGE (BUSINESS BATTLE)
   // --------------------------------------------------------------------------
   {
     id: 25,
-    name: 'Titan of the Mist',
-    subtitle: 'BOSS CHALLENGE: 5-Phase Siege with Limited Stock',
+    name: 'The Grand Tycoon Exchange',
+    subtitle: 'BUSINESS BATTLE: Rival Commercial Showdown',
     description:
-      'Defeat the Ancient River Titan across 5 escalating phases! Each completed color zone reduces the Boss HP gauge down a notch. Use limited piece inventory wisely to claim 3★ victory!',
+      'Engage Rival Tycoon Sterling Vance in a high-stakes Revenue Showdown! Inspect colored zones without picking up pieces to boost Popularity, Ambience, and Bonus Slots, then dominate the market revenue!',
     isBossLevel: true,
-    bossName: 'Ancient River Titan',
+    lightbulbBudget: 60,
+    bossName: 'Tycoon Sterling Vance',
+    bossPopularity: 180,
+    bossAmbience: 170,
     bossMaxHp: 5000,
     masteryChallenge: {
       id: 'mc-25',
-      title: 'Titan Slayer Mastery',
-      description: 'Defeat all 5 Boss phases with at least 2500 points!',
+      title: 'Commercial Hegemony',
+      description: 'Win the Business Showdown and finish with at least 2500 points!',
       type: 'min_score',
       targetValue: 2500,
     },
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Boss Phase 1: The Titan Awakens',
-        objective: 'Establish the northern sunstone line to deal first damage to the Titan.',
-        targetTilesCount: 6,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: -1, r: 1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Titan Eye (Amber)',
-            color: 'amber',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
-          },
-        ],
-        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
-      },
-      {
-        phaseNumber: 2,
-        title: 'Boss Phase 2: Glacial Barrier',
-        objective: 'Subdue the sapphire hydro surges across the river flank.',
-        targetTilesCount: 11,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: -1, r: 1 },
-          { q: -2, r: 0 },
-          { q: -2, r: 1 },
-          { q: 2, r: -1 },
-          { q: 2, r: 0 },
-        ],
-        coloredZones: [
-          {
-            name: 'Titan Eye (Amber)',
-            color: 'amber',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
-          },
-          {
-            name: 'Ice Sluice (Sapphire)',
-            color: 'sapphire',
-            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
-          },
-        ],
-        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
-      },
-      {
-        phaseNumber: 3,
-        title: 'Boss Phase 3: Verdant Shield',
-        objective: 'Break through the emerald armor in the northern valley.',
-        targetTilesCount: 16,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: -1, r: 1 },
-          { q: -2, r: 0 },
-          { q: -2, r: 1 },
-          { q: 2, r: -1 },
-          { q: 2, r: 0 },
-          { q: 0, r: -2 },
-          { q: -1, r: -1 },
-          { q: 1, r: -2 },
-        ],
-        coloredZones: [
-          {
-            name: 'Titan Eye (Amber)',
-            color: 'amber',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
-          },
-          {
-            name: 'Ice Sluice (Sapphire)',
-            color: 'sapphire',
-            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
-          },
-          {
-            name: 'Verdant Carapace (Emerald)',
-            color: 'emerald',
-            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
-          },
-        ],
-        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
-      },
-      {
-        phaseNumber: 4,
-        title: 'Boss Phase 4: Volcanic Rage',
-        objective: 'Ignite the Ruby hearths to counter the Titan blazing fury.',
-        targetTilesCount: 20,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: -1, r: 1 },
-          { q: -2, r: 0 },
-          { q: -2, r: 1 },
-          { q: 2, r: -1 },
-          { q: 2, r: 0 },
-          { q: 0, r: -2 },
-          { q: -1, r: -1 },
-          { q: 1, r: -2 },
-          { q: -1, r: 2 },
-          { q: -2, r: 2 },
-          { q: 0, r: 1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Titan Eye (Amber)',
-            color: 'amber',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
-          },
-          {
-            name: 'Ice Sluice (Sapphire)',
-            color: 'sapphire',
-            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
-          },
-          {
-            name: 'Verdant Carapace (Emerald)',
-            color: 'emerald',
-            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
-          },
-          {
-            name: 'Magma Core (Ruby)',
-            color: 'ruby',
-            coords: [{ q: -1, r: 2 }, { q: -2, r: 2 }],
-          },
-        ],
-        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
-      },
-      {
-        phaseNumber: 5,
-        title: 'Boss Phase 5: Final Titan Subjugation',
-        objective: 'Unite all quad-color districts with the Blossom mega-cluster for total victory!',
-        targetTilesCount: 25,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: -1, r: 1 },
-          { q: -2, r: 0 },
-          { q: -2, r: 1 },
-          { q: 2, r: -1 },
-          { q: 2, r: 0 },
-          { q: 0, r: -2 },
-          { q: -1, r: -1 },
-          { q: 1, r: -2 },
-          { q: -1, r: 2 },
-          { q: -2, r: 2 },
-          { q: 0, r: 1 },
-          { q: 2, r: 1 },
-          { q: 3, r: -1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Titan Eye (Amber)',
-            color: 'amber',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }],
-          },
-          {
-            name: 'Ice Sluice (Sapphire)',
-            color: 'sapphire',
-            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
-          },
-          {
-            name: 'Verdant Carapace (Emerald)',
-            color: 'emerald',
-            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }],
-          },
-          {
-            name: 'Magma Core (Ruby)',
-            color: 'ruby',
-            coords: [{ q: -1, r: 2 }, { q: -2, r: 2 }],
-          },
-        ],
-        riverCoords: [{ q: 0, r: 2 }, { q: 1, r: 2 }],
-      },
-    ],
+    "phases": [
+    {
+      "phaseNumber": 1,
+      "title": "Commercial Phase 1: Market Foundation",
+      "objective": "Inspect the Golden Promenade to boost Popularity, then secure the commercial core.",
+      "targetTilesCount": 6,
+      "unlockedCoords": [
+        {
+          "q": 0,
+          "r": 0
+        },
+        {
+          "q": 1,
+          "r": 0
+        },
+        {
+          "q": -1,
+          "r": 0
+        },
+        {
+          "q": 0,
+          "r": -1
+        },
+        {
+          "q": 1,
+          "r": -1
+        },
+        {
+          "q": -1,
+          "r": 1
+        },
+        {
+          "q": 2,
+          "r": 0
+        },
+        {
+          "q": 3,
+          "r": -1
+        },
+        {
+          "q": 2,
+          "r": -1
+        },
+        {
+          "q": 3,
+          "r": 0
+        },
+        {
+          "q": 2,
+          "r": 1
+        },
+        {
+          "q": -1,
+          "r": 2
+        },
+        {
+          "q": -2,
+          "r": 2
+        },
+        {
+          "q": -3,
+          "r": 2
+        },
+        {
+          "q": -1,
+          "r": -1
+        },
+        {
+          "q": 1,
+          "r": 1
+        },
+        {
+          "q": 0,
+          "r": 1
+        },
+        {
+          "q": -2,
+          "r": -1
+        },
+        {
+          "q": -3,
+          "r": 0
+        },
+        {
+          "q": -3,
+          "r": 1
+        },
+        {
+          "q": -2,
+          "r": 1
+        },
+        {
+          "q": -2,
+          "r": 0
+        },
+        {
+          "q": 0,
+          "r": -2
+        },
+        {
+          "q": 1,
+          "r": -2
+        },
+        {
+          "q": 2,
+          "r": -2
+        }
+      ],
+      "coloredZones": [
+        {
+          "name": "Golden Promenade (Amber)",
+          "color": "amber",
+          "coords": [
+            {
+              "q": 0,
+              "r": 0
+            },
+            {
+              "q": 1,
+              "r": 0
+            },
+            {
+              "q": 1,
+              "r": 1
+            },
+            {
+              "q": 0,
+              "r": 1
+            }
+          ]
+        },
+        {
+          "name": "RUBY Zone",
+          "color": "ruby",
+          "coords": [
+            {
+              "q": -2,
+              "r": -1
+            },
+            {
+              "q": -3,
+              "r": 0
+            },
+            {
+              "q": -3,
+              "r": 1
+            },
+            {
+              "q": -2,
+              "r": 1
+            },
+            {
+              "q": -2,
+              "r": 0
+            }
+          ],
+          "bossZoneType": "power"
+        },
+        {
+          "name": "SAPPHIRE Zone",
+          "color": "sapphire",
+          "coords": [
+            {
+              "q": 0,
+              "r": -2
+            },
+            {
+              "q": 1,
+              "r": -2
+            },
+            {
+              "q": 2,
+              "r": -2
+            }
+          ],
+          "bossZoneType": "defend"
+        }
+      ],
+      "riverCoords": [
+        {
+          "q": 0,
+          "r": 2
+        },
+        {
+          "q": 1,
+          "r": 2
+        }
+      ],
+      "fogCoords": [],
+      "rotationZones": []
+    }
+  ],
+
     availablePieces: [
       { ...PIECE_PALETTE.find(p => p.id === 'p-blossom-multi')!, stock: 2 },
       { ...PIECE_PALETTE.find(p => p.id === 'p-triad-amber')!, stock: 3 },

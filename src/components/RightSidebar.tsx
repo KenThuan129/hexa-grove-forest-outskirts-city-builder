@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode, PlayMode, PenaltyRecord } from '../types/game';
+import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode, PlayMode, PenaltyRecord, TileColor, BossBattleStats } from '../types/game';
 import {
   Star,
   Compass,
@@ -17,6 +17,8 @@ import {
   Lightbulb,
   Swords,
   Trophy,
+  Briefcase,
+  Gift,
 } from 'lucide-react';
 import { coordKey } from '../utils/hexMath';
 
@@ -36,6 +38,9 @@ interface RightSidebarProps {
   isMasteryCompleted?: boolean;
   gameMode?: GameMode;
   playMode?: PlayMode;
+  bossBattleStats?: BossBattleStats;
+  inspectedZoneIds?: Set<string>;
+  onInspectZone?: (zoneKey: string, zone: { name: string; color: TileColor }, idx: number) => void;
   rotationZones?: RotationZone[];
   penalties?: PenaltyRecord;
   overlapErrorCount?: number;
@@ -67,6 +72,9 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   isMasteryCompleted = false,
   gameMode = 'tryhard',
   playMode = 'building',
+  bossBattleStats,
+  inspectedZoneIds,
+  onInspectZone,
   rotationZones,
   penalties,
   overlapErrorCount = 0,
@@ -170,7 +178,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           </span>
 
           <div className="flex flex-wrap gap-1">
-            {currentPhase.coloredZones.map(zone => {
+            {currentPhase.coloredZones.map((zone, idx) => {
               const totalInZone = zone.coords.length;
               let matchedCount = 0;
               zone.coords.forEach(c => {
@@ -184,15 +192,44 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                 }
               });
               const isZoneComplete = matchedCount === totalInZone;
+              const zoneKey = `${currentLevel.id}-${zone.name}`;
+              const isInspected = inspectedZoneIds?.has(zoneKey);
+
+              // Inspection Benefit Label
+              const benefitLabel =
+                zone.color === 'amber' || zone.color === 'ruby'
+                  ? '+35 Pop'
+                  : zone.color === 'sapphire'
+                  ? '+35 Amb'
+                  : '+1 Slot';
+              const benefitIcon =
+                zone.color === 'amber' || zone.color === 'ruby'
+                  ? '⭐'
+                  : zone.color === 'sapphire'
+                  ? '🕯️'
+                  : '🎁';
 
               return (
                 <div
                   key={zone.name}
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-xl border text-[10px] transition-all ${
+                  onMouseEnter={() => {
+                    if (currentLevel.isBossLevel && !isInspected) {
+                      onInspectZone?.(zoneKey, zone, idx);
+                    }
+                  }}
+                  onClick={() => onInspectZone?.(zoneKey, zone, idx)}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded-xl border text-[10px] transition-all cursor-pointer ${
                     isZoneComplete
                       ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300 font-semibold'
                       : 'bg-slate-950/60 border-slate-800 text-slate-300'
                   }`}
+                  title={
+                    currentLevel.isBossLevel
+                      ? isInspected
+                        ? `${zone.name}: Inspected! ${benefitIcon} ${benefitLabel} active for Showdown.`
+                        : `${zone.name}: Hover without holding a piece to inspect & earn ${benefitIcon} ${benefitLabel}!`
+                      : zone.name
+                  }
                 >
                   <span
                     className={`w-2 h-2 rounded-full shrink-0 ${
@@ -206,6 +243,19 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
                     }`}
                   />
                   <span className="truncate max-w-[90px]">{zone.name}</span>
+
+                  {currentLevel.isBossLevel && (
+                    <span
+                      className={`text-[8.5px] font-mono px-1 py-0.2 rounded font-bold ${
+                        isInspected
+                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50'
+                          : 'bg-amber-950/80 text-amber-300 border border-amber-500/40'
+                      }`}
+                    >
+                      {isInspected ? `✓ ${benefitIcon}` : `🔍 ${benefitLabel}`}
+                    </span>
+                  )}
+
                   {isZoneComplete ? (
                     <Check className="w-3 h-3 text-emerald-400 shrink-0" />
                   ) : (
@@ -382,42 +432,70 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
           </div>
         )}
 
-        {/* Boss HP Gauge */}
+        {/* Business Battle Showcase (Boss Level) */}
         {currentLevel.isBossLevel && (
-          <div className="p-2.5 rounded-2xl bg-gradient-to-br from-rose-950 via-slate-900 to-purple-950 text-white border-2 border-rose-500/80 shadow-xl flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5">
-                <span className="text-base">👹</span>
+          <div className="p-3 rounded-2xl bg-gradient-to-br from-[#2a1a10] via-[#352115] to-[#1e130c] border-2 border-amber-500/70 shadow-xl flex flex-col gap-2 select-none">
+            <div className="flex items-center justify-between pb-1.5 border-b border-amber-500/30">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">💼</span>
                 <div>
-                  <div className="text-[10px] font-black uppercase tracking-wider text-rose-400">
-                    BOSS CHALLENGE
+                  <div className="text-[9.5px] font-mono font-black text-amber-400 uppercase tracking-widest">
+                    BUSINESS BATTLE
                   </div>
-                  <div className="text-[11px] font-bold text-slate-100">
-                    {currentLevel.bossName || 'Ancient Mist Titan'}
+                  <div className="text-xs font-bold text-slate-100">
+                    {currentLevel.bossName || 'Tycoon Sterling Vance'}
                   </div>
                 </div>
               </div>
-              <span className="text-[9px] font-mono font-black text-rose-300 bg-rose-900/60 px-2 py-0.5 rounded-full border border-rose-700">
-                Phase {currentPhaseIndex + 1}/5
+              <span className="text-[8.5px] font-mono font-bold px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                Phase {currentPhaseIndex + 1}/{totalPhases}
               </span>
             </div>
 
-            <div className="flex flex-col gap-0.5 mt-0.5">
-              <div className="flex items-center justify-between text-[9px] font-mono font-bold">
-                <span className="text-rose-400">Titan Stamina</span>
-                <span className="text-slate-300">
-                  {Math.max(0, 100 - Math.round(((currentPhaseIndex * 20) + (currentPhase.coloredZones.length > 0 ? (currentPhase.coloredZones.filter(z => z.coords.every(c => placedTiles.get(coordKey(c.q, c.r))?.[0]?.color === z.color)).length / currentPhase.coloredZones.length) * 20 : 0))))}%
-                </span>
+            {bossBattleStats && (
+              <div className="flex flex-col gap-1.5 text-xs font-mono">
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="bg-[#1e3520] p-1.5 rounded-xl border border-[#6b8e5a] flex flex-col justify-between">
+                    <span className="text-[9px] text-emerald-300 font-bold flex items-center gap-1">
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                      <span>Popularity</span>
+                    </span>
+                    <span className="text-sm font-black text-white">{bossBattleStats.popularity}</span>
+                  </div>
+                  <div className="bg-[#172b38] p-1.5 rounded-xl border border-[#4a7a96] flex flex-col justify-between">
+                    <span className="text-[9px] text-cyan-300 font-bold flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-cyan-400" />
+                      <span>Ambience</span>
+                    </span>
+                    <span className="text-sm font-black text-white">{bossBattleStats.ambience}</span>
+                  </div>
+                </div>
+
+                {/* Section Inspection Tracker */}
+                <div className="p-2 rounded-xl bg-black/40 border border-amber-500/20 flex flex-col gap-1.5 text-[10px]">
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="text-amber-300 flex items-center gap-1">
+                      <span>🔍 Inspected Sections:</span>
+                    </span>
+                    <span className="text-white font-mono">
+                      {bossBattleStats.inspectedSectionsCount} / {bossBattleStats.totalSectionsCount}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[9.5px] font-mono text-emerald-300 bg-emerald-950/60 p-1 rounded-lg border border-emerald-500/30">
+                    <span className="flex items-center gap-1">
+                      <Gift className="w-3 h-3 text-emerald-400" />
+                      <span>Bonus Slots:</span>
+                    </span>
+                    <span className="font-bold text-amber-300">{bossBattleStats.bonusSlots} Available</span>
+                  </div>
+
+                  <p className="text-[9px] text-slate-300 leading-tight">
+                    Hover over colored zones without picking up tiles to inspect &amp; earn Pop, Amb, or +1 Bonus Slot!
+                  </p>
+                </div>
               </div>
-              <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-rose-900/60 shadow-inner">
-                <div
-                  className="h-full bg-gradient-to-r from-rose-600 via-amber-500 to-emerald-500 rounded-full transition-all duration-500"
-                  style={{
-                    width: `${Math.max(0, 100 - Math.round(((currentPhaseIndex * 20) + (currentPhase.coloredZones.length > 0 ? (currentPhase.coloredZones.filter(z => z.coords.every(c => placedTiles.get(coordKey(c.q, c.r))?.[0]?.color === z.color)).length / currentPhase.coloredZones.length) * 20 : 0))))}%`,
-                  }}
-                />
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -482,8 +560,8 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
             onClick={onOpenBossBattle}
             className="w-full flex items-center justify-center gap-2 py-3 px-3 rounded-2xl text-xs font-black text-slate-950 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-200 shadow-xl transition-all cursor-pointer animate-pulse"
           >
-            <Swords className="w-4 h-4 text-slate-950" />
-            <span>COMMENCE 1v1 BOSS SHOWDOWN</span>
+            <Briefcase className="w-4 h-4 text-slate-950" />
+            <span>ENTER BUSINESS SHOWDOWN ➔</span>
           </button>
         )}
 

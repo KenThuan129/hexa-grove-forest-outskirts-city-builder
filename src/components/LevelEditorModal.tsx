@@ -544,15 +544,27 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
   };
 
   // Generate 2D Hex Grid coordinates in axial radius 3 (-3..3)
-  const hexRadius = 25;
+  const EDITOR_GRID_RADIUS = 4; // ← change to 5 for even larger maps
+
+  const hexRadius = EDITOR_GRID_RADIUS >= 5 ? 20 : EDITOR_GRID_RADIUS >= 4 ? 22 : 25;
+
   const gridCoords: HexCoord[] = [];
-  for (let q = -3; q <= 3; q++) {
-    for (let r = -3; r <= 3; r++) {
-      if (Math.abs(q + r) <= 3) {
+  for (let q = -EDITOR_GRID_RADIUS; q <= EDITOR_GRID_RADIUS; q++) {
+    for (let r = -EDITOR_GRID_RADIUS; r <= EDITOR_GRID_RADIUS; r++) {
+      if (Math.abs(q + r) <= EDITOR_GRID_RADIUS) {
         gridCoords.push({ q, r });
       }
     }
   }
+
+  // Compute the SVG viewport extents from the actual hex layout
+  // Pointy-topped hexes: worldX = sqrt(3)*r*(q + r/2), worldY = 1.5*r*r
+  const SQRT3_EDITOR = Math.sqrt(3);
+  const gridExtentX = hexRadius * SQRT3_EDITOR * (EDITOR_GRID_RADIUS + EDITOR_GRID_RADIUS / 2);
+  const gridExtentY = hexRadius * 1.5 * EDITOR_GRID_RADIUS;
+  const SVG_PAD = 30;
+  const SVG_VIEW_W = gridExtentX * 2 + SVG_PAD * 2;
+  const SVG_VIEW_H = gridExtentY * 2 + SVG_PAD * 2 + hexRadius; // extra for top/bottom hex
 
   // Calculate SVG polygon points for a regular pointy-topped hexagon
   const getHexPolygonPoints = (cx: number, cy: number, radius: number): string => {
@@ -1161,12 +1173,12 @@ export const LevelEditorModal: React.FC<LevelEditorModalProps> = ({
                 </div>
 
                 {/* SVG Hexagon Honeycomb Canvas */}
-                <div className="w-full max-w-lg flex items-center justify-center p-2">
+                <div className="w-full max-w-2xl flex items-center justify-center p-2">
                   <svg
-                    viewBox="0 0 520 450"
-                    className="w-full h-auto max-h-[380px] drop-shadow-2xl"
+                    viewBox={`0 0 ${SVG_VIEW_W} ${SVG_VIEW_H}`}
+                    className="w-full h-auto max-h-[520px] drop-shadow-2xl"
                   >
-                    <g transform="translate(260, 225)">
+                    <g transform={`translate(${SVG_VIEW_W / 2}, ${SVG_VIEW_H / 2})`}>
                       {gridCoords.map(coord => {
                         const key = coordKey(coord.q, coord.r);
                         const cx = hexRadius * Math.sqrt(3) * (coord.q + coord.r / 2);

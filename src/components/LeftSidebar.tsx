@@ -17,6 +17,9 @@ import {
   Heart,
   Sparkles,
   ShieldAlert,
+  Briefcase,
+  Star,
+  Gift,
 } from 'lucide-react';
 
 interface LeftSidebarProps {
@@ -222,56 +225,52 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         </div>
       </div>
 
-      {/* 2. Boss Battle Stats Preview Card */}
+      {/* 2. Business Battle Showcase Card */}
       {bossBattleStats && (
-        <div className="bg-slate-900/95 backdrop-blur-xl border border-amber-500/50 shadow-2xl rounded-3xl p-3.5 flex flex-col gap-2 text-slate-100 animate-in fade-in duration-200">
+        <div className="bg-slate-900/95 backdrop-blur-xl border-2 border-amber-500/60 shadow-2xl rounded-3xl p-3.5 flex flex-col gap-2.5 text-slate-100 animate-in fade-in duration-200">
           <div className="flex items-center justify-between border-b border-slate-800 pb-2">
             <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs">
-              <Swords className="w-4 h-4 text-amber-400" />
-              <span>BOSS BATTLE STATS</span>
+              <Briefcase className="w-4 h-4 text-amber-400" />
+              <span>BUSINESS BATTLE HUB</span>
             </div>
             <span className="text-[9.5px] font-mono px-2 py-0.5 rounded-full bg-amber-950 text-amber-300 border border-amber-500/40 font-bold">
-              1v1 Active
+              Showdown Ready
             </span>
           </div>
 
           <div className="grid grid-cols-2 gap-1.5 text-xs font-mono">
-            <div className="bg-slate-950 p-2 rounded-2xl border border-slate-800 flex flex-col">
-              <span className="text-[10px] text-slate-400 font-sans flex items-center gap-1">
-                <Zap className="w-3 h-3 text-amber-400" /> Hero ATK
+            <div className="bg-[#1e3520] p-2 rounded-2xl border border-emerald-500/50 flex flex-col">
+              <span className="text-[10px] text-emerald-300 font-sans flex items-center gap-1 font-bold">
+                <Star className="w-3 h-3 text-amber-400 fill-amber-400" /> Popularity
               </span>
-              <span className="text-sm font-black text-amber-300">{bossBattleStats.attack}</span>
+              <span className="text-sm font-black text-white">{bossBattleStats.popularity}</span>
             </div>
 
-            <div className="bg-slate-950 p-2 rounded-2xl border border-slate-800 flex flex-col">
-              <span className="text-[10px] text-slate-400 font-sans flex items-center gap-1">
-                <Shield className="w-3 h-3 text-cyan-400" /> Hero DEF
+            <div className="bg-[#172b38] p-2 rounded-2xl border border-cyan-500/50 flex flex-col">
+              <span className="text-[10px] text-cyan-300 font-sans flex items-center gap-1 font-bold">
+                <Sparkles className="w-3 h-3 text-cyan-400" /> Ambience
               </span>
-              <span className="text-sm font-black text-cyan-300">{bossBattleStats.defense}</span>
+              <span className="text-sm font-black text-white">{bossBattleStats.ambience}</span>
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-1 text-[9.5px]">
-            {bossBattleStats.traits.lifeStealPct > 0 && (
-              <span className="px-1.5 py-0.5 rounded-lg bg-emerald-950 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                <Heart className="w-2.5 h-2.5 text-emerald-400" /> Life Steal {Math.round(bossBattleStats.traits.lifeStealPct * 100)}%
+          <div className="flex items-center justify-between text-[10px] font-mono bg-black/40 p-2 rounded-2xl border border-amber-500/20">
+            <span className="text-amber-300 flex items-center gap-1">
+              <Gift className="w-3.5 h-3.5 text-amber-400" /> Bonus Slots:
+            </span>
+            <span className="font-bold text-white">{bossBattleStats.bonusSlots} Available</span>
+          </div>
+
+          <div className="p-2 rounded-2xl bg-black/40 border border-slate-800 flex flex-col gap-1 text-[10px]">
+            <div className="flex items-center justify-between font-bold">
+              <span className="text-slate-300">🔍 Inspected Sections:</span>
+              <span className="font-mono text-amber-300">
+                {bossBattleStats.inspectedSectionsCount} / {bossBattleStats.totalSectionsCount}
               </span>
-            )}
-            {bossBattleStats.traits.aegisShield > 0 && (
-              <span className="px-1.5 py-0.5 rounded-lg bg-cyan-950 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
-                <Shield className="w-2.5 h-2.5 text-cyan-400" /> Aegis +{bossBattleStats.traits.aegisShield}
-              </span>
-            )}
-            {bossBattleStats.traits.doubleStrikePct > 0 && (
-              <span className="px-1.5 py-0.5 rounded-lg bg-amber-950 text-amber-300 border border-amber-500/30 flex items-center gap-1">
-                <Zap className="w-2.5 h-2.5 text-amber-400" /> Double Strike {Math.round(bossBattleStats.traits.doubleStrikePct * 100)}%
-              </span>
-            )}
-            {bossBattleStats.traits.thornCounterPct > 0 && (
-              <span className="px-1.5 py-0.5 rounded-lg bg-rose-950 text-rose-300 border border-rose-500/30 flex items-center gap-1">
-                <ShieldAlert className="w-2.5 h-2.5 text-rose-400" /> Thorns {Math.round(bossBattleStats.traits.thornCounterPct * 100)}%
-              </span>
-            )}
+            </div>
+            <p className="text-[9px] text-slate-400 leading-tight">
+              Hover over colored zones without picking up tiles to earn Popularity, Ambience, or +1 Bonus Slot!
+            </p>
           </div>
         </div>
       )}
