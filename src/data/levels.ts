@@ -767,592 +767,592 @@ export const LEVELS: LevelConfig[] = [
   // LEVEL 4: Introduces "Phases" (Multi-Phase Expansion)
   // --------------------------------------------------------------------------
   {
-  id: 4,
-  name: "Whispering Glade",
-  subtitle: "Mechanic: Phase Expansion",
-  description: "Fill Phase 1 target color zones to push back the deep forest and expand into Phase 2!",
-  lightbulbBudget: 40,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Phase 1: Inner Outpost",
-      objective: "Settle the inner clearing to unlock Phase 2 expansion.",
-      targetTilesCount: 4,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Amber Hearth",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 1,
-              r: -1
-            }
-          ]
-        }
-      ]
+    id: 4,
+    name: "Whispering Glade",
+    subtitle: "Mechanic: Phase Expansion",
+    description: "Fill Phase 1 target color zones to push back the deep forest and expand into Phase 2!",
+    lightbulbBudget: 40,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Phase 1: Inner Outpost",
+        objective: "Settle the inner clearing to unlock Phase 2 expansion.",
+        targetTilesCount: 4,
+        unlockedCoords: [
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Amber Hearth",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 1,
+                r: -1
+              }
+            ]
+          }
+        ]
+      },
+      {
+        phaseNumber: 2,
+        title: "Phase 2: Forest Expansion",
+        objective: "Expand through the newly cleared emerald glades.",
+        targetTilesCount: 8,
+        unlockedCoords: [
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: 2,
+            r: -1
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -2
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Amber Hearth",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 1,
+                r: -1
+              },
+              {
+                q: 0,
+                r: -2
+              },
+              {
+                q: -1,
+                r: -1
+              },
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: 0,
+                r: -1
+              }
+            ]
+          },
+          {
+            name: "Emerald Glade",
+            color: "emerald",
+            coords: [
+              {
+                q: 0,
+                r: 2
+              },
+              {
+                q: -1,
+                r: 2
+              },
+              {
+                q: -2,
+                r: 1
+              },
+              {
+                q: -1,
+                r: 1
+              }
+            ]
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-house-gray",
+        type: "house",
+        color: "neutral",
+        name: "Timber Cottage",
+        description: "Single pioneer dwelling with stone base & slate roof.",
+        bonusesDescription: "Single cell. Safe on any gray clearing.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-duo-amber",
+        type: "mixed",
+        color: "amber",
+        name: "Solar Duo",
+        description: "Sunlit house connected to a golden wheat croft.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-duo-emerald",
+        type: "mixed",
+        color: "emerald",
+        name: "Arbor Duo",
+        description: "Tandem grove shelter with towering emerald conifers.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Emerald zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      }
+    ],
+    targetScore: {
+      star1: 400,
+      star2: 700,
+      star3: 1000,
     },
-    {
-      phaseNumber: 2,
-      title: "Phase 2: Forest Expansion",
-      objective: "Expand through the newly cleared emerald glades.",
-      targetTilesCount: 8,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -2
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Amber Hearth",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 1,
-              r: -1
-            },
-            {
-              q: 0,
-              r: -2
-            },
-            {
-              q: -1,
-              r: -1
-            },
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: 0,
-              r: -1
-            }
-          ]
-        },
-        {
-          name: "Emerald Glade",
-          color: "emerald",
-          coords: [
-            {
-              q: 0,
-              r: 2
-            },
-            {
-              q: -1,
-              r: 2
-            },
-            {
-              q: -2,
-              r: 1
-            },
-            {
-              q: -1,
-              r: 1
-            }
-          ]
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-house-gray",
-      type: "house",
-      color: "neutral",
-      name: "Timber Cottage",
-      description: "Single pioneer dwelling with stone base & slate roof.",
-      bonusesDescription: "Single cell. Safe on any gray clearing.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-duo-amber",
-      type: "mixed",
-      color: "amber",
-      name: "Solar Duo",
-      description: "Sunlit house connected to a golden wheat croft.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-duo-emerald",
-      type: "mixed",
-      color: "emerald",
-      name: "Arbor Duo",
-      description: "Tandem grove shelter with towering emerald conifers.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Emerald zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    }
-  ],
-  targetScore: {
-    star1: 400,
-    star2: 700,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 5: Mastering Phases (3 Colors, 2 Expansion Waves)
   // --------------------------------------------------------------------------
   {
-  id: 5,
-  name: "Emerald Highlands",
-  subtitle: "Mechanic: Tri-Color Phase Expansion",
-  description: "Coordinate expansion across Amber, Emerald, and Sapphire zones across two distinct phases.",
-  lightbulbBudget: 45,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Phase 1: Highland Post",
-      objective: "Secure the central spring and meadow.",
-      targetTilesCount: 5,
-      unlockedCoords: [
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Central Meadow",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 0,
-              r: 0
-            }
-          ]
-        },
-        {
-          name: "Highland Spring",
-          color: "sapphire",
-          coords: [
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: 0,
-              r: -1
-            }
-          ]
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
+    id: 5,
+    name: "Emerald Highlands",
+    subtitle: "Mechanic: Tri-Color Phase Expansion",
+    description: "Coordinate expansion across Amber, Emerald, and Sapphire zones across two distinct phases.",
+    lightbulbBudget: 45,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Phase 1: Highland Post",
+        objective: "Secure the central spring and meadow.",
+        targetTilesCount: 5,
+        unlockedCoords: [
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Central Meadow",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 0,
+                r: 0
+              }
+            ]
+          },
+          {
+            name: "Highland Spring",
+            color: "sapphire",
+            coords: [
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: 0,
+                r: -1
+              }
+            ]
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      },
+      {
+        phaseNumber: 2,
+        title: "Phase 2: Full Frontier",
+        objective: "Expand into the northern pine terraces and connect all zones.",
+        targetTilesCount: 10,
+        unlockedCoords: [
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: 2,
+            r: -1
+          },
+          {
+            q: 1,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: 0,
+            r: -2
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 0,
+            r: 0
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Central Meadow",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              },
+              {
+                q: 0,
+                r: 0
+              }
+            ]
+          },
+          {
+            name: "Highland Spring",
+            color: "sapphire",
+            coords: [
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: -2,
+                r: 0
+              },
+              {
+                q: 0,
+                r: -1
+              }
+            ]
+          },
+          {
+            name: "Northern Terraces",
+            color: "emerald",
+            coords: [
+              {
+                q: 0,
+                r: 2
+              },
+              {
+                q: -1,
+                r: 2
+              }
+            ]
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-house-gray",
+        type: "house",
+        color: "neutral",
+        name: "Timber Cottage",
+        description: "Single pioneer dwelling with stone base & slate roof.",
+        bonusesDescription: "Single cell. Safe on any gray clearing.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-house-amber",
+        type: "house",
+        color: "amber",
+        name: "Sunlit Townhall",
+        description: "Golden shingle residence with radiant lantern tower.",
+        bonusesDescription: "Single cell. Matches Amber sunlit zones.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-landmark-monolith",
+        type: "landmark",
+        color: "emerald",
+        name: "Ancient Verdant Obelisk",
+        description: "A 4-hex square emerald cluster centered around a high-standing stone obelisk.",
+        bonusesDescription: "4-Hex Landmark. Excellent green district anchor.",
+        clusterType: "quad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "landmark"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "mixed"
+          },
+          {
+            q: 1,
+            r: 1,
+            type: "trees"
+          }
+        ],
+        lightbulbCost: 4
+      },
+      {
+        id: "p-duo-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Aqueduct Duo",
+        description: "Twin watermill and sluice gate reservoir.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-tower-amber",
+        type: "tower",
+        color: "amber",
+        name: "Solar Citadel Spire",
+        description: "A spectacular 3-hex amber cluster anchored by a radiant wizard tower.",
+        bonusesDescription: "3-Hex Tower Cluster. High amber alignment score.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      }
+    ],
+    targetScore: {
+      star1: 450,
+      star2: 750,
+      star3: 1000,
     },
-    {
-      phaseNumber: 2,
-      title: "Phase 2: Full Frontier",
-      objective: "Expand into the northern pine terraces and connect all zones.",
-      targetTilesCount: 10,
-      unlockedCoords: [
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: 1,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: 0,
-          r: -2
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 0
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Central Meadow",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            },
-            {
-              q: 0,
-              r: 0
-            }
-          ]
-        },
-        {
-          name: "Highland Spring",
-          color: "sapphire",
-          coords: [
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: -2,
-              r: 0
-            },
-            {
-              q: 0,
-              r: -1
-            }
-          ]
-        },
-        {
-          name: "Northern Terraces",
-          color: "emerald",
-          coords: [
-            {
-              q: 0,
-              r: 2
-            },
-            {
-              q: -1,
-              r: 2
-            }
-          ]
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-house-gray",
-      type: "house",
-      color: "neutral",
-      name: "Timber Cottage",
-      description: "Single pioneer dwelling with stone base & slate roof.",
-      bonusesDescription: "Single cell. Safe on any gray clearing.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-house-amber",
-      type: "house",
-      color: "amber",
-      name: "Sunlit Townhall",
-      description: "Golden shingle residence with radiant lantern tower.",
-      bonusesDescription: "Single cell. Matches Amber sunlit zones.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-landmark-monolith",
-      type: "landmark",
-      color: "emerald",
-      name: "Ancient Verdant Obelisk",
-      description: "A 4-hex square emerald cluster centered around a high-standing stone obelisk.",
-      bonusesDescription: "4-Hex Landmark. Excellent green district anchor.",
-      clusterType: "quad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "landmark"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "mixed"
-        },
-        {
-          q: 1,
-          r: 1,
-          type: "trees"
-        }
-      ],
-      lightbulbCost: 4
-    },
-    {
-      id: "p-duo-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Aqueduct Duo",
-      description: "Twin watermill and sluice gate reservoir.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-tower-amber",
-      type: "tower",
-      color: "amber",
-      name: "Solar Citadel Spire",
-      description: "A spectacular 3-hex amber cluster anchored by a radiant wizard tower.",
-      bonusesDescription: "3-Hex Tower Cluster. High amber alignment score.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    }
-  ],
-  targetScore: {
-    star1: 450,
-    star2: 750,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 6: Introduces Mastery Challenge & Off-Map Penalty
@@ -1418,1353 +1418,1353 @@ export const LEVELS: LevelConfig[] = [
   // LEVEL 7: Sunfire Basin (4H Quad Clusters & Spatial Geometry)
   // --------------------------------------------------------------------------
   {
-  id: 7,
-  name: "Sunfire Basin",
-  subtitle: "Mechanic: 4-Hex Quad Clusters",
-  description: "Master the Forest Quad and Sunstone Quad 4-hex geometries in an 8x8 diamond clearing.",
-  lightbulbBudget: 25,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Diamond Basin",
-      objective: "Align 4-hex clusters efficiently to stay within the par quota.",
-      targetTilesCount: 10,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: 1,
-          r: 1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Sunfire Quad",
-          color: "amber",
-          coords: [
-            {
-              q: 0,
-              r: 1
-            },
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: 0,
-              r: 2
-            },
-            {
-              q: 1,
-              r: 1
-            }
-          ]
-        },
-        {
-          name: "SAPPHIRE Zone",
-          color: "sapphire",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: -1,
-              r: 1
-            },
-            {
-              q: 0,
-              r: 0
-            }
-          ],
-          bossZoneType: "defend"
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-house-gray",
-      type: "house",
-      color: "neutral",
-      name: "Timber Cottage",
-      description: "Single pioneer dwelling with stone base & slate roof.",
-      bonusesDescription: "Single cell. Safe on any gray clearing.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
+    id: 7,
+    name: "Sunfire Basin",
+    subtitle: "Mechanic: 4-Hex Quad Clusters",
+    description: "Master the Forest Quad and Sunstone Quad 4-hex geometries in an 8x8 diamond clearing.",
+    lightbulbBudget: 25,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Diamond Basin",
+        objective: "Align 4-hex clusters efficiently to stay within the par quota.",
+        targetTilesCount: 10,
+        unlockedCoords: [
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 2
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: 1,
+            r: 1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Sunfire Quad",
+            color: "amber",
+            coords: [
+              {
+                q: 0,
+                r: 1
+              },
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: 0,
+                r: 2
+              },
+              {
+                q: 1,
+                r: 1
+              }
+            ]
+          },
+          {
+            name: "SAPPHIRE Zone",
+            color: "sapphire",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: -1,
+                r: 1
+              },
+              {
+                q: 0,
+                r: 0
+              }
+            ],
+            bossZoneType: "defend"
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-house-gray",
+        type: "house",
+        color: "neutral",
+        name: "Timber Cottage",
+        description: "Single pioneer dwelling with stone base & slate roof.",
+        bonusesDescription: "Single cell. Safe on any gray clearing.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-duo-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Aqueduct Duo",
+        description: "Twin watermill and sluice gate reservoir.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-tower-sapphire",
+        type: "tower",
+        color: "sapphire",
+        name: "Hydro-Spire Keep",
+        description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
+        bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: -1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-duo-amber",
+        type: "mixed",
+        color: "amber",
+        name: "Solar Duo",
+        description: "Sunlit house connected to a golden wheat croft.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-tower-amber",
+        type: "tower",
+        color: "amber",
+        name: "Solar Citadel Spire",
+        description: "A spectacular 3-hex amber cluster anchored by a radiant wizard tower.",
+        bonusesDescription: "3-Hex Tower Cluster. High amber alignment score.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      }
+    ],
+    targetScore: {
+      star1: 450,
+      star2: 750,
+      star3: 1000,
     },
-    {
-      id: "p-duo-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Aqueduct Duo",
-      description: "Twin watermill and sluice gate reservoir.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-tower-sapphire",
-      type: "tower",
-      color: "sapphire",
-      name: "Hydro-Spire Keep",
-      description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
-      bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: -1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-duo-amber",
-      type: "mixed",
-      color: "amber",
-      name: "Solar Duo",
-      description: "Sunlit house connected to a golden wheat croft.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-tower-amber",
-      type: "tower",
-      color: "amber",
-      name: "Solar Citadel Spire",
-      description: "A spectacular 3-hex amber cluster anchored by a radiant wizard tower.",
-      bonusesDescription: "3-Hex Tower Cluster. High amber alignment score.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    }
-  ],
-  targetScore: {
-    star1: 450,
-    star2: 750,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 8: Azure Aqueducts (Sapphire & Amber Waterway Network)
   // --------------------------------------------------------------------------
   {
-  id: 8,
-  name: "Azure Aqueducts",
-  subtitle: "Mechanic: Dual-Color Cluster Weaving",
-  description: "Weave together Sapphire Aqueduct Duos and Amber Solar Duos across interlocking waterways.",
-  lightbulbBudget: 30,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Waterway Clearing",
-      objective: "Settle both the sapphire aquifer stream and sunlit canal banks.",
-      targetTilesCount: 10,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -2
-        },
-        {
-          q: 1,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "AMBER Zone",
-          color: "amber",
-          coords: [
-            {
-              q: -1,
-              r: 1
-            },
-            {
-              q: 0,
-              r: 1
-            }
-          ],
-          bossZoneType: "power"
-        },
-        {
-          name: "SAPPHIRE Zone",
-          color: "sapphire",
-          coords: [
-            {
-              q: -2,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            }
-          ],
-          bossZoneType: "defend"
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
+    id: 8,
+    name: "Azure Aqueducts",
+    subtitle: "Mechanic: Dual-Color Cluster Weaving",
+    description: "Weave together Sapphire Aqueduct Duos and Amber Solar Duos across interlocking waterways.",
+    lightbulbBudget: 30,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Waterway Clearing",
+        objective: "Settle both the sapphire aquifer stream and sunlit canal banks.",
+        targetTilesCount: 10,
+        unlockedCoords: [
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: 2,
+            r: -1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -2
+          },
+          {
+            q: 1,
+            r: -1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "AMBER Zone",
+            color: "amber",
+            coords: [
+              {
+                q: -1,
+                r: 1
+              },
+              {
+                q: 0,
+                r: 1
+              }
+            ],
+            bossZoneType: "power"
+          },
+          {
+            name: "SAPPHIRE Zone",
+            color: "sapphire",
+            coords: [
+              {
+                q: -2,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              }
+            ],
+            bossZoneType: "defend"
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      },
+      {
+        phaseNumber: 2,
+        title: "Phase 2: Frontier Expansion",
+        objective: "Expand land boundaries to cover newly unlocked zones.",
+        targetTilesCount: 20,
+        unlockedCoords: [
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: 1,
+            r: -2
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: 2,
+            r: -1
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: 1,
+            r: 1
+          },
+          {
+            q: -2,
+            r: 2
+          }
+        ],
+        coloredZones: [
+          {
+            name: "SAPPHIRE Zone",
+            color: "sapphire",
+            coords: [
+              {
+                q: -2,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              },
+              {
+                q: 1,
+                r: -2
+              },
+              {
+                q: 0,
+                r: -1
+              },
+              {
+                q: 1,
+                r: -1
+              }
+            ],
+            bossZoneType: "defend"
+          },
+          {
+            name: "AMBER Zone",
+            color: "amber",
+            coords: [
+              {
+                q: 0,
+                r: 2
+              }
+            ],
+            bossZoneType: "power"
+          },
+          {
+            name: "EMERALD Zone",
+            color: "emerald",
+            coords: [
+              {
+                q: -1,
+                r: 2
+              },
+              {
+                q: -2,
+                r: 1
+              },
+              {
+                q: 1,
+                r: 1
+              }
+            ],
+            bossZoneType: "traits"
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-tower-sapphire",
+        type: "tower",
+        color: "sapphire",
+        name: "Hydro-Spire Keep",
+        description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
+        bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: -1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-house-amber",
+        type: "house",
+        color: "amber",
+        name: "Sunlit Townhall",
+        description: "Golden shingle residence with radiant lantern tower.",
+        bonusesDescription: "Single cell. Matches Amber sunlit zones.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-triad-emerald",
+        type: "mixed",
+        color: "emerald",
+        name: "Grove Triad",
+        description: "Three-cell enchanted forest grove with warden post.",
+        bonusesDescription: "3-Hex Triad cluster. Fast green zone coverage.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-trees-emerald",
+        type: "trees",
+        color: "emerald",
+        name: "Verdant Shelter",
+        description: "Dense sanctuary of mystical emerald pines and botanical gardens.",
+        bonusesDescription: "Single cell. Matches Emerald grove zones.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "trees"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-house-sapphire",
+        type: "house",
+        color: "sapphire",
+        name: "Aquifer Lodge",
+        description: "Sturdy blue shingle lodge overlooking pristine natural springs.",
+        bonusesDescription: "Single cell. Matches Sapphire aquifer zones.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-quad-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Basin Quad",
+        description: "Four-cell hydro reservoir with purification fountain & lodge.",
+        bonusesDescription: "4-Hex Quad cluster. Wide sapphire reach.",
+        clusterType: "quad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "house"
+          },
+          {
+            q: -1,
+            r: 1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 4
+      }
+    ],
+    targetScore: {
+      star1: 450,
+      star2: 750,
+      star3: 1000,
     },
-    {
-      phaseNumber: 2,
-      title: "Phase 2: Frontier Expansion",
-      objective: "Expand land boundaries to cover newly unlocked zones.",
-      targetTilesCount: 20,
-      unlockedCoords: [
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: 1,
-          r: -2
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: 1,
-          r: 1
-        },
-        {
-          q: -2,
-          r: 2
-        }
-      ],
-      coloredZones: [
-        {
-          name: "SAPPHIRE Zone",
-          color: "sapphire",
-          coords: [
-            {
-              q: -2,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            },
-            {
-              q: 1,
-              r: -2
-            },
-            {
-              q: 0,
-              r: -1
-            },
-            {
-              q: 1,
-              r: -1
-            }
-          ],
-          bossZoneType: "defend"
-        },
-        {
-          name: "AMBER Zone",
-          color: "amber",
-          coords: [
-            {
-              q: 0,
-              r: 2
-            }
-          ],
-          bossZoneType: "power"
-        },
-        {
-          name: "EMERALD Zone",
-          color: "emerald",
-          coords: [
-            {
-              q: -1,
-              r: 2
-            },
-            {
-              q: -2,
-              r: 1
-            },
-            {
-              q: 1,
-              r: 1
-            }
-          ],
-          bossZoneType: "traits"
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-tower-sapphire",
-      type: "tower",
-      color: "sapphire",
-      name: "Hydro-Spire Keep",
-      description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
-      bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: -1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-house-amber",
-      type: "house",
-      color: "amber",
-      name: "Sunlit Townhall",
-      description: "Golden shingle residence with radiant lantern tower.",
-      bonusesDescription: "Single cell. Matches Amber sunlit zones.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-triad-emerald",
-      type: "mixed",
-      color: "emerald",
-      name: "Grove Triad",
-      description: "Three-cell enchanted forest grove with warden post.",
-      bonusesDescription: "3-Hex Triad cluster. Fast green zone coverage.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-trees-emerald",
-      type: "trees",
-      color: "emerald",
-      name: "Verdant Shelter",
-      description: "Dense sanctuary of mystical emerald pines and botanical gardens.",
-      bonusesDescription: "Single cell. Matches Emerald grove zones.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "trees"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-house-sapphire",
-      type: "house",
-      color: "sapphire",
-      name: "Aquifer Lodge",
-      description: "Sturdy blue shingle lodge overlooking pristine natural springs.",
-      bonusesDescription: "Single cell. Matches Sapphire aquifer zones.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-quad-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Basin Quad",
-      description: "Four-cell hydro reservoir with purification fountain & lodge.",
-      bonusesDescription: "4-Hex Quad cluster. Wide sapphire reach.",
-      clusterType: "quad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "house"
-        },
-        {
-          q: -1,
-          r: 1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 4
-    }
-  ],
-  targetScore: {
-    star1: 450,
-    star2: 750,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 9: Autumn Canopy (5-Hex Pentad Clusters & Tight Par)
   // --------------------------------------------------------------------------
   {
-  id: 9,
-  name: "Autumn Canopy",
-  subtitle: "Mechanic: 5-Hex Canopy Pentad",
-  description: "Deploy the massive 5-Hex Canopy Pentad cluster to anchor ancient emerald forest sanctuaries.",
-  lightbulbBudget: 65,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Canopy Basin",
-      objective: "Place the Canopy Pentad with zero overlap and precise alignment.",
-      targetTilesCount: 11,
-      unlockedCoords: [
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -2
-        },
-        {
-          q: 0,
-          r: -2
-        },
-        {
-          q: -2,
-          r: 2
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: 2,
-          r: -2
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: 1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: -2,
-          r: -1
-        },
-        {
-          q: 3,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "AMBER Zone",
-          color: "amber",
-          coords: [
-            {
-              q: -2,
-              r: 1
-            },
-            {
-              q: -1,
-              r: 2
-            },
-            {
-              q: 2,
-              r: -1
-            },
-            {
-              q: 1,
-              r: -2
-            },
-            {
-              q: -1,
-              r: -1
-            },
-            {
-              q: 1,
-              r: 1
-            }
-          ],
-          bossZoneType: "power"
-        },
-        {
-          name: "SAPPHIRE Zone",
-          color: "sapphire",
-          coords: [
-            {
-              q: -2,
-              r: 0
-            },
-            {
-              q: 0,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            }
-          ],
-          bossZoneType: "defend"
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-duo-amber",
-      type: "mixed",
-      color: "amber",
-      name: "Solar Duo",
-      description: "Sunlit house connected to a golden wheat croft.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
+    id: 9,
+    name: "Autumn Canopy",
+    subtitle: "Mechanic: 5-Hex Canopy Pentad",
+    description: "Deploy the massive 5-Hex Canopy Pentad cluster to anchor ancient emerald forest sanctuaries.",
+    lightbulbBudget: 65,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Canopy Basin",
+        objective: "Place the Canopy Pentad with zero overlap and precise alignment.",
+        targetTilesCount: 11,
+        unlockedCoords: [
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: 2,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -2
+          },
+          {
+            q: 0,
+            r: -2
+          },
+          {
+            q: -2,
+            r: 2
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: 2,
+            r: -2
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: 1,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: -2,
+            r: -1
+          },
+          {
+            q: 3,
+            r: -1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "AMBER Zone",
+            color: "amber",
+            coords: [
+              {
+                q: -2,
+                r: 1
+              },
+              {
+                q: -1,
+                r: 2
+              },
+              {
+                q: 2,
+                r: -1
+              },
+              {
+                q: 1,
+                r: -2
+              },
+              {
+                q: -1,
+                r: -1
+              },
+              {
+                q: 1,
+                r: 1
+              }
+            ],
+            bossZoneType: "power"
+          },
+          {
+            name: "SAPPHIRE Zone",
+            color: "sapphire",
+            coords: [
+              {
+                q: -2,
+                r: 0
+              },
+              {
+                q: 0,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              }
+            ],
+            bossZoneType: "defend"
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-duo-amber",
+        type: "mixed",
+        color: "amber",
+        name: "Solar Duo",
+        description: "Sunlit house connected to a golden wheat croft.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Amber zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-quad-amber",
+        type: "mixed",
+        color: "amber",
+        name: "Sunstone Quad",
+        description: "Four-piece sunstone estate and harvest silos.",
+        bonusesDescription: "4-Hex Quad cluster. Powerful amber scoring.",
+        clusterType: "quad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "trees"
+          },
+          {
+            q: 1,
+            r: 1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 4
+      },
+      {
+        id: "p-tower-sapphire",
+        type: "tower",
+        color: "sapphire",
+        name: "Hydro-Spire Keep",
+        description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
+        bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: -1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-duo-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Aqueduct Duo",
+        description: "Twin watermill and sluice gate reservoir.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      }
+    ],
+    targetScore: {
+      star1: 500,
+      star2: 750,
+      star3: 1000,
     },
-    {
-      id: "p-quad-amber",
-      type: "mixed",
-      color: "amber",
-      name: "Sunstone Quad",
-      description: "Four-piece sunstone estate and harvest silos.",
-      bonusesDescription: "4-Hex Quad cluster. Powerful amber scoring.",
-      clusterType: "quad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "trees"
-        },
-        {
-          q: 1,
-          r: 1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 4
-    },
-    {
-      id: "p-tower-sapphire",
-      type: "tower",
-      color: "sapphire",
-      name: "Hydro-Spire Keep",
-      description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
-      bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: -1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-duo-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Aqueduct Duo",
-      description: "Twin watermill and sluice gate reservoir.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    }
-  ],
-  targetScore: {
-    star1: 500,
-    star2: 750,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 10: Citadel of the Pioneers (Tier 1 Grand Finale)
   // --------------------------------------------------------------------------
   {
-  id: 10,
-  name: "Citadel of the Pioneers",
-  subtitle: "Tier 1 Grand Finale: Multi-Phase Cluster Citadel",
-  description: "Combine all learned mechanics: Multi-Phase expansion, 2H to 5H Giant Clusters, and Tri-Color zone completion.",
-  lightbulbBudget: 50,
-  phases: [
-    {
-      phaseNumber: 1,
-      title: "Phase 1: Citadel Foundations",
-      objective: "Establish the core citadel using amber and sapphire clusters.",
-      targetTilesCount: 7,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Citadel Gate",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            }
-          ]
-        },
-        {
-          name: "Reservoir Keep",
-          color: "sapphire",
-          coords: [
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: -2,
-              r: 0
-            }
-          ]
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
+    id: 10,
+    name: "Citadel of the Pioneers",
+    subtitle: "Tier 1 Grand Finale: Multi-Phase Cluster Citadel",
+    description: "Combine all learned mechanics: Multi-Phase expansion, 2H to 5H Giant Clusters, and Tri-Color zone completion.",
+    lightbulbBudget: 50,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: "Phase 1: Citadel Foundations",
+        objective: "Establish the core citadel using amber and sapphire clusters.",
+        targetTilesCount: 7,
+        unlockedCoords: [
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: 1,
+            r: 1
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Citadel Gate",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              }
+            ]
+          },
+          {
+            name: "Reservoir Keep",
+            color: "sapphire",
+            coords: [
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: -2,
+                r: 0
+              }
+            ]
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      },
+      {
+        phaseNumber: 2,
+        title: "Phase 2: Grand Bastion",
+        objective: "Expand into the outer emerald walls to complete the pioneer fortress.",
+        targetTilesCount: 14,
+        unlockedCoords: [
+          {
+            q: 1,
+            r: 0
+          },
+          {
+            q: -1,
+            r: 0
+          },
+          {
+            q: 2,
+            r: 0
+          },
+          {
+            q: -2,
+            r: 0
+          },
+          {
+            q: -2,
+            r: 1
+          },
+          {
+            q: -1,
+            r: -1
+          },
+          {
+            q: 1,
+            r: 1
+          },
+          {
+            q: -1,
+            r: 2
+          },
+          {
+            q: -1,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 0
+          },
+          {
+            q: 1,
+            r: -1
+          },
+          {
+            q: 0,
+            r: -1
+          },
+          {
+            q: 0,
+            r: 1
+          },
+          {
+            q: 0,
+            r: 2
+          },
+          {
+            q: 0,
+            r: -2
+          },
+          {
+            q: 2,
+            r: -2
+          },
+          {
+            q: -2,
+            r: 2
+          }
+        ],
+        coloredZones: [
+          {
+            name: "Citadel Gate",
+            color: "amber",
+            coords: [
+              {
+                q: 1,
+                r: 0
+              },
+              {
+                q: 2,
+                r: 0
+              }
+            ]
+          },
+          {
+            name: "Reservoir Keep",
+            color: "sapphire",
+            coords: [
+              {
+                q: -1,
+                r: 0
+              },
+              {
+                q: -2,
+                r: 0
+              }
+            ]
+          },
+          {
+            name: "RUBY Zone",
+            color: "ruby",
+            coords: [
+              {
+                q: -1,
+                r: 1
+              },
+              {
+                q: 0,
+                r: 0
+              },
+              {
+                q: 1,
+                r: -1
+              },
+              {
+                q: 2,
+                r: -2
+              },
+              {
+                q: -2,
+                r: 2
+              }
+            ],
+            bossZoneType: "power"
+          },
+          {
+            name: "EMERALD Zone",
+            color: "emerald",
+            coords: [
+              {
+                q: 0,
+                r: -1
+              },
+              {
+                q: 0,
+                r: 1
+              },
+              {
+                q: 0,
+                r: 2
+              },
+              {
+                q: 0,
+                r: -2
+              }
+            ],
+            bossZoneType: "traits"
+          }
+        ],
+        fogCoords: [],
+        riverCoords: [],
+        rotationZones: []
+      }
+    ],
+    availablePieces: [
+      {
+        id: "p-house-gray",
+        type: "house",
+        color: "neutral",
+        name: "Timber Cottage",
+        description: "Single pioneer dwelling with stone base & slate roof.",
+        bonusesDescription: "Single cell. Safe on any gray clearing.",
+        clusterType: "single",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 1
+      },
+      {
+        id: "p-triad-amber",
+        type: "mixed",
+        color: "amber",
+        name: "Amber Triad",
+        description: "Triangular sun-district with townhall and twin amber crofts.",
+        bonusesDescription: "3-Hex Triad cluster. Fills 3 amber zones.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "trees"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-duo-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Aqueduct Duo",
+        description: "Twin watermill and sluice gate reservoir.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-quad-sapphire",
+        type: "mixed",
+        color: "sapphire",
+        name: "Basin Quad",
+        description: "Four-cell hydro reservoir with purification fountain & lodge.",
+        bonusesDescription: "4-Hex Quad cluster. Wide sapphire reach.",
+        clusterType: "quad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "house"
+          },
+          {
+            q: -1,
+            r: 1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 4
+      },
+      {
+        id: "p-triad-emerald",
+        type: "mixed",
+        color: "emerald",
+        name: "Grove Triad",
+        description: "Three-cell enchanted forest grove with warden post.",
+        bonusesDescription: "3-Hex Triad cluster. Fast green zone coverage.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "trees"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 3
+      },
+      {
+        id: "p-landmark-cathedral",
+        type: "landmark",
+        color: "ruby",
+        name: "Crimson Sovereign Cathedral",
+        description: "Five-hex magnificent terracotta cathedral and spire landmark.",
+        bonusesDescription: "5-Hex Landmark. Epic crimson beauty.",
+        clusterType: "pentad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "landmark"
+          },
+          {
+            q: 1,
+            r: 0,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "house"
+          },
+          {
+            q: -1,
+            r: 1,
+            type: "landmark"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 5
+      },
+      {
+        id: "p-duo-ruby",
+        type: "mixed",
+        color: "ruby",
+        name: "Forge Duo",
+        description: "Twin blacksmith workshop and brick kiln foundry.",
+        bonusesDescription: "2-Hex Duo cluster. Matches Ruby zones.",
+        clusterType: "duo",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "house"
+          },
+          {
+            q: 0,
+            r: 1,
+            type: "mixed"
+          }
+        ],
+        lightbulbCost: 2
+      },
+      {
+        id: "p-tower-sapphire",
+        type: "tower",
+        color: "sapphire",
+        name: "Hydro-Spire Keep",
+        description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
+        bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
+        clusterType: "triad",
+        clusterShape: [
+          {
+            q: 0,
+            r: 0,
+            type: "tower"
+          },
+          {
+            q: 1,
+            r: -1,
+            type: "mixed"
+          },
+          {
+            q: 0,
+            r: -1,
+            type: "house"
+          }
+        ],
+        lightbulbCost: 3
+      }
+    ],
+    targetScore: {
+      star1: 500,
+      star2: 750,
+      star3: 1000,
     },
-    {
-      phaseNumber: 2,
-      title: "Phase 2: Grand Bastion",
-      objective: "Expand into the outer emerald walls to complete the pioneer fortress.",
-      targetTilesCount: 14,
-      unlockedCoords: [
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: 1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 0,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: 0,
-          r: -2
-        },
-        {
-          q: 2,
-          r: -2
-        },
-        {
-          q: -2,
-          r: 2
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Citadel Gate",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 2,
-              r: 0
-            }
-          ]
-        },
-        {
-          name: "Reservoir Keep",
-          color: "sapphire",
-          coords: [
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: -2,
-              r: 0
-            }
-          ]
-        },
-        {
-          name: "RUBY Zone",
-          color: "ruby",
-          coords: [
-            {
-              q: -1,
-              r: 1
-            },
-            {
-              q: 0,
-              r: 0
-            },
-            {
-              q: 1,
-              r: -1
-            },
-            {
-              q: 2,
-              r: -2
-            },
-            {
-              q: -2,
-              r: 2
-            }
-          ],
-          bossZoneType: "power"
-        },
-        {
-          name: "EMERALD Zone",
-          color: "emerald",
-          coords: [
-            {
-              q: 0,
-              r: -1
-            },
-            {
-              q: 0,
-              r: 1
-            },
-            {
-              q: 0,
-              r: 2
-            },
-            {
-              q: 0,
-              r: -2
-            }
-          ],
-          bossZoneType: "traits"
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
-  ],
-  availablePieces: [
-    {
-      id: "p-house-gray",
-      type: "house",
-      color: "neutral",
-      name: "Timber Cottage",
-      description: "Single pioneer dwelling with stone base & slate roof.",
-      bonusesDescription: "Single cell. Safe on any gray clearing.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
-    {
-      id: "p-triad-amber",
-      type: "mixed",
-      color: "amber",
-      name: "Amber Triad",
-      description: "Triangular sun-district with townhall and twin amber crofts.",
-      bonusesDescription: "3-Hex Triad cluster. Fills 3 amber zones.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "trees"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-duo-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Aqueduct Duo",
-      description: "Twin watermill and sluice gate reservoir.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-quad-sapphire",
-      type: "mixed",
-      color: "sapphire",
-      name: "Basin Quad",
-      description: "Four-cell hydro reservoir with purification fountain & lodge.",
-      bonusesDescription: "4-Hex Quad cluster. Wide sapphire reach.",
-      clusterType: "quad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "house"
-        },
-        {
-          q: -1,
-          r: 1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 4
-    },
-    {
-      id: "p-triad-emerald",
-      type: "mixed",
-      color: "emerald",
-      name: "Grove Triad",
-      description: "Three-cell enchanted forest grove with warden post.",
-      bonusesDescription: "3-Hex Triad cluster. Fast green zone coverage.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "trees"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 3
-    },
-    {
-      id: "p-landmark-cathedral",
-      type: "landmark",
-      color: "ruby",
-      name: "Crimson Sovereign Cathedral",
-      description: "Five-hex magnificent terracotta cathedral and spire landmark.",
-      bonusesDescription: "5-Hex Landmark. Epic crimson beauty.",
-      clusterType: "pentad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "landmark"
-        },
-        {
-          q: 1,
-          r: 0,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "house"
-        },
-        {
-          q: -1,
-          r: 1,
-          type: "landmark"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 5
-    },
-    {
-      id: "p-duo-ruby",
-      type: "mixed",
-      color: "ruby",
-      name: "Forge Duo",
-      description: "Twin blacksmith workshop and brick kiln foundry.",
-      bonusesDescription: "2-Hex Duo cluster. Matches Ruby zones.",
-      clusterType: "duo",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        },
-        {
-          q: 0,
-          r: 1,
-          type: "mixed"
-        }
-      ],
-      lightbulbCost: 2
-    },
-    {
-      id: "p-tower-sapphire",
-      type: "tower",
-      color: "sapphire",
-      name: "Hydro-Spire Keep",
-      description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
-      bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
-      clusterType: "triad",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "tower"
-        },
-        {
-          q: 1,
-          r: -1,
-          type: "mixed"
-        },
-        {
-          q: 0,
-          r: -1,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 3
-    }
-  ],
-  targetScore: {
-    star1: 500,
-    star2: 750,
-    star3: 1000,
+    isBossLevel: false
   },
-  isBossLevel: false
-},
 
   // --------------------------------------------------------------------------
   // LEVEL 11: The Riverbend Turntable (Introduces Rotation Zones)
@@ -3815,226 +3815,401 @@ export const LEVELS: LevelConfig[] = [
   // LEVEL 25: THE GRAND TYCOON EXCHANGE (BUSINESS BATTLE)
   // --------------------------------------------------------------------------
   {
-    id: 25,
-    name: 'The Grand Tycoon Exchange',
-    subtitle: 'BUSINESS BATTLE: Rival Commercial Showdown',
-    description:
-      'Engage Rival Tycoon Sterling Vance in a high-stakes Revenue Showdown! Inspect colored zones without picking up pieces to boost Popularity, Ambience, and Bonus Slots, then dominate the market revenue!',
-    isBossLevel: true,
-    lightbulbBudget: 60,
-    bossName: 'Tycoon Sterling Vance',
-    bossPopularity: 180,
-    bossAmbience: 170,
-    bossMaxHp: 5000,
-    masteryChallenge: {
-      id: 'mc-25',
-      title: 'Commercial Hegemony',
-      description: 'Win the Business Showdown and finish with at least 2500 points!',
-      type: 'min_score',
-      targetValue: 2500,
-    },
+    "id": 25,
+    "name": "The Grand Tycoon Exchange",
+    "subtitle": "BUSINESS BATTLE: Rival Commercial Showdown",
+    "description": "Engage Rival Tycoon Sterling Vance in a high-stakes Revenue Showdown! Inspect colored zones without picking up pieces to boost Popularity, Ambience, and Bonus Slots, then dominate the market revenue!",
+    "lightbulbBudget": 35,
     "phases": [
-    {
-      "phaseNumber": 1,
-      "title": "Commercial Phase 1: Market Foundation",
-      "objective": "Inspect the Golden Promenade to boost Popularity, then secure the commercial core.",
-      "targetTilesCount": 6,
-      "unlockedCoords": [
-        {
-          "q": 0,
-          "r": 0
-        },
-        {
-          "q": 1,
-          "r": 0
-        },
-        {
-          "q": -1,
-          "r": 0
-        },
-        {
-          "q": 0,
-          "r": -1
-        },
-        {
-          "q": 1,
-          "r": -1
-        },
-        {
-          "q": -1,
-          "r": 1
-        },
-        {
-          "q": 2,
-          "r": 0
-        },
-        {
-          "q": 3,
-          "r": -1
-        },
-        {
-          "q": 2,
-          "r": -1
-        },
-        {
-          "q": 3,
-          "r": 0
-        },
-        {
-          "q": 2,
-          "r": 1
-        },
-        {
-          "q": -1,
-          "r": 2
-        },
-        {
-          "q": -2,
-          "r": 2
-        },
-        {
-          "q": -3,
-          "r": 2
-        },
-        {
-          "q": -1,
-          "r": -1
-        },
-        {
-          "q": 1,
-          "r": 1
-        },
-        {
-          "q": 0,
-          "r": 1
-        },
-        {
-          "q": -2,
-          "r": -1
-        },
-        {
-          "q": -3,
-          "r": 0
-        },
-        {
-          "q": -3,
-          "r": 1
-        },
-        {
-          "q": -2,
-          "r": 1
-        },
-        {
-          "q": -2,
-          "r": 0
-        },
-        {
-          "q": 0,
-          "r": -2
-        },
-        {
-          "q": 1,
-          "r": -2
-        },
-        {
-          "q": 2,
-          "r": -2
-        }
-      ],
-      "coloredZones": [
-        {
-          "name": "Golden Promenade (Amber)",
-          "color": "amber",
-          "coords": [
-            {
-              "q": 0,
-              "r": 0
-            },
-            {
-              "q": 1,
-              "r": 0
-            },
-            {
-              "q": 1,
-              "r": 1
-            },
-            {
-              "q": 0,
-              "r": 1
-            }
-          ]
-        },
-        {
-          "name": "RUBY Zone",
-          "color": "ruby",
-          "coords": [
-            {
-              "q": -2,
-              "r": -1
-            },
-            {
-              "q": -3,
-              "r": 0
-            },
-            {
-              "q": -3,
-              "r": 1
-            },
-            {
-              "q": -2,
-              "r": 1
-            },
-            {
-              "q": -2,
-              "r": 0
-            }
-          ],
-          "bossZoneType": "power"
-        },
-        {
-          "name": "SAPPHIRE Zone",
-          "color": "sapphire",
-          "coords": [
-            {
-              "q": 0,
-              "r": -2
-            },
-            {
-              "q": 1,
-              "r": -2
-            },
-            {
-              "q": 2,
-              "r": -2
-            }
-          ],
-          "bossZoneType": "defend"
-        }
-      ],
-      "riverCoords": [
-        {
-          "q": 0,
-          "r": 2
-        },
-        {
-          "q": 1,
-          "r": 2
-        }
-      ],
-      "fogCoords": [],
-      "rotationZones": []
-    }
-  ],
-
-    availablePieces: [
-      { ...PIECE_PALETTE.find(p => p.id === 'p-blossom-multi')!, stock: 2 },
-      { ...PIECE_PALETTE.find(p => p.id === 'p-triad-amber')!, stock: 3 },
-      { ...PIECE_PALETTE.find(p => p.id === 'p-pentad-emerald')!, stock: 2 },
-      { ...PIECE_PALETTE.find(p => p.id === 'p-quad-sapphire')!, stock: 3 },
-      { ...PIECE_PALETTE.find(p => p.id === 'p-duo-ruby')!, stock: 4 },
-      { ...PIECE_PALETTE.find(p => p.id === 'p-house-gray')!, stock: 6 },
+      {
+        "phaseNumber": 1,
+        "title": "Commercial Phase 1: Market Foundation",
+        "objective": "Inspect the Golden Promenade to boost Popularity, then secure the commercial core.",
+        "targetTilesCount": 6,
+        "unlockedCoords": [
+          {
+            "q": 0,
+            "r": -3
+          },
+          {
+            "q": -1,
+            "r": -2
+          },
+          {
+            "q": -1,
+            "r": -1
+          },
+          {
+            "q": 3,
+            "r": -3
+          },
+          {
+            "q": 3,
+            "r": -2
+          },
+          {
+            "q": 2,
+            "r": -1
+          },
+          {
+            "q": 1,
+            "r": -2
+          },
+          {
+            "q": -1,
+            "r": 1
+          },
+          {
+            "q": 0,
+            "r": 1
+          },
+          {
+            "q": -2,
+            "r": 3
+          },
+          {
+            "q": -1,
+            "r": 3
+          },
+          {
+            "q": -3,
+            "r": 2
+          },
+          {
+            "q": 1,
+            "r": 2
+          },
+          {
+            "q": -2,
+            "r": 2
+          },
+          {
+            "q": -3,
+            "r": 3
+          },
+          {
+            "q": 0,
+            "r": 2
+          },
+          {
+            "q": 0,
+            "r": 3
+          },
+          {
+            "q": -2,
+            "r": 1
+          },
+          {
+            "q": 1,
+            "r": 1
+          },
+          {
+            "q": 1,
+            "r": -3
+          },
+          {
+            "q": 2,
+            "r": -3
+          }
+        ],
+        "coloredZones": [
+          {
+            "name": "RUBY Zone",
+            "color": "ruby",
+            "coords": [
+              {
+                "q": 0,
+                "r": -3
+              },
+              {
+                "q": -1,
+                "r": -2
+              },
+              {
+                "q": -1,
+                "r": -1
+              },
+              {
+                "q": 3,
+                "r": -3
+              },
+              {
+                "q": 3,
+                "r": -2
+              },
+              {
+                "q": 2,
+                "r": -1
+              }
+            ],
+            "bossZoneType": "power"
+          },
+          {
+            "name": "EMERALD Zone",
+            "color": "emerald",
+            "coords": [
+              {
+                "q": 1,
+                "r": -2
+              },
+              {
+                "q": -2,
+                "r": 2
+              },
+              {
+                "q": -3,
+                "r": 3
+              },
+              {
+                "q": 0,
+                "r": 2
+              },
+              {
+                "q": 0,
+                "r": 3
+              }
+            ],
+            "bossZoneType": "traits"
+          },
+          {
+            "name": "SAPPHIRE Zone",
+            "color": "sapphire",
+            "coords": [
+              {
+                "q": -1,
+                "r": 1
+              },
+              {
+                "q": -2,
+                "r": 1
+              },
+              {
+                "q": 1,
+                "r": 1
+              }
+            ],
+            "bossZoneType": "defend"
+          },
+          {
+            "name": "AMBER Zone",
+            "color": "amber",
+            "coords": [
+              {
+                "q": 0,
+                "r": 1
+              },
+              {
+                "q": -2,
+                "r": 3
+              },
+              {
+                "q": -1,
+                "r": 3
+              }
+            ],
+            "bossZoneType": "power"
+          }
+        ],
+        "riverCoords": [
+          {
+            "q": 0,
+            "r": -1
+          },
+          {
+            "q": 1,
+            "r": -1
+          }
+        ],
+        "fogCoords": [],
+        "rotationZones": []
+      }
     ],
-    targetScore: { star1: 1000, star2: 3500, star3: 4200 },
+    "availablePieces": [
+      {
+        "id": "p-tower-amber",
+        "type": "tower",
+        "color": "amber",
+        "name": "Solar Citadel Spire",
+        "description": "A spectacular 3-hex amber cluster anchored by a radiant wizard tower.",
+        "bonusesDescription": "3-Hex Tower Cluster. High amber alignment score.",
+        "clusterType": "triad",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "tower"
+          },
+          {
+            "q": 1,
+            "r": 0,
+            "type": "mixed"
+          },
+          {
+            "q": 0,
+            "r": 1,
+            "type": "house"
+          }
+        ],
+        "lightbulbCost": 3
+      },
+      {
+        "id": "p-duo-ruby",
+        "type": "mixed",
+        "color": "ruby",
+        "name": "Forge Duo",
+        "description": "Twin blacksmith workshop and brick kiln foundry.",
+        "bonusesDescription": "2-Hex Duo cluster. Matches Ruby zones.",
+        "clusterType": "duo",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "house"
+          },
+          {
+            "q": 0,
+            "r": 1,
+            "type": "mixed"
+          }
+        ],
+        "lightbulbCost": 2,
+        "stock": 4
+      },
+      {
+        "id": "p-house-ruby",
+        "type": "house",
+        "color": "ruby",
+        "name": "Terracotta Hearth",
+        "description": "Crimson shingle forge cottage with blazing chimney kiln.",
+        "bonusesDescription": "Single cell. Matches Ruby terracotta hearths.",
+        "clusterType": "single",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "house"
+          }
+        ],
+        "lightbulbCost": 1
+      },
+      {
+        "id": "p-duo-emerald",
+        "type": "mixed",
+        "color": "emerald",
+        "name": "Arbor Duo",
+        "description": "Tandem grove shelter with towering emerald conifers.",
+        "bonusesDescription": "2-Hex Duo cluster. Matches Emerald zones.",
+        "clusterType": "duo",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "trees"
+          },
+          {
+            "q": 0,
+            "r": 1,
+            "type": "mixed"
+          }
+        ],
+        "lightbulbCost": 2
+      },
+      {
+        "id": "p-duo-amber",
+        "type": "mixed",
+        "color": "amber",
+        "name": "Solar Duo",
+        "description": "Sunlit house connected to a golden wheat croft.",
+        "bonusesDescription": "2-Hex Duo cluster. Matches Amber zones.",
+        "clusterType": "duo",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "house"
+          },
+          {
+            "q": 1,
+            "r": 0,
+            "type": "mixed"
+          }
+        ],
+        "lightbulbCost": 2
+      },
+      {
+        "id": "p-bridge-duo",
+        "type": "bridge",
+        "color": "neutral",
+        "name": "Timber Bridgeway Duo",
+        "description": "Two-hex connected timber deck bridge to span waterways and gaps.",
+        "bonusesDescription": "2-Hex Bridge Duo. Crosses river channels.",
+        "clusterType": "duo",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "bridge"
+          },
+          {
+            "q": 1,
+            "r": 0,
+            "type": "bridge"
+          }
+        ],
+        "lightbulbCost": 2
+      },
+      {
+        "id": "p-house-sapphire",
+        "type": "house",
+        "color": "sapphire",
+        "name": "Aquifer Lodge",
+        "description": "Sturdy blue shingle lodge overlooking pristine natural springs.",
+        "bonusesDescription": "Single cell. Matches Sapphire aquifer zones.",
+        "clusterType": "single",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "house"
+          }
+        ],
+        "lightbulbCost": 1
+      },
+      {
+        "id": "p-house-amber",
+        "type": "house",
+        "color": "amber",
+        "name": "Sunlit Townhall",
+        "description": "Golden shingle residence with radiant lantern tower.",
+        "bonusesDescription": "Single cell. Matches Amber sunlit zones.",
+        "clusterType": "single",
+        "clusterShape": [
+          {
+            "q": 0,
+            "r": 0,
+            "type": "house"
+          }
+        ],
+        "lightbulbCost": 1
+      }
+    ],
+    "targetScore": {
+      "star1": 1000,
+      "star2": 3500,
+      "star3": 4200
+    },
+    "isBossLevel": true,
+    "bossName": "Tycoon Sterling Vance",
+    "bossMaxHp": 5000,
+    "bossAtk": 45,
+    "bossDef": 25,
+    "masteryChallenge": {
+      "id": "mc-custom-25",
+      "title": "Commercial Hegemony",
+      "description": "Win the Business Showdown and finish with at least 2500 points!",
+      "type": "min_score",
+      "targetValue": 2500
+    }
   },
 
   // --------------------------------------------------------------------------
