@@ -23,6 +23,8 @@ export interface BossBattleStats {
   bonusSlots: number;
   inspectedSectionsCount: number;
   totalSectionsCount: number;
+  isStatsCollapsed?: boolean;
+  collapseReason?: string;
   inspectedBenefits: {
     popularityGained: number;
     ambienceGained: number;
@@ -83,6 +85,7 @@ export interface HexPiece {
   clusterType?: ClusterType;
   stock?: number; // Limited inventory stock count (e.g. Boss level)
   lightbulbCost?: number; // Cost in Lightbulbs (Building Mode)
+  roadArms?: number;
 }
 
 export interface PlacedTile extends HexPiece {
@@ -114,8 +117,45 @@ export interface MasteryChallenge {
   id: string;
   title: string;
   description: string;
-  type: 'zero_disconnect' | 'zero_overuse' | 'zero_overlap' | 'zero_offmap' | 'rotate_zone' | 'multi_cluster' | 'fill_all_zones' | 'min_score';
+  type:
+    | 'zero_disconnect'
+    | 'zero_overuse'
+    | 'zero_overlap'
+    | 'zero_offmap'
+    | 'rotate_zone'
+    | 'multi_cluster'
+    | 'fill_all_zones'
+    | 'min_score'
+    | 'roads_pass_houses'
+    | 'bridge_to_target'
+    | 'no_shutdown_during_window';
   targetValue?: number;
+}
+
+export interface BossSkill {
+  id: string;
+  name: string;
+  description: string;
+  trigger: 'at_percent' | 'always_after_percent' | 'window';
+  triggerPercent?: number;     // e.g. 25, 55, 75, 90, 95
+  windowStart?: number;        // e.g. 75 (Triple Surge Shutdown window)
+  windowEnd?: number;          // e.g. 85
+  effect: string;              // Human-readable description of the effect
+}
+
+export interface BossConfig {
+  id: string;
+  name: string;
+  maxHp: number;
+  atk: number;
+  def: number;
+  personality:
+    | 'high_pop_low_amb'    // Buffs own Ambience, defends
+    | 'balanced'             // Debuffs player, uses Pierce
+    | 'high_amb_low_pop'     // Skill-heavy, triple-trigger at thresholds
+    | 'low_low_retribution'; // Random triple-triggers, Retribution finisher
+  skills: BossSkill[];
+  phases: PhaseConfig[];   // Each boss has its own board layout
 }
 
 export interface PhaseConfig {
@@ -128,12 +168,19 @@ export interface PhaseConfig {
     color: TileColor;
     coords: HexCoord[];
     name: string;
-    bossZoneType?: BossZoneType;
+    bossZoneType?: BossZoneType | 'power' | 'defend' | 'traits' | 'mixed';
   }[];
   fogCoords?: HexCoord[];     // Fog Hexes previewing next phase boundaries
   riverCoords?: HexCoord[];   // Unbuildable natural river barrier cells
   rotationZones?: RotationZone[];
   initialPlacedTiles?: { pieceId: string; q: number; r: number }[];
+  prePlacedRoads?: { pieceId: string; q: number; r: number; rotation?: number }[];
+  roadRequirements?: {
+    roadKey: string;   // e.g. "main-avenue"
+    minHousesAdjacent: number;  // e.g. 3
+    roadCoords: HexCoord[];
+  }[];
+  timeLimitSeconds?: number;
 }
 
 export interface LevelConfig {
@@ -164,6 +211,9 @@ export interface LevelConfig {
     hidePenalties?: boolean;
     hideScore?: boolean;
   };
+  bossSequence?: BossConfig[];   // For multi-boss levels (35, 60, 100)
+  levelType?: 'standard' | 'traffic_attack' | 'multi_boss' | 'course';
+  timeLimitSeconds?: number;     // For Course mode morph phases
 }
 
 export type BypassablePenaltyType = 'overlap' | 'overuse' | 'disconnect' | 'offMap';

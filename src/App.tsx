@@ -44,7 +44,7 @@ import {
   PlayMode,
   BossBattleStats,
 } from './types/game';
-import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors } from './utils/hexMath';
+import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors, HEX_DIRECTIONS } from './utils/hexMath';
 import { sounds } from './utils/audio';
 import {
   Sparkles,
@@ -264,6 +264,8 @@ export default function App() {
     budgetUsagePercent: 0,
     isOverBudget: false,
   });
+  const hudInsetLeftPx = 288;
+  const hudInsetRightPx = 288;
 
   // Pending Graphics Reload Confirmation State
   const [pendingGraphicsReload, setPendingGraphicsReload] = useState<{
@@ -464,6 +466,7 @@ export default function App() {
     setActiveParBonus(0);
     setIsTitanShieldActive(false);
   }, [levelIndex, phaseIndex]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const currentLevel = allLevels[levelIndex] || allLevels[0];
   const currentPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
@@ -476,6 +479,7 @@ export default function App() {
   // Dragging & Interaction
   const [selectedPiece, setSelectedPiece] = useState<HexPiece | null>(null);
   const [pickedUpCoord, setPickedUpCoord] = useState<HexCoord | null>(null);
+  const [prePlacedTileKeys, setPrePlacedTileKeys] = useState<Set<string>>(new Set());
   const [activeDragPiece, setActiveDragPiece] = useState<HexPiece | null>(null);
   const [dragPointerPos, setDragPointerPos] = useState<{ x: number; y: number } | null>(null);
   const [hoveredCoord, setHoveredCoord] = useState<HexCoord | null>(null);
@@ -525,6 +529,59 @@ export default function App() {
 
   const isPickingTile = Boolean(selectedPiece || activeDragPiece);
 
+  const roadRequirementProgress = useMemo(() => {
+    if (!currentPhase?.roadRequirements || currentPhase.roadRequirements.length === 0) {
+      return { satisfied: true, perRoad: [] as { roadKey: string; adjacent: number; required: number; satisfied: boolean }[] };
+    }
+
+    const perRoad: { roadKey: string; adjacent: number; required: number; satisfied: boolean }[] = [];
+    let allSatisfied = true;
+
+    for (const req of currentPhase.roadRequirements) {
+      // Build the set of road coords (as keys) that belong to this requirement
+      const roadKeySet = new Set(req.roadCoords.map(c => coordKey(c.q, c.r)));
+
+      // Collect all unique neighbor keys of the road coords
+      const neighborKeySet = new Set<string>();
+      for (const coord of req.roadCoords) {
+        const neighbors = getHexNeighbors(coord.q, coord.r);
+        for (const n of neighbors) {
+          const nKey = coordKey(n.q, n.r);
+          // Skip if the neighbor is itself a road (we only care about houses)
+          if (!roadKeySet.has(nKey)) neighborKeySet.add(nKey);
+        }
+      }
+
+      // Count how many of those neighbor cells contain a house-like tile
+      let houseCount = 0;
+      for (const nKey of neighborKeySet) {
+        const stack = placedTiles.get(nKey) || [];
+        const hasHouse = stack.some(t => {
+          if (t.type === 'house' || t.type === 'tower' || t.type === 'landmark' || t.type === 'mixed') return true;
+          if (t.clusterShape) {
+            return t.clusterShape.some(o => o.type === 'house' || o.type === 'tower' || o.type === 'landmark' || o.type === 'mixed');
+          }
+          if (t.clusterPieceOriginal?.clusterShape) {
+            return t.clusterPieceOriginal.clusterShape.some(o => o.type === 'house' || o.type === 'tower' || o.type === 'landmark' || o.type === 'mixed');
+          }
+          return false;
+        });
+        if (hasHouse) houseCount++;
+      }
+
+      const satisfied = houseCount >= req.minHousesAdjacent;
+      perRoad.push({
+        roadKey: req.roadKey,
+        adjacent: houseCount,
+        required: req.minHousesAdjacent,
+        satisfied,
+      });
+      if (!satisfied) allSatisfied = false;
+    }
+
+    return { satisfied: allSatisfied, perRoad };
+  }, [currentPhase, placedTiles]);
+
   const hoveredZoneInfo = useMemo(() => {
     if (!hoveredCoord || !currentPhase) return null;
 
@@ -556,6 +613,26 @@ export default function App() {
 
     return null;
   }, [hoveredCoord, currentPhase, placedTiles]);
+
+  const hoveredRoadRequirement = useMemo(() => {
+    if (!hoveredCoord || !currentPhase?.roadRequirements) return null;
+
+    const hoveredKey = coordKey(hoveredCoord.q, hoveredCoord.r);
+
+    for (const req of currentPhase.roadRequirements) {
+      if (req.roadCoords.some(c => coordKey(c.q, c.r) === hoveredKey)) {
+        const progress = roadRequirementProgress.perRoad.find(r => r.roadKey === req.roadKey);
+        return {
+          roadKey: req.roadKey,
+          adjacent: progress?.adjacent ?? 0,
+          required: req.minHousesAdjacent,
+          satisfied: progress?.satisfied ?? false,
+        };
+      }
+    }
+
+    return null;
+  }, [hoveredCoord, currentPhase, roadRequirementProgress]);
 
   // Handle player choosing a penalty bypass for a completed memory picture
   const handleSelectBypass = (pictureId: number, penalty: BypassablePenaltyType) => {
@@ -637,42 +714,75 @@ export default function App() {
     setUnlockedCells(newCells);
   }, [allLevels]);
 
-  // Reset or switch Level
   useEffect(() => {
     setPhaseIndex(0);
+  }, [levelIndex]);
+
+  // Effect B: Rebuild grid cells on level OR phase change
+  useEffect(() => {
+    initializeGridForLevel(levelIndex, phaseIndex);
+  }, [levelIndex, phaseIndex, initializeGridForLevel]);
+
+  // Reset or switch Level
+  useEffect(() => {
     setInspectedZoneKeys(new Set());
     const initialMap = new Map<string, PlacedTile[]>();
-    const ph = currentLevel.phases[0];
-    if (ph && ph.initialPlacedTiles) {
-      ph.initialPlacedTiles.forEach((init, i) => {
-        const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
-        if (piece) {
-          const key = coordKey(init.q, init.r);
-          const placed: PlacedTile = {
-            ...piece,
-            placementId: `init-${currentLevel.id}-${i}-${Date.now()}`,
-            placedAt: Date.now() + i,
-            q: init.q,
-            r: init.r,
-          };
-          initialMap.set(key, [placed]);
-        }
-      });
+    const prePlacedKeys = new Set<string>();
+    const ph = currentLevel.phases[phaseIndex];
+
+    if (ph) {
+      // 1. Regular initial placements (movable by player)
+      if (ph.initialPlacedTiles) {
+        ph.initialPlacedTiles.forEach((init, i) => {
+          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+          if (piece) {
+            const key = coordKey(init.q, init.r);
+            const placed: PlacedTile = {
+              ...piece,
+              placementId: `init-${currentLevel.id}-p${phaseIndex}-${i}-${Date.now()}`,
+              placedAt: Date.now() + i,
+              q: init.q,
+              r: init.r,
+            };
+            initialMap.set(key, [placed]);
+          }
+        });
+      }
+
+      // 2. Pre-placed roads (locked, immutable)
+      if (ph.prePlacedRoads) {
+        ph.prePlacedRoads.forEach((pre, i) => {
+          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || currentLevel.availablePieces.find(p => p.id === pre.pieceId);
+          if (piece) {
+            const key = coordKey(pre.q, pre.r);
+            const placed: PlacedTile = {
+              ...piece,
+              placementId: `preplaced-${currentLevel.id}-p${phaseIndex}-${i}-${Date.now()}`,
+              placedAt: Date.now() + i,
+              q: pre.q,
+              r: pre.r,
+              clusterId: `PREPLACED-${currentLevel.id}-${phaseIndex}-${i}`,
+            };
+            const existing = initialMap.get(key) || [];
+            initialMap.set(key, [...existing, placed]);
+            prePlacedKeys.add(key);
+          }
+        });
+      }
     }
+
     setPlacedTiles(initialMap);
+    setPrePlacedTileKeys(prePlacedKeys);
     setRotationsPerformed(0);
     setSelectedPiece(null);
     setPickedUpCoord(null);
     setActiveDragPiece(null);
     setLevelCelebration(null);
     setAvailablePieces(currentLevel.availablePieces);
-    initializeGridForLevel(levelIndex, 0);
-  }, [levelIndex, initializeGridForLevel, currentLevel]);
 
-  // Handle Phase change within level
-  useEffect(() => {
-    initializeGridForLevel(levelIndex, phaseIndex);
-  }, [levelIndex, phaseIndex, initializeGridForLevel]);
+    // Note: we do NOT reset phaseIndex here — the effect now runs ON phase change too
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [levelIndex, phaseIndex, currentLevel]);
 
   // Analyze connectivity of placed in-bounds and connected tiles
   const connectivity = useMemo(() => {
@@ -859,8 +969,9 @@ export default function App() {
         if (!stack || stack.length === 0) return false;
         const topTile = stack[stack.length - 1];
 
-        // Bridges never fulfill colored zones — they're infrastructure, not housing
+        // Bridges and pre-placed roads never fulfill colored zones — they're infrastructure
         if (topTile.type === 'bridge') return false;
+        if (topTile.clusterId?.startsWith('PREPLACED')) return false;
 
         return topTile.color === zone.color;
       });
@@ -968,11 +1079,10 @@ export default function App() {
     }
   }, [currentLevel.isBossLevel, inspectedZoneKeys]);
 
-  // Hover inspection of colored zones in Boss Levels (Level 25) while not picking up anything
+  // Hover inspection of colored zones in Boss Levels (Level 25) counts AT ANY TIME during the building phase
   useEffect(() => {
     if (!currentLevel.isBossLevel) return;
-    const isNotPickingUpAnything = !activeDragPiece && !selectedPiece && !pickedUpCoord;
-    if (!isNotPickingUpAnything || !hoveredCoord) return;
+    if (!hoveredCoord) return;
 
     // Check if hoveredCoord matches any colored zone in currentPhase
     const matchedZone = currentPhase?.coloredZones?.find(zone =>
@@ -1002,20 +1112,16 @@ export default function App() {
         showToast(`🔍 ${matchedZone.name} Inspected: ${benefitMsg}`, 'success');
       }
     }
-  }, [currentLevel.isBossLevel, currentLevel.id, currentPhase, hoveredCoord, activeDragPiece, selectedPiece, pickedUpCoord, inspectedZoneKeys]);
+  }, [currentLevel.isBossLevel, currentLevel.id, currentPhase, hoveredCoord, inspectedZoneKeys]);
 
   // Boss Battle Stats Calculation derived from inspected colored zones and placed tiles
   const bossBattleStats = useMemo<BossBattleStats>(() => {
-    // ── Business Battle Player Stats — Zero Baseline ──────────────────
-    // Players start at 0 Pop/Amb. All stats come from zone fulfillment
-    // and inspection bonuses, then get multiplied by Synthesia.
-    let pop = 0;
-    let amb = 0;
-    let bonusSlots = 2; // Minimal baseline so milestone modals remain usable
-
-    let popGained = 0;
-    let ambGained = 0;
-    let slotsGained = 0;
+    // ── Check Zero Stats Drop Rule ───────────────────────────────────
+    // "if lightbulb budget used exceed or 2 penalties are triggered (exclude overuse penalty), all stats drop to 0."
+    const isBudgetExceeded = lightbulbBudget > 0 && lightbulbsUsed > lightbulbBudget;
+    const nonOverusePenaltiesCount =
+      penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood;
+    const isStatsCollapsed = isBudgetExceeded || nonOverusePenaltiesCount >= 2;
 
     // ── 1. Collect all unique colored zones across every phase ────────
     const allLevelZonesMap = new Map<
@@ -1042,6 +1148,10 @@ export default function App() {
     let inspectedCount = 0;
 
     // ── 2. Inspection Bonuses (scaled by zone cell count) ─────────────
+    let popGained = 0;
+    let ambGained = 0;
+    let slotsGained = 0;
+
     allLevelZonesMap.forEach((z, key) => {
       if (inspectedZoneKeys.has(key)) {
         inspectedCount++;
@@ -1057,6 +1167,41 @@ export default function App() {
         }
       }
     });
+
+    if (isStatsCollapsed) {
+      return {
+        popularity: 0,
+        ambience: 0,
+        bonusSlots: 0,
+        inspectedSectionsCount: inspectedCount,
+        totalSectionsCount,
+        isStatsCollapsed: true,
+        collapseReason: isBudgetExceeded
+          ? `Budget Exceeded (${lightbulbsUsed}/${lightbulbBudget} 💡)`
+          : `${nonOverusePenaltiesCount} Non-Overuse Penalties Active`,
+        inspectedBenefits: {
+          popularityGained: 0,
+          ambienceGained: 0,
+          bonusSlotsGained: 0,
+        },
+        synthesiaMultiplier: 1.0,
+        zonesFulfilled: 0,
+        attack: 0,
+        defense: 0,
+        traits: {
+          lifeStealPct: 0,
+          aegisShield: 0,
+          doubleStrikePct: 0,
+          thornCounterPct: 0,
+          criticalRatePct: 0,
+        },
+      };
+    }
+
+    // ── Business Battle Player Stats — Zero Baseline ──────────────────
+    let pop = 0;
+    let amb = 0;
+    let bonusSlots = 2; // Minimal baseline so milestone modals remain usable
 
     // ── 3. Tile Placement Bonuses (per placed tile on a colored cell) ─
     placedTiles.forEach(stack => {
@@ -1096,7 +1241,7 @@ export default function App() {
 
           // Bridges don't count as zone fulfillment
           if (top.type === 'bridge') return false;
-          
+
           return top.color === zone.color;
         });
 
@@ -1142,7 +1287,7 @@ export default function App() {
         criticalRatePct: 0.1,
       },
     };
-  }, [placedTiles, unlockedCells, currentLevel, inspectedZoneKeys]);
+  }, [placedTiles, unlockedCells, currentLevel, inspectedZoneKeys, lightbulbBudget, lightbulbsUsed, penalties]);
 
   // Check Road / Bridge requirements for Level 16 and Level 23
   const roadHexCount = useMemo(() => {
@@ -1165,8 +1310,18 @@ export default function App() {
     return count;
   }, [placedTiles]);
 
-  const meetsLevelMechanicRequirement =
-    currentLevel.id === 16 ? roadHexCount >= 1 : currentLevel.id === 23 ? bridgeHexCount >= 1 : true;
+  const meetsLevelMechanicRequirement = (() => {
+    // Original Level 16 / 23 gating
+    if (currentLevel.id === 16) return roadHexCount >= 1;
+    if (currentLevel.id === 23) return bridgeHexCount >= 1;
+
+    // Traffic Attack gating — all road requirements must be satisfied
+    if (currentLevel.levelType === 'traffic_attack') {
+      return roadRequirementProgress.satisfied;
+    }
+
+    return true;
+  })();
 
   // Counted blocking penalties for level victory: Overlap, Off-board, Falsehood, Disconnect (Overuse is bypassed)
   const blockingPenaltiesCount =
@@ -1286,6 +1441,37 @@ export default function App() {
         sounds.playWarning();
         showToast('🚧 Road Placement Error: Roads can only be built adjacent to a House, Tower, Landmark, Road, or Bridge!', 'warn');
         return;
+      }
+
+      // Check Junction & Roundabout Placement Constraints:
+      // Three-way junction requires 3 roads connect to it.
+      // Four-way junction requires 4 roads connect to it.
+      // Roundabout requires 5 roads connect to it.
+      const is3Way = pieceToPlace.id === 'p-junction-3way' || pieceToPlace.id.includes('3way');
+      const is4Way = pieceToPlace.id === 'p-junction-4way' || pieceToPlace.id.includes('4way');
+      const isRoundabout = pieceToPlace.id === 'p-junction-roundabout' || pieceToPlace.id.includes('roundabout');
+
+      if (is3Way || is4Way || isRoundabout) {
+        let connectedRoads = 0;
+        HEX_DIRECTIONS.forEach(dir => {
+          const nQ = anchorCoord.q + dir.q;
+          const nR = anchorCoord.r + dir.r;
+          const stack = placedTiles.get(coordKey(nQ, nR)) || [];
+          if (stack.some(t => t.type === 'road' || t.type === 'bridge')) {
+            connectedRoads++;
+          }
+        });
+
+        const minRequired = isRoundabout ? 5 : is4Way ? 4 : 3;
+        if (connectedRoads < minRequired) {
+          sounds.playWarning();
+          const jName = isRoundabout ? 'Grand Roundabout' : is4Way ? 'Four-Way Crossroads' : 'Three-Way Junction';
+          showToast(
+            `⚠️ ${jName} Constraint: Requires at least ${minRequired} connecting road neighbors! (Currently connected to ${connectedRoads})`,
+            'warn'
+          );
+          return;
+        }
       }
 
       // 2. River Barrier Check: Waterways cannot be built on unless it's a bridge!
@@ -1543,20 +1729,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleRotateCluster, handleRotateTurntableShortcut]);
 
-  useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      setCursorScreenPos({ x: e.clientX, y: e.clientY });
-    };
-    const onLeave = () => setCursorScreenPos(null);
-
-    window.addEventListener('mousemove', onMove, { passive: true });
-    window.addEventListener('mouseleave', onLeave);
-    return () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseleave', onLeave);
-    };
-  }, []);
-
   // Right-Click Handler
   const handleRightClickBoard = useCallback(
     (coord: HexCoord | null) => {
@@ -1570,6 +1742,13 @@ export default function App() {
 
       if (coord) {
         const key = coordKey(coord.q, coord.r);
+
+        if (prePlacedTileKeys.has(key)) {
+          sounds.playWarning();
+          showToast('🚧 This road is locked by the Town Council — cannot be removed!', 'warn');
+          return;
+        }
+
         const stack = placedTiles.get(key);
         if (stack && stack.length > 0) {
           const topTile = stack[stack.length - 1];
@@ -1612,7 +1791,7 @@ export default function App() {
         }
       }
     },
-    [placedTiles, selectedPiece]
+    [placedTiles, selectedPiece, prePlacedTileKeys]
   );
 
   const handleRightClickTrayPiece = (_piece: HexPiece) => {
@@ -1777,6 +1956,16 @@ export default function App() {
         return;
       }
 
+      if (currentLevel.levelType === 'traffic_attack' && !roadRequirementProgress.satisfied) {
+        sounds.playWarning();
+        const unmet = roadRequirementProgress.perRoad.filter(r => !r.satisfied);
+        showToast(
+          `🚧 Transit Charters unmet: ${unmet.map(r => `${r.roadKey} (${r.adjacent}/${r.required})`).join(', ')}`,
+          'warn'
+        );
+        return;
+      }
+
       const isTryHard = gameMode === 'tryhard';
       const hasMastery = Boolean(currentLevel.masteryChallenge);
 
@@ -1817,8 +2006,6 @@ export default function App() {
 
       // Directly trigger the responsive End-of-Level Celebration Winning Modal!
       const nextLvl = allLevels[levelIndex + 1] || null;
-      const totalPen =
-        penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood;
 
       setLevelCelebration({
         completedLevelId: currentLevel.id,
@@ -1873,23 +2060,46 @@ export default function App() {
       parLimit: currentPhase?.targetTilesCount || 5,
     });
     const initialMap = new Map<string, PlacedTile[]>();
-    if (currentPhase && currentPhase.initialPlacedTiles) {
-      currentPhase.initialPlacedTiles.forEach((init, i) => {
-        const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
-        if (piece) {
-          const key = coordKey(init.q, init.r);
-          const placed: PlacedTile = {
-            ...piece,
-            placementId: `init-${currentLevel.id}-${i}-${Date.now()}`,
-            placedAt: Date.now() + i,
-            q: init.q,
-            r: init.r,
-          };
-          initialMap.set(key, [placed]);
-        }
-      });
+    const prePlacedKeys = new Set<string>();
+    if (currentPhase) {
+      if (currentPhase.initialPlacedTiles) {
+        currentPhase.initialPlacedTiles.forEach((init, i) => {
+          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+          if (piece) {
+            const key = coordKey(init.q, init.r);
+            const placed: PlacedTile = {
+              ...piece,
+              placementId: `init-${currentLevel.id}-${i}-${Date.now()}`,
+              placedAt: Date.now() + i,
+              q: init.q,
+              r: init.r,
+            };
+            initialMap.set(key, [placed]);
+          }
+        })
+      };
+      if (currentPhase.prePlacedRoads) {
+        currentPhase.prePlacedRoads.forEach((pre, i) => {
+          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || currentLevel.availablePieces.find(p => p.id === pre.pieceId);
+          if (piece) {
+            const key = coordKey(pre.q, pre.r);
+            const placed: PlacedTile = {
+              ...piece,
+              placementId: `preplaced-${currentLevel.id}-${i}-${Date.now()}`,
+              placedAt: Date.now() + i,
+              q: pre.q,
+              r: pre.r,
+              clusterId: `PREPLACED-${currentLevel.id}-${phaseIndex}-${i}`,
+            };
+            const existing = initialMap.get(key) || [];
+            initialMap.set(key, [...existing, placed]);
+            prePlacedKeys.add(key);
+          }
+        });
+      }
     }
     setPlacedTiles(initialMap);
+    setPrePlacedTileKeys(prePlacedKeys);
     setRotationsPerformed(0);
     setSelectedPiece(null);
     setPickedUpCoord(null);
@@ -2229,6 +2439,8 @@ export default function App() {
               isLowPowerMode={isLowPowerMode}
               textureQuality={textureQuality}
               onUpdateRendererInfo={setRendererInfo}
+              hudInsetLeftPx={hudInsetLeftPx}
+              hudInsetRightPx={hudInsetRightPx}
             />
           </div>
 
@@ -2558,25 +2770,22 @@ export default function App() {
             </div>
           )}
 
-          {currentLevel.isBossLevel && !isPickingTile && hoveredZoneInfo && cursorScreenPos && (() => {
-            const TOOLTIP_W = 220;
-            const TOOLTIP_H = 130;
-            const OFFSET = 16;
+          {currentLevel.isBossLevel && hoveredZoneInfo && cursorScreenPos && (() => {
+            const TOOLTIP_W = 230;
+            const TOOLTIP_H = 140;
             const vw = window.innerWidth;
             const vh = window.innerHeight;
 
-            // Default: place to the right and above the cursor
-            let left = cursorScreenPos.x + OFFSET;
-            let top = cursorScreenPos.y - TOOLTIP_H - OFFSET;
+            // Position strictly on the right side of the cursor for optimal visibility
+            let left = cursorScreenPos.x + 22;
+            let top = cursorScreenPos.y - 25;
 
-            // Flip horizontally if we'd clip the right edge
-            if (left + TOOLTIP_W > vw - 8) {
-              left = cursorScreenPos.x - TOOLTIP_W - OFFSET;
+            // Flip horizontally if clipping the right edge
+            if (left + TOOLTIP_W > vw - 16) {
+              left = cursorScreenPos.x - TOOLTIP_W - 22;
             }
-            // Flip vertically if we'd clip the top edge
-            if (top < 8) {
-              top = cursorScreenPos.y + OFFSET;
-            }
+            // Clamp vertically so tooltip never clips offscreen
+            top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
 
             // Per-color theme (dot, border glow, gradient bg, label text)
             const theme =
@@ -2590,19 +2799,10 @@ export default function App() {
                       ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
                       : { bg: 'from-slate-900/95 to-slate-800/95', border: 'border-slate-600/70', dot: 'bg-slate-400', label: 'text-slate-200', ring: '' };
 
-            // Boss-zone bonus text
-            const bonusText =
-              hoveredZoneInfo.bossZoneType === 'power'
-                ? '+15 Hero ATK'
-                : hoveredZoneInfo.bossZoneType === 'defend'
-                  ? '+12 Hero DEF'
-                  : hoveredZoneInfo.bossZoneType === 'traits'
-                    ? '+10% Lifesteal · +15 Aegis'
-                    : hoveredZoneInfo.bossZoneType === 'mixed'
-                      ? '+6 ATK · +6 DEF'
-                      : '';
-
             const isComplete = hoveredZoneInfo.occupied >= hoveredZoneInfo.total;
+            const zoneKey = `${currentLevel.id}-${hoveredZoneInfo.name}`;
+            const isInspected = inspectedZoneKeys.has(zoneKey);
+            const isCollapsed = Boolean(bossBattleStats.isStatsCollapsed);
 
             return (
               <div
@@ -2612,7 +2812,7 @@ export default function App() {
                 <div
                   className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
                 >
-                  {/* Header: color swatch + zone color name */}
+                  {/* Header: color swatch + zone color name + inspected badge */}
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
                       <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${theme.dot} shadow`} />
@@ -2620,9 +2820,17 @@ export default function App() {
                         {hoveredZoneInfo.color} Zone
                       </span>
                     </div>
-                    {isComplete && (
+                    {isComplete ? (
                       <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
                         ✓ DONE
+                      </span>
+                    ) : isInspected ? (
+                      <span className="text-[9px] font-bold text-amber-300">
+                        ✓ Inspected
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-medium text-white/70 animate-pulse">
+                        👁️ Inspecting...
                       </span>
                     )}
                   </div>
@@ -2646,15 +2854,113 @@ export default function App() {
                     </span>
                   </div>
 
-                  {/* Boss-zone bonus line (only shown when bossZoneType exists) */}
-                  {bonusText && (
-                    <div className="pt-1.5 border-t border-white/10 flex items-center gap-1.5">
-                      <span className="text-[10px]">⚔️</span>
-                      <span className="text-[10px] font-bold text-amber-200">
-                        {bonusText}
-                      </span>
+                  {/* Stats Preview & Zero Collapse Warning */}
+                  {isCollapsed ? (
+                    <div className="pt-1.5 border-t border-rose-500/30 flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5 text-rose-300 font-black text-[10px]">
+                        <span>⚠️</span>
+                        <span>ALL STATS DROPPED TO 0</span>
+                      </div>
+                      <div className="text-[9px] text-rose-200/90 font-medium">
+                        {bossBattleStats.collapseReason || 'Lightbulb budget exceeded or 2+ penalties active'}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="pt-1.5 border-t border-white/10 flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
+                        {hoveredZoneInfo.color === 'amber' || hoveredZoneInfo.color === 'ruby' ? (
+                          <>
+                            <span>⭐</span>
+                            <span>+35 Popularity (+{hoveredZoneInfo.color === 'ruby' ? '18' : '12'}/tile)</span>
+                          </>
+                        ) : hoveredZoneInfo.color === 'sapphire' ? (
+                          <>
+                            <span>✨</span>
+                            <span>+35 Ambience (+15/tile)</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>🎁</span>
+                            <span>+1 Bonus Selection Slot</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[9px] text-white/60 font-medium">
+                        {isComplete ? '✨ Zone fulfilled · Synthesia boosted' : 'Match all zone tiles for Synthesia multiplier'}
+                      </div>
                     </div>
                   )}
+                </div>
+              </div>
+            );
+          })()}
+
+          {!isPickingTile && hoveredRoadRequirement && cursorScreenPos && (() => {
+            const TOOLTIP_W = 220;
+            const TOOLTIP_H = 110;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+
+            let left = cursorScreenPos.x + 22;
+            let top = cursorScreenPos.y - 25;
+            if (left + TOOLTIP_W > vw - 16) left = cursorScreenPos.x - TOOLTIP_W - 22;
+            top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
+
+            const isDone = hoveredRoadRequirement.satisfied;
+
+            return (
+              <div
+                className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
+                style={{ left, top, width: TOOLTIP_W }}
+              >
+                <div
+                  className={`bg-gradient-to-br ${isDone
+                    ? 'from-emerald-950/95 to-emerald-900/95 border-emerald-500/70 shadow-[0_0_18px_rgba(16,185,129,0.4)]'
+                    : 'from-slate-950/95 to-slate-900/95 border-amber-500/70 shadow-[0_0_18px_rgba(245,158,11,0.4)]'
+                    } border-2 rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
+                        } shadow`} />
+                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDone ? 'text-emerald-200' : 'text-amber-200'
+                        }`}>
+                        Transit Charter
+                      </span>
+                    </div>
+                    {isDone ? (
+                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
+                        ✓ MET
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold text-amber-300 animate-pulse">
+                        ⚠️ Unmet
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs font-bold text-white mb-1.5 truncate capitalize">
+                    {hoveredRoadRequirement.roadKey.replace(/-/g, ' ')}
+                  </div>
+
+                  <div className="flex items-center gap-2 mb-1.5">
+                    <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                      <div
+                        className={`h-full rounded-full transition-all duration-200 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
+                          }`}
+                        style={{
+                          width: `${Math.round((hoveredRoadRequirement.adjacent / Math.max(1, hoveredRoadRequirement.required)) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <span className="text-[10px] text-white font-mono font-bold tabular-nums">
+                      {hoveredRoadRequirement.adjacent}/{hoveredRoadRequirement.required}
+                    </span>
+                  </div>
+
+                  <div className="pt-1.5 border-t border-white/10 text-[10px] font-bold text-amber-200">
+                    🏠 Requires {hoveredRoadRequirement.required} adjacent houses
+                  </div>
                 </div>
               </div>
             );
@@ -2780,8 +3086,18 @@ export default function App() {
       <BossBattleModal
         isOpen={isBossBattleOpen}
         bossName={currentLevel.bossName || 'Tycoon Sterling Vance'}
-        bossPopularity={currentLevel.bossPopularity || 180}
-        bossAmbience={currentLevel.bossAmbience || 170}
+        bossPopularity={
+          (currentLevel.bossPopularity || 180) +
+          (currentLevel.levelType === 'traffic_attack'
+            ? roadRequirementProgress.perRoad.filter(r => !r.satisfied).length * 25
+            : 0)
+        }
+        bossAmbience={
+          (currentLevel.bossAmbience || 170) +
+          (currentLevel.levelType === 'traffic_attack'
+            ? roadRequirementProgress.perRoad.filter(r => !r.satisfied).length * 20
+            : 0)
+        }
         playerStats={bossBattleStats}
         onVictory={() => {
           setIsBossBattleOpen(false);

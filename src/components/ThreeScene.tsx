@@ -69,6 +69,8 @@ interface ThreeSceneProps {
   isLowPowerMode?: boolean;
   textureQuality?: 'high' | 'low';
   onUpdateRendererInfo?: (info: RendererInfo) => void;
+  hudInsetLeftPx?: number;
+  hudInsetRightPx?: number;
 }
 
 // Color palette constants for 3D materials
@@ -99,6 +101,8 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   isLowPowerMode = false,
   textureQuality = 'high',
   onUpdateRendererInfo,
+  hudInsetLeftPx = 0,
+  hudInsetRightPx = 0,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -117,6 +121,10 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   const boardBounds = useMemo(() => {
     const coords: { q: number; r: number }[] = [];
     unlockedCells.forEach(cell => {
+      // Only include playable cells in the camera framing.
+      // Fog and river cells can extend far beyond the actual board and
+      // would cause the camera to pull way back.
+      if (cell.isFog || cell.isRiver) return;
       coords.push({ q: cell.q, r: cell.r });
     });
     return getCoordsBounds(coords);
@@ -181,7 +189,22 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     // boardBounds comes from the memo above; falls back to sensible defaults if empty.
     const bounds = boardBounds;
     const maxSpan = Math.max(bounds.spanX, bounds.spanZ, 8);
-    const fitDistance = Math.max(14, maxSpan * 1.35);
+
+    // Aspect-aware camera distance — ensures the board width fits on narrow screens.
+    const canvasAspect = Math.max(0.1, width / Math.max(1, height));
+    const fovYRad = (42 * Math.PI) / 180;
+    const tanHalfFovY = Math.tan(fovYRad / 2);
+
+    const requiredDistanceForWidth = bounds.spanX / (2 * tanHalfFovY * canvasAspect);
+    const requiredDistanceForDepth = bounds.spanZ / (2 * tanHalfFovY);
+
+    // Margin of 1.35x so the outer tiles have breathing room
+    const fitDistance = Math.max(
+      14,
+      requiredDistanceForWidth * 1.15,
+      requiredDistanceForDepth * 1.15,
+      maxSpan * 1.2
+    );
 
     const DEFAULT_CAMERA_HEIGHT = fitDistance * 1.05;
     const DEFAULT_CAMERA_BACK   = fitDistance * 0.85;
@@ -673,9 +696,32 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   useEffect(() => {
     if (unlockedCells.size === 0) return;
 
+    // Read the container size directly — `width`/`height` from the main effect are out of scope
+    const container = containerRef.current;
+    const measuredWidth = container?.clientWidth || window.innerWidth;
+    const measuredHeight = container?.clientHeight || window.innerHeight;
+
     const bounds = boardBounds;
     const maxSpan = Math.max(bounds.spanX, bounds.spanZ, 8);
-    const fitDistance = Math.max(14, maxSpan * 1.35);
+
+    // Compute the aspect ratio so the camera pulls back on narrow screens
+    const canvasAspect = Math.max(0.1, measuredWidth / Math.max(1, measuredHeight));
+
+    // Horizontal FOV formula: visible width = 2 * d * tan(fovY/2) * aspect
+    // We want visible width >= spanX, so:
+    //   d >= spanX / (2 * tan(fovY/2) * aspect)
+    const fovYRad = (42 * Math.PI) / 180;
+    const tanHalfFovY = Math.tan(fovYRad / 2);
+    const requiredDistanceForWidth = bounds.spanX / (2 * tanHalfFovY * canvasAspect);
+    const requiredDistanceForDepth = bounds.spanZ / (2 * tanHalfFovY);
+
+    // Add a margin of 1.35x so the outer tiles have breathing room
+    const fitDistance = Math.max(
+      14,
+      requiredDistanceForWidth * 1.35,
+      requiredDistanceForDepth * 1.35,
+      maxSpan * 1.2   // fallback minimum
+    );
 
     cameraTargetRef.current.set(bounds.centerX, 0, bounds.centerZ);
     cameraOffsetRef.current.set(0, fitDistance * 1.05, fitDistance * 0.85);
@@ -738,13 +784,19 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         instancedHexes.setColorAt(idx, new THREE.Color(tileColorVal));
 
         // Perimeter outline for instanced tile
-        const borderMat = new THREE.LineBasicMaterial({
-          color: isColoredZone ? colorData.border : 0x94a3b8,
-          linewidth: 2,
-        });
-        const borderLine = new THREE.LineSegments(borderGeometry, borderMat);
-        borderLine.position.set(x, 0.145, z);
-        group.add(borderLine);
+                // Perimeter outline for instanced tile — skip if a road/bridge covers this cell
+        const stack = placedTiles.get(coordKey(cell.q, cell.r));
+        const hasRoadOrBridge = stack?.some(t => t.type === 'road' || t.type === 'bridge') ?? false;
+
+        if (!hasRoadOrBridge) {
+          const borderMat = new THREE.LineBasicMaterial({
+            color: isColoredZone ? colorData.border : 0x94a3b8,
+            linewidth: 2,
+          });
+          const borderLine = new THREE.LineSegments(borderGeometry, borderMat);
+          borderLine.position.set(x, 0.145, z);
+          group.add(borderLine);
+        }
 
         // Gemstone marker for color zones
         if (isColoredZone) {
@@ -1771,157 +1823,6 @@ function createLowPolyRock(isPerfLow: boolean = false): THREE.Mesh {
   return rock;
 }
 
-// Helper to compute optimal bridge and road rotation based on adjacent connections
-function getBestAlignmentAngle(
-  q: number,
-  r: number,
-  isBridge: boolean,
-  unlockedCells?: Map<string, GridCell>,
-  placedTiles?: Map<string, PlacedTile[]>
-): number {
-  if (!unlockedCells || !placedTiles) return 0;
-
-  const centerPos = hexToWorld(q, r);
-
-  // If this is a road (not a bridge), check for nearby houses/settlements
-  const houseNeighbors: { q: number; r: number; dirIdx: number }[] = [];
-  if (!isBridge && placedTiles) {
-    HEX_DIRECTIONS.forEach((dir, dirIdx) => {
-      const nQ = q + dir.q;
-      const nR = r + dir.r;
-      const stack = placedTiles.get(coordKey(nQ, nR)) || [];
-      if (stack.some(t => t.type === 'house' || t.type === 'mixed')) {
-        houseNeighbors.push({ q: nQ, r: nR, dirIdx });
-      }
-    });
-  }
-
-  const hasNearbyHouse = houseNeighbors.length > 0;
-
-  // Helper: check if a coordinate is attached to at least one edge of any nearby house
-  const isAttachedToHouseEdge = (tQ: number, tR: number) => {
-    return houseNeighbors.some(h => hexDistance({ q: tQ, r: tR }, { q: h.q, r: h.r }) === 1);
-  };
-
-  // Compute tangent angle along the shared edge of the primary nearby house
-  let houseEdgeAngle = 0;
-  if (hasNearbyHouse) {
-    const primaryHouse = houseNeighbors[0];
-    const posH = hexToWorld(primaryHouse.q, primaryHouse.r);
-    const angleToH = Math.atan2(posH.x - centerPos.x, posH.z - centerPos.z);
-    houseEdgeAngle = angleToH + Math.PI / 2;
-    while (houseEdgeAngle > Math.PI) houseEdgeAngle -= Math.PI;
-    while (houseEdgeAngle < -Math.PI) houseEdgeAngle += Math.PI;
-  }
-
-  // Check if any neighboring road is attached to one of the house's edges
-  let hasAttachedRoadNeighbor = false;
-  if (hasNearbyHouse && placedTiles) {
-    HEX_DIRECTIONS.forEach(dir => {
-      const nQ = q + dir.q;
-      const nR = r + dir.r;
-      const stack = placedTiles.get(coordKey(nQ, nR)) || [];
-      const isRoad = stack.some(t => t.type === 'road' || t.type === 'bridge');
-      if (isRoad && isAttachedToHouseEdge(nQ, nR)) {
-        hasAttachedRoadNeighbor = true;
-      }
-    });
-  }
-
-  // If nearby a house and no neighbor road is attached to the house's edges,
-  // rotate according to the edges of the house nearby it directly!
-  if (hasNearbyHouse && !hasAttachedRoadNeighbor) {
-    return houseEdgeAngle;
-  }
-
-  const getCellScore = (tQ: number, tR: number) => {
-    const key = coordKey(tQ, tR);
-    const tileStack = placedTiles.get(key);
-    const cell = unlockedCells.get(key);
-
-    if (tileStack && tileStack.length > 0) {
-      const topTile = tileStack[tileStack.length - 1];
-      const isRoadOrBridge = topTile.type === 'road' || topTile.type === 'bridge';
-      const isBuilding = topTile.type === 'house' || topTile.type === 'mixed' || topTile.type === 'tower' || topTile.type === 'landmark';
-
-      if (hasNearbyHouse && !isBridge) {
-        if (isRoadOrBridge) {
-          // Roads attached to one of the house's edges are strongly prioritized
-          if (isAttachedToHouseEdge(tQ, tR)) {
-            return 10;
-          }
-          // Prioritize connect with other roads will be lowered if they are not attached to one of the house's edges
-          return 0.5;
-        }
-        if (isBuilding) {
-          // Avoid pointing perpendicular directly into house walls
-          return 0;
-        }
-      } else {
-        if (isRoadOrBridge || isBuilding) {
-          return topTile.type === 'bridge' ? 1.5 : 3;
-        }
-      }
-    }
-    if (cell) {
-      if (cell.isRiver) return 0;
-      if (cell.isFog) return 0.5;
-      return 2; // Unlocked land
-    }
-    return 0;
-  };
-
-  const axisScores = [0, 0, 0];
-  const axisAngles = [0, 0, 0];
-
-  for (let i = 0; i < 3; i++) {
-    const dirA = HEX_DIRECTIONS[i];
-    const dirB = HEX_DIRECTIONS[i + 3];
-
-    const scoreA = getCellScore(q + dirA.q, r + dirA.r);
-    const scoreB = getCellScore(q + dirB.q, r + dirB.r);
-
-    axisScores[i] = scoreA + scoreB;
-
-    const posA = hexToWorld(q + dirA.q, r + dirA.r);
-    axisAngles[i] = Math.atan2(posA.x - centerPos.x, posA.z - centerPos.z);
-  }
-
-  let bestAxisIdx = 0;
-  let maxScore = axisScores[0];
-  for (let i = 1; i < 3; i++) {
-    if (axisScores[i] > maxScore) {
-      maxScore = axisScores[i];
-      bestAxisIdx = i;
-    }
-  }
-
-  if (maxScore === 0) {
-    if (hasNearbyHouse) {
-      return houseEdgeAngle;
-    }
-
-    let bestSingleDirIdx = -1;
-    let maxSingleScore = 0;
-    for (let i = 0; i < 6; i++) {
-      const dir = HEX_DIRECTIONS[i];
-      const score = getCellScore(q + dir.q, r + dir.r);
-      if (score > maxSingleScore) {
-        maxSingleScore = score;
-        bestSingleDirIdx = i;
-      }
-    }
-    if (bestSingleDirIdx !== -1) {
-      const dir = HEX_DIRECTIONS[bestSingleDirIdx];
-      const pos = hexToWorld(q + dir.q, r + dir.r);
-      return Math.atan2(pos.x - centerPos.x, pos.z - centerPos.z);
-    }
-    return 0;
-  }
-
-  return axisAngles[bestAxisIdx];
-}
-
 // Helper to count the size of the connected road/bridge network for a tile
 function getConnectedRoadCount(startQ: number, startR: number, placedTiles?: Map<string, PlacedTile[]>): number {
   if (!placedTiles) return 1;
@@ -1946,12 +1847,6 @@ function getConnectedRoadCount(startQ: number, startR: number, placedTiles?: Map
     });
   }
   return visited.size;
-}
-
-// Helper to check if two directions are directly opposite (180 degrees)
-function isOppositePair(dirs: { dirIdx: number }[]): boolean {
-  if (dirs.length !== 2) return false;
-  return Math.abs(dirs[0].dirIdx - dirs[1].dirIdx) === 3;
 }
 
 // 3D Tile Content Generator (House, Trees, Mixed)
@@ -2012,110 +1907,83 @@ function create3DTileMesh(
     flower.position.set(-0.2, 0.02, 0.2);
     group.add(flower);
   } else if (tile.type === 'road') {
-    // 1. Check for nearby houses (settlements)
-    const houseNeighbors: { q: number; r: number; dirIdx: number }[] = [];
-    HEX_DIRECTIONS.forEach((dir, dirIdx) => {
-      const nQ = tile.q + dir.q;
-      const nR = tile.r + dir.r;
-      const stack = placedTiles ? placedTiles.get(coordKey(nQ, nR)) || [] : [];
-      if (stack.some(t => t.type === 'house' || t.type === 'mixed')) {
-        houseNeighbors.push({ q: nQ, r: nR, dirIdx });
-      }
-    });
-    const hasNearbyHouse = houseNeighbors.length > 0;
-
-    const isAttachedToHouseEdge = (tQ: number, tR: number) => {
-      return houseNeighbors.some(h => hexDistance({ q: tQ, r: tR }, { q: h.q, r: h.r }) === 1);
-    };
-
-    // Gather connected neighbor directions
+    // Only actual road/bridge neighbors create arms.
+    // Each tile draws its arms from center to the shared hex edge, meeting adjacent tiles seamlessly.
+    const connectedDirs: { dirIdx: number; angle: number; neighborKey: string; neighborType: 'road' | 'bridge' }[] = [];
     const centerPos = hexToWorld(tile.q, tile.r);
-    const connectedDirs: { dirIdx: number; angle: number; neighborKey: string }[] = [];
-    let roadNeighborsCount = 0;
-    let attachedRoadNeighborsCount = 0;
 
     HEX_DIRECTIONS.forEach((dir, dirIdx) => {
       const nQ = tile.q + dir.q;
       const nR = tile.r + dir.r;
       const nKey = coordKey(nQ, nR);
       const stack = placedTiles ? placedTiles.get(nKey) || [] : [];
-      const hasRoad = stack.some(t => t.type === 'road');
-      const hasBridge = stack.some(t => t.type === 'bridge');
-      const hasBuilding = stack.some(t => t.type === 'house' || t.type === 'mixed' || t.type === 'tower' || t.type === 'landmark');
-
-      if (hasRoad || hasBridge) {
-        roadNeighborsCount++;
-        const isAttached = hasNearbyHouse ? isAttachedToHouseEdge(nQ, nR) : true;
-        if (isAttached) {
-          attachedRoadNeighborsCount++;
-          const posN = hexToWorld(nQ, nR);
-          const angle = Math.atan2(posN.x - centerPos.x, posN.z - centerPos.z);
-          connectedDirs.push({ dirIdx, angle, neighborKey: nKey });
-        }
-      } else if (hasBuilding && !hasNearbyHouse) {
+      const neighborBridge = stack.find(t => t.type === 'bridge');
+      const neighborRoad = stack.find(t => t.type === 'road');
+      if (neighborBridge || neighborRoad) {
         const posN = hexToWorld(nQ, nR);
         const angle = Math.atan2(posN.x - centerPos.x, posN.z - centerPos.z);
-        connectedDirs.push({ dirIdx, angle, neighborKey: nKey });
+        connectedDirs.push({
+          dirIdx,
+          angle,
+          neighborKey: nKey,
+          neighborType: neighborBridge ? 'bridge' : 'road',
+        });
       }
     });
 
-    // 2. Measure contiguous connected road network size
-    const clusterSize = getConnectedRoadCount(tile.q, tile.r, placedTiles);
+    // Isolated road tiles do NOT push fake arms — renders a clean central hub without edges sticking out!
+    const isJunction = tile.id.includes('junction') || tile.id.includes('roundabout') || Boolean((tile as any).isJunction);
+    const junctionType: '3way' | '4way' | 'roundabout' | undefined = tile.id.includes('roundabout')
+      ? 'roundabout'
+      : tile.id.includes('4way')
+        ? '4way'
+        : tile.id.includes('3way') || isJunction
+          ? '3way'
+          : undefined;
 
-    // 3. Dynamically merge 5 or more connected road tiles into a unique junction mesh
-    // If nearby a house: prioritize house edge alignment and roads attached to house edges.
-    // Unattached road connections have lowered priority and do not break house edge alignment.
-    const isFiveOrMoreConnectedCluster = clusterSize >= 5;
-    const isMegaJunction = roadNeighborsCount >= 5 || (isFiveOrMoreConnectedCluster && roadNeighborsCount >= 4);
+    const roadGroup = createFullHexRoadMesh({
+      connectedDirs,
+      isGlow: !isDisconnected,
+      accentColor: accent,
+      isJunction,
+      junctionType,
+    });
+    group.add(roadGroup);
+  } else if (tile.type === 'bridge') {
+    const connectedDirs: { dirIdx: number; angle: number; neighborKey: string; neighborType: 'road' | 'bridge' }[] = [];
+    const centerPos = hexToWorld(tile.q, tile.r);
 
-    // For standard junction: only form if not near house, or if multiple attached roads meet at this tile
-    const effectiveRoadNeighborsCount = hasNearbyHouse ? attachedRoadNeighborsCount : roadNeighborsCount;
-    const isStandardJunction = !isMegaJunction && (
-      effectiveRoadNeighborsCount >= 3 ||
-      (isFiveOrMoreConnectedCluster && effectiveRoadNeighborsCount >= 2 && !isOppositePair(connectedDirs))
-    );
-
-    if (isMegaJunction) {
-      if (hasNearbyHouse) {
-        connectedDirs.length = 0;
-        HEX_DIRECTIONS.forEach((dir, dirIdx) => {
-          const nQ = tile.q + dir.q;
-          const nR = tile.r + dir.r;
-          const nKey = coordKey(nQ, nR);
-          const stack = placedTiles ? placedTiles.get(nKey) || [] : [];
-          if (stack.some(t => t.type === 'road' || t.type === 'bridge')) {
-            const posN = hexToWorld(nQ, nR);
-            const angle = Math.atan2(posN.x - centerPos.x, posN.z - centerPos.z);
-            connectedDirs.push({ dirIdx, angle, neighborKey: nKey });
-          }
+    HEX_DIRECTIONS.forEach((dir, dirIdx) => {
+      const nQ = tile.q + dir.q;
+      const nR = tile.r + dir.r;
+      const nKey = coordKey(nQ, nR);
+      const stack = placedTiles ? placedTiles.get(nKey) || [] : [];
+      const neighborBridge = stack.find(t => t.type === 'bridge');
+      const neighborRoad = stack.find(t => t.type === 'road');
+      if (neighborBridge || neighborRoad) {
+        const posN = hexToWorld(nQ, nR);
+        const angle = Math.atan2(posN.x - centerPos.x, posN.z - centerPos.z);
+        connectedDirs.push({
+          dirIdx,
+          angle,
+          neighborKey: nKey,
+          neighborType: neighborBridge ? 'bridge' : 'road',
         });
       }
-      const megaJunction = createDynamicJunctionMesh({
-        connectedDirs,
-        isLargeJunction: true,
-        isGlow: !isDisconnected,
-        accentColor: accent,
-      });
-      group.add(megaJunction);
-    } else if (isStandardJunction) {
-      const junction = createDynamicJunctionMesh({
-        connectedDirs,
-        isLargeJunction: false,
-        isGlow: !isDisconnected,
-        accentColor: accent,
-      });
-      group.add(junction);
-    } else {
-      const angle = getBestAlignmentAngle(tile.q, tile.r, false, unlockedCells, placedTiles);
-      const road = createRoadMesh(accent, !isDisconnected);
-      road.rotation.y = angle;
-      group.add(road);
+    });
+
+    // If isolated with no neighbors, default to horizontal east-west bridge span across hex (dir 0 & 3)
+    if (connectedDirs.length === 0) {
+      connectedDirs.push({ dirIdx: 0, angle: Math.PI / 2, neighborKey: '', neighborType: 'road' });
+      connectedDirs.push({ dirIdx: 3, angle: -Math.PI / 2, neighborKey: '', neighborType: 'road' });
     }
-  } else if (tile.type === 'bridge') {
-    const angle = getBestAlignmentAngle(tile.q, tile.r, true, unlockedCells, placedTiles);
-    const bridge = createBridgeMesh(accent, !isDisconnected);
-    bridge.rotation.y = angle;
-    group.add(bridge);
+
+    const bridgeGroup = createFullHexBridgeMesh({
+      connectedDirs,
+      isGlow: !isDisconnected,
+      accentColor: 0xbe123c,
+    });
+    group.add(bridgeGroup);
   } else if (tile.type === 'tower') {
     const tower = createComplexTowerMesh(accent);
     group.add(tower);
@@ -2313,386 +2181,876 @@ function createFlowerPatch(color: number): THREE.Mesh {
   return flower;
 }
 
-function createRoadMesh(accentColor: number, isGlow: boolean = false): THREE.Group {
+interface ConnectedRoadNeighbor {
+  dirIdx: number;
+  angle: number;
+  neighborKey: string;
+  neighborType: 'road' | 'bridge';
+}
+
+interface FullHexRoadParams {
+  connectedDirs: ConnectedRoadNeighbor[];
+  isGlow: boolean;
+  accentColor: number;
+  isBridge?: boolean;
+  isJunction?: boolean;
+  junctionType?: '3way' | '4way' | 'roundabout';
+}
+
+function createFullHexRoadMesh({
+  connectedDirs,
+  isGlow,
+  accentColor,
+  isBridge = false,
+  isJunction = false,
+  junctionType,
+}: FullHexRoadParams): THREE.Group {
   const group = new THREE.Group();
 
-  const length = 2.38; // Full hex flat-to-flat span to reach exact borders with adjacent tiles
-
-  // 1. Cobblestone Shoulder Pavement (gray base) - covers full-scale on the hex
-  const cobblestoneGeo = new THREE.BoxGeometry(1.64, 0.03, length);
-  const cobblestoneMat = new THREE.MeshStandardMaterial({ 
-    color: 0x64748b, // slate gray cobblestone shoulder texture mimic
-    roughness: 0.9, 
-    flatShading: true 
+  // ── 1. Aligned Base Foundation (Flush With Pointy-Topped Grid Hex) ─────────
+  // Perfectly aligned (rotation.y = 0) to eliminate misaligned corners sticking out!
+  const baseRadius = HEX_RADIUS * 0.94;
+  const baseGeo = new THREE.CylinderGeometry(baseRadius, baseRadius, 0.04, 6);
+  const shoulderColor = 0x94a3b8;
+  const baseMat = new THREE.MeshStandardMaterial({
+    color: shoulderColor,
+    roughness: 0.85,
+    flatShading: true,
   });
-  const cobblestone = new THREE.Mesh(cobblestoneGeo, cobblestoneMat);
-  cobblestone.position.y = 0.015;
-  cobblestone.receiveShadow = true;
-  group.add(cobblestone);
+  const base = new THREE.Mesh(baseGeo, baseMat);
+  base.position.y = 0.02;
+  base.receiveShadow = true;
+  group.add(base);
 
-  // 2. Central Charcoal Asphalt Deck (covered almost over the tile, wide layout)
-  const asphaltGeo = new THREE.BoxGeometry(1.18, 0.04, length);
-  const asphaltMat = new THREE.MeshStandardMaterial({ 
-    color: 0x1e293b, // deep charcoal slate
-    roughness: 0.95, 
-    flatShading: true 
+  // ── 2. Seamless Central Asphalt Hub ───────────────────────────────────────
+  const armWidth = 0.84;
+  const inRadius = HEX_RADIUS * (Math.sqrt(3) / 2); // ~1.16913 units to edge midpoint
+  const hubRadius = Math.max(0.44, (armWidth / 2) * 1.05);
+  const hubGeo = new THREE.CylinderGeometry(hubRadius, hubRadius, 0.045, 32);
+  const asphaltMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    roughness: 0.92,
+    flatShading: true,
   });
-  const asphalt = new THREE.Mesh(asphaltGeo, asphaltMat);
-  asphalt.position.y = 0.021;
-  asphalt.receiveShadow = true;
-  group.add(asphalt);
+  const hub = new THREE.Mesh(hubGeo, asphaltMat);
+  hub.position.y = 0.055;
+  hub.receiveShadow = true;
+  group.add(hub);
 
-  // 3. Left & Right solid white concrete curbs/dividers separating asphalt from cobbles
-  const curbGeo = new THREE.BoxGeometry(0.04, 0.05, length);
-  const curbMat = new THREE.MeshStandardMaterial({ 
-    color: 0xe2e8f0, 
-    roughness: 0.8 
-  });
-  const curbL = new THREE.Mesh(curbGeo, curbMat);
-  curbL.position.set(-0.59, 0.026, 0);
-  curbL.castShadow = true;
-  curbL.receiveShadow = true;
-  group.add(curbL);
-
-  const curbR = curbL.clone();
-  curbR.position.x = 0.59;
-  group.add(curbR);
-
-  // 4. Center lane divider line (Solid Yellow, glowing when transit line is valid)
-  const centerLineGeo = new THREE.BoxGeometry(0.04, 0.052, length);
-  const centerLineMat = new THREE.MeshStandardMaterial({ 
-    color: 0xfacc15, 
-    roughness: 0.5,
-    emissive: 0xfacc15,
-    emissiveIntensity: isGlow ? 1.8 : 0.0
-  });
-  const centerLine = new THREE.Mesh(centerLineGeo, centerLineMat);
-  centerLine.position.set(0, 0.022, 0);
-  group.add(centerLine);
-
-  // 5. White dashed lane division lines in both lanes (dual-lane highway)
-  const dashGeo = new THREE.BoxGeometry(0.03, 0.052, 0.25);
-  const dashMat = new THREE.MeshStandardMaterial({ 
-    color: 0xffffff, 
-    roughness: 0.6,
-    emissive: 0xffffff,
-    emissiveIntensity: isGlow ? 1.4 : 0.0
-  });
-
-  const dashZPositions = [-0.85, -0.5, -0.17, 0.17, 0.5, 0.85];
-  dashZPositions.forEach(z => {
-    // Left lane dash divider
-    const dashL = new THREE.Mesh(dashGeo, dashMat);
-    dashL.position.set(-0.28, 0.022, z);
-    group.add(dashL);
-
-    // Right lane dash divider
-    const dashR = new THREE.Mesh(dashGeo, dashMat);
-    dashR.position.set(0.28, 0.022, z);
-    group.add(dashR);
-  });
-
-  // 6. Visual Active Transit Line holographic neon cyan under-glow strip
-  if (isGlow) {
-    const underglowGeo = new THREE.BoxGeometry(0.02, 0.04, length);
-    const underglowMat = new THREE.MeshStandardMaterial({
-      color: 0x00f3ff, // vibrant active transit flow cyan
-      emissive: 0x00f3ff,
-      emissiveIntensity: 2.5,
+  // Stone curb ring around isolated road hub for a neat polished look
+  if (connectedDirs.length === 0) {
+    const hubBorderGeo = new THREE.RingGeometry(hubRadius * 0.96, hubRadius * 1.04, 32);
+    hubBorderGeo.rotateX(-Math.PI / 2);
+    const hubBorderMat = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      roughness: 0.6,
     });
-    
-    const glowL = new THREE.Mesh(underglowGeo, underglowMat);
-    glowL.position.set(-0.56, 0.03, 0);
-    group.add(glowL);
-
-    const glowR = glowL.clone();
-    glowR.position.x = 0.56;
-    group.add(glowR);
+    const hubBorder = new THREE.Mesh(hubBorderGeo, hubBorderMat);
+    hubBorder.position.y = 0.058;
+    group.add(hubBorder);
   }
 
-  // 7. Low-poly roadside delineator reflector posts that glow when connected
-  const postGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.22, 4);
-  const postMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
-  const reflectorMat = new THREE.MeshStandardMaterial({ 
-    color: 0xf97316,
-    emissive: 0xf97316,
-    emissiveIntensity: isGlow ? 2.5 : 0.0
-  });
-  const reflectorGeo = new THREE.BoxGeometry(0.024, 0.04, 0.024);
+  // ── 3. Junction Ring Marker / Roundabout Island ───────────────────────────
+  if (isJunction && !isBridge) {
+    if (junctionType === 'roundabout') {
+      const islandGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.075, 28);
+      const islandMat = new THREE.MeshStandardMaterial({
+        color: 0x15803d, // lush roundabout greenery
+        roughness: 0.8,
+      });
+      const island = new THREE.Mesh(islandGeo, islandMat);
+      island.position.y = 0.075;
+      group.add(island);
 
-  const postPositions = [
-    { x: -0.66, z: -0.8 },
-    { x: 0.66, z: 0.8 }
+      const islandCurbGeo = new THREE.RingGeometry(0.35, 0.40, 32);
+      islandCurbGeo.rotateX(-Math.PI / 2);
+      const islandCurbMat = new THREE.MeshStandardMaterial({
+        color: 0xf1f5f9,
+        roughness: 0.5,
+      });
+      const islandCurb = new THREE.Mesh(islandCurbGeo, islandCurbMat);
+      islandCurb.position.y = 0.082;
+      group.add(islandCurb);
+
+      const ringGeo = new THREE.RingGeometry(0.48, 0.54, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshStandardMaterial({
+        color: isGlow ? 0x00f3ff : 0xfacc15,
+        emissive: isGlow ? 0x00f3ff : 0xfacc15,
+        emissiveIntensity: isGlow ? 1.8 : 0.6,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.y = 0.082;
+      group.add(ring);
+    } else {
+      const ringGeo = new THREE.RingGeometry(0.22, 0.29, 32);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshStandardMaterial({
+        color: isGlow ? 0x00f3ff : 0xfacc15,
+        emissive: isGlow ? 0x00f3ff : 0xfacc15,
+        emissiveIntensity: isGlow ? 1.6 : 0.5,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.y = 0.079;
+      group.add(ring);
+    }
+  }
+
+  // ── 4. Edge-to-Edge Road Arms (Zero Edge Out, Seamless Interconnection) ───
+  // Exact distance from hex center to hex edge midpoint is inRadius.
+  // Arms extend exactly inRadius from center with flush flat ends at hex boundary.
+  const armLength = inRadius;
+  const armGeo = new THREE.BoxGeometry(armWidth, 0.045, armLength);
+
+  // Clean dashed highway markings
+  const dashLength = 0.16;
+  const dashWidth = 0.035;
+  const dashHeight = 0.008;
+  const dashGeo = new THREE.BoxGeometry(dashWidth, dashHeight, dashLength);
+  const dashColor = isGlow ? 0x00f3ff : 0xfde047;
+  const dashMat = new THREE.MeshStandardMaterial({
+    color: dashColor,
+    emissive: dashColor,
+    emissiveIntensity: isGlow ? 2.2 : 0.4,
+    roughness: 0.6,
+  });
+
+  // Low-poly side curbs along outer edges of road arms
+  const curbWidth = 0.04;
+  const curbHeight = 0.055;
+  const curbStart = hubRadius * 0.75;
+  const curbLen = armLength - curbStart;
+  const curbGeo = new THREE.BoxGeometry(curbWidth, curbHeight, curbLen);
+  const curbMat = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8,
+    roughness: 0.6,
+    flatShading: true,
+  });
+
+  connectedDirs.forEach(conn => {
+    const armGroup = new THREE.Group();
+    armGroup.rotation.y = conn.angle;
+
+    // Solid asphalt road deck from center to hex edge
+    const arm = new THREE.Mesh(armGeo, asphaltMat);
+    arm.position.set(0, 0.055, armLength / 2);
+    arm.receiveShadow = true;
+    armGroup.add(arm);
+
+    // Side curbs along outer flanks of the arm
+    const curbL = new THREE.Mesh(curbGeo, curbMat);
+    curbL.position.set(-armWidth / 2 + curbWidth / 2, 0.065, curbStart + curbLen / 2);
+    armGroup.add(curbL);
+
+    const curbR = new THREE.Mesh(curbGeo, curbMat);
+    curbR.position.set(armWidth / 2 - curbWidth / 2, 0.065, curbStart + curbLen / 2);
+    armGroup.add(curbR);
+
+    // Highway dashed markings down center of lane
+    const dash1 = new THREE.Mesh(dashGeo, dashMat);
+    dash1.position.set(0, 0.079, hubRadius + 0.18);
+    armGroup.add(dash1);
+
+    const dash2 = new THREE.Mesh(dashGeo, dashMat);
+    dash2.position.set(0, 0.079, hubRadius + 0.52);
+    armGroup.add(dash2);
+
+    group.add(armGroup);
+  });
+
+  return group;
+}
+
+// ── ADVANCED ARMORED / CURVED / INTERSECTING / LONG BRIDGE ─────────────────
+interface FullHexBridgeParams {
+  connectedDirs: ConnectedRoadNeighbor[];
+  isGlow: boolean;
+  accentColor: number;
+}
+
+function createFullHexBridgeMesh({
+  connectedDirs,
+  isGlow,
+  accentColor,
+}: FullHexBridgeParams): THREE.Group {
+  const group = new THREE.Group();
+
+  const inRadius = HEX_RADIUS * (Math.sqrt(3) / 2); // ~1.16913 units
+  const armLength = inRadius * 1.015; // 1.5% micro-overlap for seamless bridge-to-bridge leniency
+  const armWidth = 0.84;
+  const halfW = armWidth / 2; // 0.42
+  const parapetThick = 0.055;
+  const innerHalfW = halfW - parapetThick; // 0.365
+  const hubRadius = 0.44;
+
+  // ── 1. Hexagonal River Water Body & Pebble Riverbed ────────────────────────
+  const waterGeo = new THREE.CylinderGeometry(HEX_RADIUS * 0.96, HEX_RADIUS * 0.96, 0.10, 6);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7, // vibrant clear river azure
+    roughness: 0.12,
+    metalness: 0.22,
+    transparent: true,
+    opacity: 0.88,
+  });
+  const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+  waterMesh.position.y = -0.01;
+  waterMesh.receiveShadow = true;
+  group.add(waterMesh);
+
+  // Dark pebble / silt riverbed base underneath
+  const bedGeo = new THREE.CylinderGeometry(HEX_RADIUS * 0.96, HEX_RADIUS * 0.96, 0.08, 6);
+  const bedMat = new THREE.MeshStandardMaterial({
+    color: 0x1e293b,
+    roughness: 0.95,
+    flatShading: true,
+  });
+  const bedMesh = new THREE.Mesh(bedGeo, bedMat);
+  bedMesh.position.y = -0.09;
+  group.add(bedMesh);
+
+  // Water surface shimmer ring
+  const shimmerGeo = new THREE.RingGeometry(0.35, HEX_RADIUS * 0.88, 6);
+  shimmerGeo.rotateX(-Math.PI / 2);
+  const shimmerMat = new THREE.MeshBasicMaterial({
+    color: 0x38bdf8,
+    transparent: true,
+    opacity: 0.25,
+    side: THREE.DoubleSide,
+  });
+  const shimmer = new THREE.Mesh(shimmerGeo, shimmerMat);
+  shimmer.position.y = 0.042;
+  group.add(shimmer);
+
+  // ── 2. Materials ──────────────────────────────────────────────────────────
+  const bridgeDeckMat = new THREE.MeshStandardMaterial({
+    color: 0xe2e8f0, // crisp architectural stone bridge roadway
+    roughness: 0.65,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  const stepRiserMat = new THREE.MeshStandardMaterial({
+    color: 0x475569, // dark slate stone step riser shadow
+    roughness: 0.85,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  const stepNosingMat = new THREE.MeshStandardMaterial({
+    color: 0x94a3b8, // beveled stone step nosing
+    roughness: 0.6,
+  });
+  const whiteParapetMat = new THREE.MeshStandardMaterial({
+    color: 0xf8fafc, // clean architectural white stone
+    roughness: 0.45,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  const copingMat = new THREE.MeshStandardMaterial({
+    color: 0x78350f, // rich warm timber/bronze top handrail
+    roughness: 0.6,
+  });
+  const glowLedMat = new THREE.MeshStandardMaterial({
+    color: isGlow ? 0x00f3ff : 0xfacc15,
+    emissive: isGlow ? 0x00f3ff : 0xfacc15,
+    emissiveIntensity: isGlow ? 2.5 : 0.5,
+  });
+  const dashColor = isGlow ? 0x00f3ff : 0xfde047;
+  const dashMat = new THREE.MeshStandardMaterial({
+    color: dashColor,
+    emissive: dashColor,
+    emissiveIntensity: isGlow ? 2.2 : 0.4,
+    roughness: 0.6,
+  });
+  const pierMat = new THREE.MeshStandardMaterial({
+    color: 0x475569, // weathered granite masonry
+    roughness: 0.85,
+    flatShading: true,
+  });
+  const abutmentMat = new THREE.MeshStandardMaterial({
+    color: 0x64748b, // sturdy stone abutment
+    roughness: 0.85,
+    flatShading: true,
+  });
+  const bankGrassMat = new THREE.MeshStandardMaterial({
+    color: 0x22c55e, // lush riverbank embankment grass
+    roughness: 0.8,
+    flatShading: true,
+  });
+  const soffitMat = new THREE.MeshStandardMaterial({
+    color: 0xf1f5f9, // architectural white stone soffit
+    roughness: 0.5,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+
+  // ── 3. Central Underwater Pier Foundation ─────────────────────────────────
+  const pierGeo = new THREE.CylinderGeometry(0.20, 0.26, 0.24, 14);
+  const pier = new THREE.Mesh(pierGeo, pierMat);
+  pier.position.y = 0.08;
+  pier.castShadow = true;
+  group.add(pier);
+
+  // Cutwater pier noses pointing upstream and downstream
+  const noseGeo = new THREE.ConeGeometry(0.15, 0.24, 4);
+  const nose1 = new THREE.Mesh(noseGeo, pierMat);
+  nose1.position.set(0, 0.08, 0.24);
+  nose1.rotation.y = Math.PI / 4;
+  group.add(nose1);
+
+  const nose2 = new THREE.Mesh(noseGeo, pierMat);
+  nose2.position.set(0, 0.08, -0.24);
+  nose2.rotation.y = Math.PI / 4;
+  group.add(nose2);
+
+  // ── 4. Riverbank Embankments Along Sides of the Hex ("Connect to Sides") ───
+  // Anchors the bridge into the hex sides so the bridge never feels isolated!
+  const riverbankSectors = [
+    { angle: Math.PI / 2 + Math.PI / 3, radius: HEX_RADIUS * 0.85 },
+    { angle: -Math.PI / 2 - Math.PI / 3, radius: HEX_RADIUS * 0.85 },
   ];
-
-  postPositions.forEach(pos => {
-    const postGroup = new THREE.Group();
-    postGroup.position.set(pos.x, 0.11, pos.z);
-    
-    const post = new THREE.Mesh(postGeo, postMat);
-    post.castShadow = true;
-    postGroup.add(post);
-
-    const reflector = new THREE.Mesh(reflectorGeo, reflectorMat);
-    reflector.position.y = 0.08;
-    postGroup.add(reflector);
-
-    group.add(postGroup);
-  });
-
-  return group;
-}
-
-function createBridgeMesh(accentColor: number, isGlow: boolean = false): THREE.Group {
-  const group = new THREE.Group();
-  const length = 2.38; // Full hex span
-
-  // 1. Dark asphalt roadway deck spanning the bridge (wide deck structure)
-  const deckGeo = new THREE.BoxGeometry(1.18, 0.06, length);
-  const deckMat = new THREE.MeshStandardMaterial({ 
-    color: 0x334155, 
-    roughness: 0.9, 
-    flatShading: true 
-  });
-  const deck = new THREE.Mesh(deckGeo, deckMat);
-  deck.position.y = 0.03;
-  deck.castShadow = true;
-  deck.receiveShadow = true;
-  group.add(deck);
-
-  // 2. Center Solid Yellow lane divider on the bridge (glows when connected)
-  const centerLineGeo = new THREE.BoxGeometry(0.04, 0.072, length);
-  const centerLineMat = new THREE.MeshStandardMaterial({ 
-    color: 0xfacc15,
-    emissive: 0xfacc15,
-    emissiveIntensity: isGlow ? 1.8 : 0.0
-  });
-  const centerLine = new THREE.Mesh(centerLineGeo, centerLineMat);
-  centerLine.position.set(0, 0.031, 0);
-  group.add(centerLine);
-
-  // 3. White dashed lane markers in both lanes (glows when connected)
-  const dashGeo = new THREE.BoxGeometry(0.03, 0.072, 0.25);
-  const dashMat = new THREE.MeshStandardMaterial({ 
-    color: 0xffffff,
-    emissive: 0xffffff,
-    emissiveIntensity: isGlow ? 1.4 : 0.0
-  });
-  const dashZPositions = [-0.85, -0.5, -0.17, 0.17, 0.5, 0.85];
-  dashZPositions.forEach(z => {
-    const dashL = new THREE.Mesh(dashGeo, dashMat);
-    dashL.position.set(-0.28, 0.031, z);
-    group.add(dashL);
-
-    const dashR = new THREE.Mesh(dashGeo, dashMat);
-    dashR.position.set(0.28, 0.031, z);
-    group.add(dashR);
-  });
-
-  // 4. Base structural scarlet red side beams
-  const baseBeamGeo = new THREE.BoxGeometry(0.08, 0.12, length);
-  const redMat = new THREE.MeshStandardMaterial({ 
-    color: 0xbe123c, 
-    roughness: 0.5, 
-    flatShading: true 
-  }); // shinto scarlet red
-  
-  const baseBeamL = new THREE.Mesh(baseBeamGeo, redMat);
-  baseBeamL.position.set(-0.63, 0.06, 0);
-  baseBeamL.castShadow = true;
-  baseBeamL.receiveShadow = true;
-  group.add(baseBeamL);
-
-  const baseBeamR = baseBeamL.clone();
-  baseBeamR.position.x = 0.63;
-  group.add(baseBeamR);
-
-  // 5. Elegant handrail posts on each side (scarlet red with brass/gold caps)
-  const postGeo = new THREE.BoxGeometry(0.04, 0.42, 0.04);
-  const capGeo = new THREE.BoxGeometry(0.06, 0.04, 0.06);
-  const capMat = new THREE.MeshStandardMaterial({ 
-    color: 0xfacc15, 
-    metalness: 0.8, 
-    roughness: 0.3,
-    emissive: 0xfacc15,
-    emissiveIntensity: isGlow ? 1.2 : 0.0
-  });
-
-  const zPosList = [-0.9, -0.55, -0.2, 0.2, 0.55, 0.9];
-  zPosList.forEach(z => {
-    // Left Post
-    const postGroupL = new THREE.Group();
-    postGroupL.position.set(-0.63, 0.21, z);
-    
-    const postL = new THREE.Mesh(postGeo, redMat);
-    postL.castShadow = true;
-    postGroupL.add(postL);
-
-    const capL = new THREE.Mesh(capGeo, capMat);
-    capL.position.y = 0.21;
-    postGroupL.add(capL);
-
-    group.add(postGroupL);
-
-    // Right Post
-    const postGroupR = new THREE.Group();
-    postGroupR.position.set(0.63, 0.21, z);
-    
-    const postR = new THREE.Mesh(postGeo, redMat);
-    postR.castShadow = true;
-    postGroupR.add(postR);
-
-    const capR = new THREE.Mesh(capGeo, capMat);
-    capR.position.y = 0.21;
-    postGroupR.add(capR);
-
-    group.add(postGroupR);
-  });
-
-  // 6. Top running handrails
-  const railGeo = new THREE.BoxGeometry(0.04, 0.04, length);
-  
-  const railL = new THREE.Mesh(railGeo, redMat);
-  railL.position.set(-0.63, 0.4, 0);
-  railL.castShadow = true;
-  group.add(railL);
-
-  const railR = railL.clone();
-  railR.position.x = 0.63;
-  group.add(railR);
-
-  // 7. Arched structural struts underneath the deck
-  const strutGeo = new THREE.BoxGeometry(0.04, 0.35, 0.04);
-  
-  // Left Under-Struts
-  const strutL1 = new THREE.Mesh(strutGeo, redMat);
-  strutL1.position.set(-0.55, -0.12, -0.6);
-  strutL1.rotation.x = 0.4;
-  strutL1.castShadow = true;
-  group.add(strutL1);
-
-  const strutL2 = strutL1.clone();
-  strutL2.position.z = 0.6;
-  strutL2.rotation.x = -0.4;
-  group.add(strutL2);
-
-  // Right Under-Struts
-  const strutR1 = new THREE.Mesh(strutGeo, redMat);
-  strutR1.position.set(0.55, -0.12, -0.6);
-  strutR1.rotation.x = 0.4;
-  strutR1.castShadow = true;
-  group.add(strutR1);
-
-  const strutR2 = strutR1.clone();
-  strutR2.position.z = 0.6;
-  strutR2.rotation.x = -0.4;
-  group.add(strutR2);
-
-  // 8. Active transit line under-glow strip
-  if (isGlow) {
-    const underglowGeo = new THREE.BoxGeometry(0.02, 0.04, length);
-    const underglowMat = new THREE.MeshStandardMaterial({
-      color: 0x00f3ff,
-      emissive: 0x00f3ff,
-      emissiveIntensity: 2.5,
+  riverbankSectors.forEach(({ angle, radius }) => {
+    // Only place riverbank berms on sides where there are no bridge arms
+    const hasArmNearby = connectedDirs.some(c => {
+      let diff = Math.abs(c.angle - angle);
+      if (diff > Math.PI) diff = Math.PI * 2 - diff;
+      return diff < 0.6;
     });
-    
-    const glowL = new THREE.Mesh(underglowGeo, underglowMat);
-    glowL.position.set(-0.60, 0.04, 0);
-    group.add(glowL);
 
-    const glowR = glowL.clone();
-    glowR.position.x = 0.60;
-    group.add(glowR);
+    if (!hasArmNearby) {
+      const bankGroup = new THREE.Group();
+      bankGroup.rotation.y = angle;
+
+      // Stone embankment wall at the river's edge
+      const quayGeo = new THREE.BoxGeometry(0.65, 0.14, 0.12);
+      const quay = new THREE.Mesh(quayGeo, abutmentMat);
+      quay.position.set(0, 0.06, radius * 0.82);
+      quay.receiveShadow = true;
+      bankGroup.add(quay);
+
+      // Sloped green grass bank rising up to the hex perimeter
+      const bankGeo = new THREE.BoxGeometry(0.75, 0.10, 0.24);
+      const bank = new THREE.Mesh(bankGeo, bankGrassMat);
+      bank.position.set(0, 0.08, radius * 0.94);
+      bank.receiveShadow = true;
+      bankGroup.add(bank);
+
+      group.add(bankGroup);
+    }
+  });
+
+  // ── 5. Bridge Topology Analysis ───────────────────────────────────────────
+  const N = connectedDirs.length;
+  const isStraightTwoWay = N === 2 && (() => {
+    let diff = Math.abs(connectedDirs[0].angle - connectedDirs[1].angle);
+    if (diff > Math.PI) diff = Math.PI * 2 - diff;
+    return Math.abs(diff - Math.PI) < 0.35;
+  })();
+  const isCurvedTwoWay = N === 2 && !isStraightTwoWay;
+
+  // ── 6. Central Elevated Plaza Stone Hub (Elevated at y = 0.22) ─────────────
+  // Only needed if 3+ arms meet at center to fill the inner floor at y = 0.22
+  if (N >= 3) {
+    const centerHubGeo = new THREE.CylinderGeometry(innerHalfW * 0.95, innerHalfW * 0.95, 0.02, 16);
+    const centerHub = new THREE.Mesh(centerHubGeo, bridgeDeckMat);
+    centerHub.position.y = 0.219;
+    centerHub.receiveShadow = true;
+    group.add(centerHub);
+
+    const hubSoffitGeo = new THREE.CylinderGeometry(innerHalfW * 0.90, innerHalfW * 0.80, 0.08, 16);
+    const hubSoffit = new THREE.Mesh(hubSoffitGeo, soffitMat);
+    hubSoffit.position.y = 0.16;
+    group.add(hubSoffit);
   }
 
-  return group;
-}
-
-// Seamless road connection deck bridging adjacent placed road tiles with zero gaps
-function createRoadConnectorMesh(isGlow: boolean = false): THREE.Group {
-  const group = new THREE.Group();
-  const length = 1.05;
-
-  // 1. Cobblestone Shoulder / Sub-base (stone paving bridging the gap)
-  const shoulderGeo = new THREE.BoxGeometry(1.36, 0.038, length);
-  const shoulderMat = new THREE.MeshStandardMaterial({ 
-    color: 0x64748b, 
-    roughness: 0.9, 
-    flatShading: true 
+  // ── 7. Determine Exact Parapet Start Limits Per Arm ────────────────────────
+  // Flanks are at -halfW (left) and +halfW (right) looking down +Z towards hex edge.
+  // Defaults to 0 so all parapets run full length from center to edge without gaps!
+  const flankLimits: { [connIdx: number]: { startL: number; startR: number } } = {};
+  connectedDirs.forEach((_, idx) => {
+    flankLimits[idx] = { startL: 0, startR: 0 };
   });
-  const shoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
-  shoulder.position.y = 0.019;
-  shoulder.receiveShadow = true;
-  group.add(shoulder);
 
-  // 2. Concrete Road Curb on sides
-  const curbGeo = new THREE.BoxGeometry(0.04, 0.048, length);
-  const curbMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.8 });
-  const curbL = new THREE.Mesh(curbGeo, curbMat);
-  curbL.position.set(-0.59, 0.024, 0);
-  group.add(curbL);
+  // For curved bridges and multi-way junctions, calculate exact corner meeting distances
+  if (N >= 2 && !isStraightTwoWay) {
+    const sorted = [...connectedDirs].sort((a, b) => a.angle - b.angle);
+    for (let k = 0; k < sorted.length; k++) {
+      const armA = sorted[k];
+      const armB = sorted[(k + 1) % sorted.length];
+      const origIdxA = connectedDirs.indexOf(armA);
+      const origIdxB = connectedDirs.indexOf(armB);
 
-  const curbR = curbL.clone();
-  curbR.position.x = 0.59;
-  group.add(curbR);
+      let diff = armB.angle - armA.angle;
+      if (diff < 0) diff += Math.PI * 2;
 
-  // 3. Dark Asphalt Pavement
-  const roadGeo = new THREE.BoxGeometry(1.14, 0.042, length);
-  const roadMat = new THREE.MeshStandardMaterial({ 
-    color: 0x1e293b, 
-    roughness: 0.95, 
-    flatShading: true 
+      if (diff < Math.PI) {
+        // Inner corner: arm A right flank meets arm B left flank at natural miter distance
+        const tMeet = Math.min(armLength * 0.85, Math.max(0.01, halfW / Math.tan(diff / 2)));
+        if (flankLimits[origIdxA]) flankLimits[origIdxA].startR = tMeet;
+        if (flankLimits[origIdxB]) flankLimits[origIdxB].startL = tMeet;
+      }
+    }
+  }
+
+  // ── 8. Build Roadways & Flank Parapets For Each Arm ────────────────────────
+  connectedDirs.forEach((conn, connIdx) => {
+    const isLandRoad = conn.neighborType === 'road';
+    const armGroup = new THREE.Group();
+    armGroup.rotation.y = conn.angle;
+
+    // A. Abutments, Wing-Walls & Embankments Connecting to Sides on Land Approach
+    if (isLandRoad) {
+      const abutmentGeo = new THREE.BoxGeometry(armWidth + 0.18, 0.13, 0.24);
+      const abutment = new THREE.Mesh(abutmentGeo, abutmentMat);
+      abutment.position.set(0, 0.045, armLength - 0.12);
+      abutment.receiveShadow = true;
+      armGroup.add(abutment);
+
+      // Flared stone wing-walls connecting the bridge corners outward into the sides
+      const wingGeo = new THREE.BoxGeometry(0.18, 0.18, 0.26);
+      const wingL = new THREE.Mesh(wingGeo, abutmentMat);
+      wingL.position.set(-halfW - 0.11, 0.07, armLength - 0.14);
+      wingL.rotation.y = -Math.PI / 8; // flared outward
+      armGroup.add(wingL);
+
+      const wingR = new THREE.Mesh(wingGeo, abutmentMat);
+      wingR.position.set(halfW + 0.11, 0.07, armLength - 0.14);
+      wingR.rotation.y = Math.PI / 8; // flared outward
+      armGroup.add(wingR);
+
+      // Grassy riverbank shoulders on both sides of the bridge entrance
+      const bankGeo = new THREE.BoxGeometry(0.35, 0.11, 0.36);
+      const bankL = new THREE.Mesh(bankGeo, bankGrassMat);
+      bankL.position.set(-halfW - 0.24, 0.05, armLength - 0.18);
+      armGroup.add(bankL);
+
+      const bankR = new THREE.Mesh(bankGeo, bankGrassMat);
+      bankR.position.set(halfW + 0.24, 0.05, armLength - 0.18);
+      armGroup.add(bankR);
+    }
+
+    // B. Roadway Deck: Steps on Land Approaches, Flat Stone on Bridge-to-Bridge
+    if (isLandRoad) {
+      // 5 Distinct Stone Steps climbing up to elevated bridge deck
+      const stepCount = 5;
+      const stepZoneStart = armLength;
+      const stepZoneEnd = armLength * 0.38;
+      const stepDepth = (stepZoneStart - stepZoneEnd) / stepCount;
+      const yRoad = 0.055;
+      const yBridge = 0.22;
+
+      for (let s = 0; s < stepCount; s++) {
+        const zFront = stepZoneStart - s * stepDepth;
+        const zBack = stepZoneStart - (s + 1) * stepDepth;
+        const yStep = yRoad + ((s + 1) / stepCount) * (yBridge - yRoad);
+        const yPrev = s === 0 ? yRoad : yRoad + (s / stepCount) * (yBridge - yRoad);
+
+        const treadGeo = new THREE.PlaneGeometry(innerHalfW * 2, stepDepth);
+        treadGeo.rotateX(-Math.PI / 2);
+        const tread = new THREE.Mesh(treadGeo, bridgeDeckMat);
+        tread.position.set(0, yStep, (zFront + zBack) / 2);
+        tread.receiveShadow = true;
+        armGroup.add(tread);
+
+        const riserHeight = yStep - yPrev;
+        const riserGeo = new THREE.PlaneGeometry(innerHalfW * 2, riserHeight);
+        const riser = new THREE.Mesh(riserGeo, stepRiserMat);
+        riser.position.set(0, yPrev + riserHeight / 2, zFront);
+        riser.receiveShadow = true;
+        armGroup.add(riser);
+
+        const nosingGeo = new THREE.BoxGeometry(innerHalfW * 2, 0.008, 0.015);
+        const nosing = new THREE.Mesh(nosingGeo, stepNosingMat);
+        nosing.position.set(0, yStep + 0.004, zFront - 0.008);
+        armGroup.add(nosing);
+      }
+
+      // Flat stone deck connecting inner step to center plaza
+      const innerDeckLength = stepZoneEnd;
+      const innerDeckGeo = new THREE.PlaneGeometry(innerHalfW * 2, innerDeckLength);
+      innerDeckGeo.rotateX(-Math.PI / 2);
+      const innerDeck = new THREE.Mesh(innerDeckGeo, bridgeDeckMat);
+      innerDeck.position.set(0, yBridge, innerDeckLength / 2);
+      innerDeck.receiveShadow = true;
+      armGroup.add(innerDeck);
+    } else {
+      // Bridge-to-bridge: completely flat, cohesive elevated stone deck at y = 0.22
+      const fullDeckGeo = new THREE.PlaneGeometry(innerHalfW * 2, armLength);
+      fullDeckGeo.rotateX(-Math.PI / 2);
+      const fullDeck = new THREE.Mesh(fullDeckGeo, bridgeDeckMat);
+      fullDeck.position.set(0, 0.22, armLength / 2);
+      fullDeck.receiveShadow = true;
+      armGroup.add(fullDeck);
+    }
+
+    // C. Non-Slicing Straight & Mitered Parapets & Railings (NO CIRCLES!)
+    const { startL, startR } = flankLimits[connIdx] || { startL: 0, startR: 0 };
+
+    const getParapetTopY = (t: number) => {
+      if (isLandRoad) {
+        return 0.11 + (0.38 - 0.11) * Math.pow(Math.cos(t * (Math.PI / 2)), 1.35);
+      }
+      return 0.38;
+    };
+
+    const getUnderArchY = (t: number) => {
+      if (isLandRoad) {
+        return 0.01 + (0.14 - 0.01) * Math.pow(Math.cos(t * (Math.PI / 2)), 2);
+      }
+      return 0.14;
+    };
+
+    const getInnerDeckY = (t: number) => {
+      if (isLandRoad) {
+        return 0.055 + (0.22 - 0.055) * Math.pow(Math.cos(t * (Math.PI / 2)), 1.8);
+      }
+      return 0.22;
+    };
+
+    // Helper to build a clean flank parapet segment along one side of the arm
+    const createFlankParapet = (isLeft: boolean, zStart: number) => {
+      const zEnd = armLength;
+      if (zEnd <= zStart + 0.03) return null;
+
+      const flankGroup = new THREE.Group();
+      const segs = 8;
+      const xOuter = isLeft ? -halfW : halfW;
+      const xInner = isLeft ? -innerHalfW : innerHalfW;
+
+      const pPos: number[] = [];
+      const pIdx: number[] = [];
+      const sPos: number[] = [];
+      const sIdx: number[] = [];
+
+      for (let i = 0; i <= segs; i++) {
+        const frac = i / segs;
+        const z = zStart + frac * (zEnd - zStart);
+        const tGlobal = z / armLength;
+
+        const yTop = getParapetTopY(tGlobal);
+        const yUnder = getUnderArchY(tGlobal);
+        const yDeck = getInnerDeckY(tGlobal);
+
+        if (isLeft) {
+          pPos.push(xOuter, yTop, z);
+          pPos.push(xInner, yTop, z);
+          pPos.push(xOuter, yUnder, z);
+          pPos.push(xInner, yDeck, z);
+        } else {
+          pPos.push(xInner, yTop, z);
+          pPos.push(xOuter, yTop, z);
+          pPos.push(xInner, yDeck, z);
+          pPos.push(xOuter, yUnder, z);
+        }
+
+        sPos.push(xOuter, yUnder, z);
+        sPos.push(xInner, yUnder, z);
+
+        if (i < segs) {
+          const p0 = i * 4;
+          const p1 = (i + 1) * 4;
+          pIdx.push(p0, p0 + 1, p1, p0 + 1, p1 + 1, p1);
+          pIdx.push(p0, p1, p0 + 2, p1, p1 + 2, p0 + 2);
+          pIdx.push(p0 + 1, p0 + 3, p1 + 1, p0 + 3, p1 + 3, p1 + 1);
+
+          const d0 = i * 2;
+          const d1 = d0 + 1;
+          const d2 = (i + 1) * 2;
+          const d3 = d2 + 1;
+          sIdx.push(d0, d2, d1, d1, d2, d3);
+        }
+      }
+
+      const pGeo = new THREE.BufferGeometry();
+      pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pPos, 3));
+      pGeo.setIndex(pIdx);
+      pGeo.computeVertexNormals();
+      const pMesh = new THREE.Mesh(pGeo, whiteParapetMat);
+      pMesh.castShadow = true;
+      flankGroup.add(pMesh);
+
+      const sGeo = new THREE.BufferGeometry();
+      sGeo.setAttribute('position', new THREE.Float32BufferAttribute(sPos, 3));
+      sGeo.setIndex(sIdx);
+      sGeo.computeVertexNormals();
+      const sMesh = new THREE.Mesh(sGeo, soffitMat);
+      flankGroup.add(sMesh);
+
+      // Coping top handrail running flush with parapet
+      const cLen = zEnd - zStart;
+      const cGeo = new THREE.BoxGeometry(parapetThick * 1.25, 0.025, cLen);
+      const cMesh = new THREE.Mesh(cGeo, copingMat);
+      const midT = ((zStart + zEnd) / 2) / armLength;
+      const midY = getParapetTopY(midT) + 0.012;
+      const cX = isLeft ? -halfW + parapetThick / 2 : halfW - parapetThick / 2;
+      cMesh.position.set(cX, midY, zStart + cLen / 2);
+      flankGroup.add(cMesh);
+
+      // LED transit accent strip
+      const ledGeo = new THREE.BoxGeometry(0.022, 0.014, cLen * 0.96);
+      const ledMesh = new THREE.Mesh(ledGeo, glowLedMat);
+      const midDeckY = getInnerDeckY(midT) + 0.008;
+      const ledX = isLeft ? -innerHalfW + 0.014 : innerHalfW - 0.014;
+      ledMesh.position.set(ledX, midDeckY, zStart + cLen / 2);
+      flankGroup.add(ledMesh);
+
+      return flankGroup;
+    };
+
+    const leftParapet = createFlankParapet(true, startL);
+    if (leftParapet) armGroup.add(leftParapet);
+
+    const rightParapet = createFlankParapet(false, startR);
+    if (rightParapet) armGroup.add(rightParapet);
+
+    // D. Entrance Stone Pillars (ONLY placed on land approach, NEVER between bridges!)
+    if (isLandRoad) {
+      const pillarGeo = new THREE.BoxGeometry(0.08, 0.16, 0.08);
+      const capGeo = new THREE.ConeGeometry(0.06, 0.05, 4);
+
+      const pillarL = new THREE.Mesh(pillarGeo, whiteParapetMat);
+      pillarL.position.set(-halfW - 0.01, getParapetTopY(1) + 0.04, armLength - 0.05);
+      armGroup.add(pillarL);
+
+      const capL = new THREE.Mesh(capGeo, copingMat);
+      capL.position.set(-halfW - 0.01, getParapetTopY(1) + 0.13, armLength - 0.05);
+      capL.rotation.y = Math.PI / 4;
+      armGroup.add(capL);
+
+      const pillarR = new THREE.Mesh(pillarGeo, whiteParapetMat);
+      pillarR.position.set(halfW + 0.01, getParapetTopY(1) + 0.04, armLength - 0.05);
+      armGroup.add(pillarR);
+
+      const capR = new THREE.Mesh(capGeo, copingMat);
+      capR.position.set(halfW + 0.01, getParapetTopY(1) + 0.13, armLength - 0.05);
+      capR.rotation.y = Math.PI / 4;
+      armGroup.add(capR);
+    }
+
+    // E. Straight Lane Dashes
+    if (!isCurvedTwoWay) {
+      const dashLength = 0.14;
+      const dashWidth = 0.035;
+      const dashHeight = 0.008;
+      const dashArmGeo = new THREE.BoxGeometry(dashWidth, dashHeight, dashLength);
+
+      const dash1 = new THREE.Mesh(dashArmGeo, dashMat);
+      dash1.position.set(0, 0.226, armLength * 0.35);
+      armGroup.add(dash1);
+
+      if (!isLandRoad) {
+        const dash2 = new THREE.Mesh(dashArmGeo, dashMat);
+        dash2.position.set(0, 0.226, armLength * 0.72);
+        armGroup.add(dash2);
+      }
+    }
+
+    group.add(armGroup);
   });
-  const road = new THREE.Mesh(roadGeo, roadMat);
-  road.position.y = 0.022;
-  road.receiveShadow = true;
-  group.add(road);
 
-  // 4. Center Solid Yellow divider line
-  const centerLineGeo = new THREE.BoxGeometry(0.04, 0.052, length);
-  const centerLineMat = new THREE.MeshStandardMaterial({ 
-    color: 0xfacc15,
-    roughness: 0.5,
-    emissive: 0xfacc15,
-    emissiveIntensity: isGlow ? 1.8 : 0.0
-  });
-  const centerLine = new THREE.Mesh(centerLineGeo, centerLineMat);
-  centerLine.position.set(0, 0.023, 0);
-  group.add(centerLine);
+  // ── 9. Seamless Corner Connections (ZERO Circular Borders / Pods) ─────────
+  // Smoothly joins parapet walls and coping across corners along the natural road edge
+  if (connectedDirs.length >= 2 && !isStraightTwoWay) {
+    const sorted = [...connectedDirs].sort((a, b) => a.angle - b.angle);
 
-  // 5. White dashed lane division lines in both lanes
-  const dashGeo = new THREE.BoxGeometry(0.03, 0.052, 0.25);
-  const dashMat = new THREE.MeshStandardMaterial({ 
-    color: 0xffffff, 
-    roughness: 0.6,
-    emissive: 0xffffff,
-    emissiveIntensity: isGlow ? 1.4 : 0.0
-  });
-  const dashL = new THREE.Mesh(dashGeo, dashMat);
-  dashL.position.set(-0.28, 0.023, 0);
-  group.add(dashL);
+    for (let k = 0; k < sorted.length; k++) {
+      const armA = sorted[k];
+      const armB = sorted[(k + 1) % sorted.length];
+      const origIdxA = connectedDirs.indexOf(armA);
+      const origIdxB = connectedDirs.indexOf(armB);
 
-  const dashR = new THREE.Mesh(dashGeo, dashMat);
-  dashR.position.set(0.28, 0.023, 0);
-  group.add(dashR);
+      let diff = armB.angle - armA.angle;
+      if (diff < 0) diff += Math.PI * 2;
 
-  // 6. Active Transit Line holographic neon cyan under-glow strip
-  if (isGlow) {
-    const underglowGeo = new THREE.BoxGeometry(0.02, 0.04, length);
-    const underglowMat = new THREE.MeshStandardMaterial({
-      color: 0x00f3ff,
-      emissive: 0x00f3ff,
-      emissiveIntensity: 2.5,
-    });
-    
-    const glowL = new THREE.Mesh(underglowGeo, underglowMat);
-    glowL.position.set(-0.56, 0.03, 0);
-    group.add(glowL);
+      // Unit vectors for arm A
+      const dAx = Math.sin(armA.angle);
+      const dAz = Math.cos(armA.angle);
+      const nAx = Math.cos(armA.angle);
+      const nAz = -Math.sin(armA.angle);
 
-    const glowR = glowL.clone();
-    glowR.position.x = 0.56;
-    group.add(glowR);
+      // Unit vectors for arm B
+      const dBx = Math.sin(armB.angle);
+      const dBz = Math.cos(armB.angle);
+      const nBx = Math.cos(armB.angle);
+      const nBz = -Math.sin(armB.angle);
+
+      if (diff < Math.PI) {
+        // ── A. INNER CORNER JUNCTION (Clean Miter Corner along Road Flank) ────
+        // Arm A's right flank meets Arm B's left flank
+        const zStartA = flankLimits[origIdxA]?.startR ?? 0;
+        const zStartB = flankLimits[origIdxB]?.startL ?? 0;
+
+        const pOuterAx = zStartA * dAx + halfW * nAx;
+        const pOuterAz = zStartA * dAz + halfW * nAz;
+        const pOuterBx = zStartB * dBx - halfW * nBx;
+        const pOuterBz = zStartB * dBz - halfW * nBz;
+        const pApexX = (pOuterAx + pOuterBx) / 2;
+        const pApexZ = (pOuterAz + pOuterBz) / 2;
+
+        const pInnerAx = zStartA * dAx + innerHalfW * nAx;
+        const pInnerAz = zStartA * dAz + innerHalfW * nAz;
+        const pInnerBx = zStartB * dBx - innerHalfW * nBx;
+        const pInnerBz = zStartB * dBz - innerHalfW * nBz;
+        const pDeckApexX = (pInnerAx + pInnerBx) / 2;
+        const pDeckApexZ = (pInnerAz + pInnerBz) / 2;
+
+        // Clean miter fill between arm A right flank and arm B left flank
+        const cornerMiterGeo = new THREE.BufferGeometry();
+        const mPos = [
+          pOuterAx, 0.38, pOuterAz,
+          pApexX,   0.38, pApexZ,
+          pInnerAx, 0.22, pInnerAz,
+
+          pApexX,   0.38, pApexZ,
+          pOuterBx, 0.38, pOuterBz,
+          pInnerBx, 0.22, pInnerBz,
+
+          pApexX,   0.38, pApexZ,
+          pInnerBx, 0.22, pInnerBz,
+          pInnerAx, 0.22, pInnerAz,
+        ];
+        cornerMiterGeo.setAttribute('position', new THREE.Float32BufferAttribute(mPos, 3));
+        cornerMiterGeo.computeVertexNormals();
+        const cornerMiter = new THREE.Mesh(cornerMiterGeo, whiteParapetMat);
+        group.add(cornerMiter);
+
+        // Coping handrail meeting at the apex
+        const copingPts = [
+          new THREE.Vector3(pOuterAx, 0.392, pOuterAz),
+          new THREE.Vector3(pApexX, 0.392, pApexZ),
+          new THREE.Vector3(pOuterBx, 0.392, pOuterBz),
+        ];
+        const cornerCopingGeo = new THREE.BufferGeometry().setFromPoints(copingPts);
+        const cornerCopingLine = new THREE.Line(
+          cornerCopingGeo,
+          new THREE.LineBasicMaterial({ color: 0x78350f, linewidth: 3 })
+        );
+        group.add(cornerCopingLine);
+
+        // LED transit accent meeting at inner corner
+        const ledCornerPts = [
+          new THREE.Vector3(pInnerAx, 0.228, pInnerAz),
+          new THREE.Vector3(pDeckApexX, 0.228, pDeckApexZ),
+          new THREE.Vector3(pInnerBx, 0.228, pInnerBz),
+        ];
+        const ledCornerGeo = new THREE.BufferGeometry().setFromPoints(ledCornerPts);
+        const ledCornerLine = new THREE.Line(
+          ledCornerGeo,
+          new THREE.LineBasicMaterial({ color: isGlow ? 0x00f3ff : 0xfacc15, linewidth: 2 })
+        );
+        group.add(ledCornerLine);
+
+        // Road deck filling the inner corner triangle at y = 0.22
+        const deckTriGeo = new THREE.BufferGeometry();
+        const dPos = [
+          0,          0.22, 0,
+          pInnerAx,   0.22, pInnerAz,
+          pDeckApexX, 0.22, pDeckApexZ,
+
+          0,          0.22, 0,
+          pDeckApexX, 0.22, pDeckApexZ,
+          pInnerBx,   0.22, pInnerBz,
+        ];
+        deckTriGeo.setAttribute('position', new THREE.Float32BufferAttribute(dPos, 3));
+        deckTriGeo.computeVertexNormals();
+        const deckTri = new THREE.Mesh(deckTriGeo, bridgeDeckMat);
+        deckTri.receiveShadow = true;
+        group.add(deckTri);
+
+      } else {
+        // ── B. OUTER SIDE (FLAT MITER / STRAIGHT CONNECT - NO CIRCULAR BORDERS) ──
+        // Connects Arm A's left flank at z = 0 directly to Arm B's right flank at z = 0
+        const pOuterAx = -halfW * nAx;
+        const pOuterAz = -halfW * nAz;
+        const pOuterBx = halfW * nBx;
+        const pOuterBz = halfW * nBz;
+
+        const pInnerAx = -innerHalfW * nAx;
+        const pInnerAz = -innerHalfW * nAz;
+        const pInnerBx = innerHalfW * nBx;
+        const pInnerBz = innerHalfW * nBz;
+
+        // Clean flat outer wall face between arm A and arm B
+        const outerWallGeo = new THREE.BufferGeometry();
+        const wPos = [
+          pOuterAx, 0.38, pOuterAz,
+          pOuterBx, 0.38, pOuterBz,
+          pOuterAx, 0.16, pOuterAz,
+
+          pOuterBx, 0.38, pOuterBz,
+          pOuterBx, 0.16, pOuterBz,
+          pOuterAx, 0.16, pOuterAz,
+        ];
+        outerWallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wPos, 3));
+        outerWallGeo.computeVertexNormals();
+        const outerWall = new THREE.Mesh(outerWallGeo, whiteParapetMat);
+        outerWall.castShadow = true;
+        group.add(outerWall);
+
+        // Straight coping handrail connecting outer flanks
+        const copingPts = [
+          new THREE.Vector3(pOuterAx, 0.392, pOuterAz),
+          new THREE.Vector3(pOuterBx, 0.392, pOuterBz),
+        ];
+        const outerCopingGeo = new THREE.BufferGeometry().setFromPoints(copingPts);
+        const outerCopingLine = new THREE.Line(
+          outerCopingGeo,
+          new THREE.LineBasicMaterial({ color: 0x78350f, linewidth: 3 })
+        );
+        group.add(outerCopingLine);
+
+        // Straight LED accent along outer wall base
+        const ledPts = [
+          new THREE.Vector3(pInnerAx, 0.228, pInnerAz),
+          new THREE.Vector3(pInnerBx, 0.228, pInnerBz),
+        ];
+        const outerLedGeo = new THREE.BufferGeometry().setFromPoints(ledPts);
+        const outerLedLine = new THREE.Line(
+          outerLedGeo,
+          new THREE.LineBasicMaterial({ color: isGlow ? 0x00f3ff : 0xfacc15, linewidth: 2 })
+        );
+        group.add(outerLedLine);
+
+        // Flush stone road deck filling outer sector at y = 0.22
+        const deckGeo = new THREE.BufferGeometry();
+        const dPos = [
+          0,        0.22, 0,
+          pInnerAx, 0.22, pInnerAz,
+          pInnerBx, 0.22, pInnerBz,
+        ];
+        deckGeo.setAttribute('position', new THREE.Float32BufferAttribute(dPos, 3));
+        deckGeo.computeVertexNormals();
+        const deckMesh = new THREE.Mesh(deckGeo, bridgeDeckMat);
+        deckMesh.receiveShadow = true;
+        group.add(deckMesh);
+      }
+    }
+  }
+
+  // ── 10. Smooth Curved Highway Lane Marking for Turns (N === 2, non-straight) ─
+  if (isCurvedTwoWay) {
+    const a0 = connectedDirs[0].angle;
+    const a1 = connectedDirs[1].angle;
+    let turnDiff = (a1 - a0) % (Math.PI * 2);
+    if (turnDiff < 0) turnDiff += Math.PI * 2;
+
+    const startA = turnDiff <= Math.PI ? a0 : a1;
+    const sweepA = turnDiff <= Math.PI ? turnDiff : Math.PI * 2 - turnDiff;
+
+    const curvePoints: THREE.Vector3[] = [];
+    const curveSegs = 18;
+    for (let c = 0; c <= curveSegs; c++) {
+      const fr = c / curveSegs;
+      const th = startA + fr * sweepA;
+      const rLane = hubRadius * 0.65;
+      curvePoints.push(new THREE.Vector3(Math.sin(th) * rLane, 0.226, Math.cos(th) * rLane));
+    }
+    const curveLineGeo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+    const curveLine = new THREE.Line(
+      curveLineGeo,
+      new THREE.LineBasicMaterial({ color: isGlow ? 0x00f3ff : 0xfde047, linewidth: 2 })
+    );
+    group.add(curveLine);
   }
 
   return group;
@@ -2703,337 +3061,6 @@ interface DynamicJunctionParams {
   isLargeJunction: boolean;
   isGlow: boolean;
   accentColor: number;
-}
-
-function createDynamicJunctionMesh({
-  connectedDirs,
-  isLargeJunction,
-  isGlow,
-  accentColor,
-}: DynamicJunctionParams): THREE.Group {
-  const group = new THREE.Group();
-
-  // 1. Full Hexagonal cobblestone foundation (covers the tile completely!)
-  // HEX_RADIUS is 1.35. A cylinder of radius HEX_RADIUS * 1.05 completely covers the hex with zero gaps.
-  const baseGeo = new THREE.CylinderGeometry(HEX_RADIUS * 1.05, HEX_RADIUS * 1.05, 0.04, 6);
-  const baseMat = new THREE.MeshStandardMaterial({ 
-    color: 0x64748b, // slate gray cobblestone shoulder texture
-    roughness: 0.9, 
-    flatShading: true 
-  });
-  const base = new THREE.Mesh(baseGeo, baseMat);
-  base.rotation.y = Math.PI / 6; // align flat-to-flat with pointy-topped hex
-  base.position.y = 0.015;
-  base.receiveShadow = true;
-  group.add(base);
-
-  // 2. Central Asphalt Hub Plaza
-  // Large circular asphalt disc that covers the central hex area generously
-  const hubRadius = isLargeJunction ? 1.25 : 1.15;
-  const centralAsphaltGeo = new THREE.CylinderGeometry(hubRadius, hubRadius, 0.044, 32);
-  const asphaltMat = new THREE.MeshStandardMaterial({ 
-    color: 0x1e293b, // deep charcoal asphalt
-    roughness: 0.95,
-    flatShading: true
-  });
-  const centralAsphalt = new THREE.Mesh(centralAsphaltGeo, asphaltMat);
-  centralAsphalt.position.y = 0.022;
-  centralAsphalt.receiveShadow = true;
-  group.add(centralAsphalt);
-
-  // 3. Curved white concrete border curb wrapping the central asphalt hub
-  const borderGeo = new THREE.CylinderGeometry(hubRadius, hubRadius + 0.05, 0.052, 32, 1, true);
-  const borderMat = new THREE.MeshStandardMaterial({ color: 0xe2e8f0, roughness: 0.8 });
-  const border = new THREE.Mesh(borderGeo, borderMat);
-  border.position.y = 0.027;
-  group.add(border);
-
-  // 4. If no connected directions found (fallback), default to standard 2-way opposite angles
-  const effectiveDirs = connectedDirs.length > 0 
-    ? connectedDirs 
-    : [
-        { dirIdx: 0, angle: Math.PI / 2, neighborKey: '' },
-        { dirIdx: 3, angle: -Math.PI / 2, neighborKey: '' },
-      ];
-
-  // 5. Extended Road Arms reaching outwards to every connected neighbor
-  // Distance from hex center to flat edge is HEX_RADIUS * SQRT3 / 2 ≈ 1.1691
-  // Arm length of 1.38 extends comfortably across the boundary into neighboring tiles with zero gaps
-  const armLength = 1.38;
-  const armWidth = 1.24; // Matching road asphalt width (1.22) + slight overlap for seamless join
-  const armGeo = new THREE.BoxGeometry(armWidth, 0.044, armLength);
-  const armBaseGeo = new THREE.BoxGeometry(1.64, 0.032, armLength); // Matching 1.64 cobblestone shoulder
-  const armCurbGeo = new THREE.BoxGeometry(0.06, 0.052, armLength);
-  const yellowLineGeo = new THREE.BoxGeometry(0.04, 0.052, armLength * 0.82);
-  const yellowMat = new THREE.MeshStandardMaterial({ 
-    color: 0xfacc15,
-    roughness: 0.5,
-    emissive: 0xfacc15,
-    emissiveIntensity: isGlow ? 1.8 : 0.0
-  });
-
-  const whiteStripeGeo = new THREE.BoxGeometry(0.05, 0.054, 0.16);
-  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.6 });
-
-  effectiveDirs.forEach(conn => {
-    const armGroup = new THREE.Group();
-    armGroup.rotation.y = conn.angle;
-
-    // Cobblestone shoulder foundation under the arm (matches standard road tile width)
-    const armBase = new THREE.Mesh(armBaseGeo, baseMat);
-    armBase.position.set(0, 0.016, armLength / 2);
-    armBase.receiveShadow = true;
-    armGroup.add(armBase);
-
-    // Road asphalt extending from center outward
-    const arm = new THREE.Mesh(armGeo, asphaltMat);
-    arm.position.set(0, 0.022, armLength / 2);
-    arm.receiveShadow = true;
-    armGroup.add(arm);
-
-    // Left and Right Curbs (aligned exactly at ±0.60 to continue straight road curbs)
-    const curbL = new THREE.Mesh(armCurbGeo, borderMat);
-    curbL.position.set(-0.60, 0.026, armLength / 2);
-    armGroup.add(curbL);
-
-    const curbR = new THREE.Mesh(armCurbGeo, borderMat);
-    curbR.position.set(0.60, 0.026, armLength / 2);
-    armGroup.add(curbR);
-
-    // Center yellow divider on the arm
-    const yellowLine = new THREE.Mesh(yellowLineGeo, yellowMat);
-    yellowLine.position.set(0, 0.025, armLength * 0.46);
-    armGroup.add(yellowLine);
-
-    // Pedestrian crosswalk zebra stripes at the outer edge of each arm
-    const stripeSpacing = [-0.38, -0.26, -0.14, 0.14, 0.26, 0.38];
-    stripeSpacing.forEach(xOffset => {
-      const stripe = new THREE.Mesh(whiteStripeGeo, whiteMat);
-      stripe.position.set(xOffset, 0.026, armLength * 0.80);
-      armGroup.add(stripe);
-    });
-
-    // Active transit flow neon strip along the arm curbs
-    if (isGlow) {
-      const glowArmGeo = new THREE.BoxGeometry(0.02, 0.045, armLength);
-      const glowArmMat = new THREE.MeshStandardMaterial({
-        color: 0x00f3ff,
-        emissive: 0x00f3ff,
-        emissiveIntensity: 2.5
-      });
-      const glowL = new THREE.Mesh(glowArmGeo, glowArmMat);
-      glowL.position.set(-0.56, 0.026, armLength / 2);
-      armGroup.add(glowL);
-
-      const glowR = glowL.clone();
-      glowR.position.x = 0.56;
-      armGroup.add(glowR);
-    }
-
-    // Directional traffic flow arrows (chevrons painted on the road)
-    const arrowStemGeo = new THREE.BoxGeometry(0.035, 0.054, 0.18);
-    const arrowHeadGeo = new THREE.BoxGeometry(0.035, 0.054, 0.12);
-
-    // Inbound lane arrow (right lane, entering the junction)
-    const arrowR = new THREE.Group();
-    arrowR.position.set(0.28, 0.025, armLength * 0.45);
-    const stemR = new THREE.Mesh(arrowStemGeo, whiteMat);
-    arrowR.add(stemR);
-    const headRL = new THREE.Mesh(arrowHeadGeo, whiteMat);
-    headRL.position.set(-0.04, 0, -0.06);
-    headRL.rotation.y = 0.6;
-    arrowR.add(headRL);
-    const headRR = new THREE.Mesh(arrowHeadGeo, whiteMat);
-    headRR.position.set(0.04, 0, -0.06);
-    headRR.rotation.y = -0.6;
-    arrowR.add(headRR);
-    armGroup.add(arrowR);
-
-    // Outbound lane arrow (left lane, exiting the junction)
-    const arrowL = new THREE.Group();
-    arrowL.position.set(-0.28, 0.025, armLength * 0.45);
-    arrowL.rotation.y = Math.PI; // pointing outward
-    const stemL = new THREE.Mesh(arrowStemGeo, whiteMat);
-    arrowL.add(stemL);
-    const headLL = new THREE.Mesh(arrowHeadGeo, whiteMat);
-    headLL.position.set(-0.04, 0, -0.06);
-    headLL.rotation.y = 0.6;
-    arrowL.add(headLL);
-    const headLR = new THREE.Mesh(arrowHeadGeo, whiteMat);
-    headLR.position.set(0.04, 0, -0.06);
-    headLR.rotation.y = -0.6;
-    arrowL.add(headLR);
-    armGroup.add(arrowL);
-
-    group.add(armGroup);
-  });
-
-  // 6. Central Traffic Feature & Flow Visualization
-  if (isLargeJunction) {
-    // A. Raised emerald rotary island in the center with curb
-    const islandRadius = 0.55;
-    const grassGeo = new THREE.CylinderGeometry(islandRadius, islandRadius, 0.08, 32);
-    const grassMat = new THREE.MeshStandardMaterial({ 
-      color: 0x10b981, // vibrant emerald green
-      roughness: 0.8,
-      flatShading: true
-    });
-    const grassIsland = new THREE.Mesh(grassGeo, grassMat);
-    grassIsland.position.y = 0.055;
-    grassIsland.castShadow = true;
-    grassIsland.receiveShadow = true;
-    group.add(grassIsland);
-
-    // White concrete curb around the island
-    const islandCurbGeo = new THREE.CylinderGeometry(islandRadius, islandRadius + 0.04, 0.10, 32, 1, true);
-    const islandCurb = new THREE.Mesh(islandCurbGeo, borderMat);
-    islandCurb.position.y = 0.065;
-    group.add(islandCurb);
-
-    // Mini emerald pine tree on the island
-    const centerTree = createLowPolyPine(0.42);
-    centerTree.position.set(0, 0.08, 0);
-    group.add(centerTree);
-
-    // Small flower patches
-    const flower1 = createFlowerPatch(0xef4444);
-    flower1.position.set(-0.18, 0.08, 0.14);
-    group.add(flower1);
-
-    const flower2 = createFlowerPatch(0xf59e0b);
-    flower2.position.set(0.18, 0.08, -0.14);
-    group.add(flower2);
-
-    // Modern traffic control beacon / transit pylon in the center
-    const beaconBaseGeo = new THREE.CylinderGeometry(0.10, 0.14, 0.32, 8);
-    const beaconBaseMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.7, roughness: 0.3 });
-    const beaconBase = new THREE.Mesh(beaconBaseGeo, beaconBaseMat);
-    beaconBase.position.y = 0.22;
-    beaconBase.castShadow = true;
-    group.add(beaconBase);
-
-    const beaconLightGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.20, 16);
-    const beaconLightMat = new THREE.MeshStandardMaterial({
-      color: isGlow ? 0x00f3ff : 0xf59e0b,
-      emissive: isGlow ? 0x00f3ff : 0xf59e0b,
-      emissiveIntensity: isGlow ? 2.5 : 1.2
-    });
-    const beaconLight = new THREE.Mesh(beaconLightGeo, beaconLightMat);
-    beaconLight.position.y = 0.44;
-    group.add(beaconLight);
-
-    const beaconCapGeo = new THREE.ConeGeometry(0.12, 0.15, 8);
-    const beaconCapMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5 });
-    const beaconCap = new THREE.Mesh(beaconCapGeo, beaconCapMat);
-    beaconCap.position.y = 0.58;
-    group.add(beaconCap);
-
-    // B. Rotary traffic flow guide ring (yellow dashed circle around the island)
-    const rotaryRingGeo = new THREE.RingGeometry(islandRadius + 0.12, islandRadius + 0.16, 32);
-    rotaryRingGeo.rotateX(-Math.PI / 2);
-    const rotaryRingMat = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      emissive: 0xfacc15,
-      emissiveIntensity: isGlow ? 1.6 : 0.0,
-      side: THREE.DoubleSide
-    });
-    const rotaryRing = new THREE.Mesh(rotaryRingGeo, rotaryRingMat);
-    rotaryRing.position.y = 0.026;
-    group.add(rotaryRing);
-
-    // C. Rotary circulating chevron arrows showing counter-clockwise traffic circulation
-    for (let q = 0; q < 4; q++) {
-      const qAngle = (q * Math.PI) / 2;
-      const arrowGroup = new THREE.Group();
-      const rDist = islandRadius + 0.14;
-      arrowGroup.position.set(Math.cos(qAngle) * rDist, 0.027, Math.sin(qAngle) * rDist);
-      arrowGroup.rotation.y = -qAngle + Math.PI; // tangent counter-clockwise
-
-      const arrowStem = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.05, 0.10), whiteMat);
-      arrowGroup.add(arrowStem);
-      const headL = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.05, 0.07), whiteMat);
-      headL.position.set(-0.025, 0, -0.035);
-      headL.rotation.y = 0.5;
-      arrowGroup.add(headL);
-      const headR = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.05, 0.07), whiteMat);
-      headR.position.set(0.025, 0, -0.035);
-      headR.rotation.y = -0.5;
-      arrowGroup.add(headR);
-
-      group.add(arrowGroup);
-    }
-
-    // D. Glowing active transit pulse ring around the rotary
-    if (isGlow) {
-      const pulseRingGeo = new THREE.RingGeometry(islandRadius + 0.05, islandRadius + 0.08, 32);
-      pulseRingGeo.rotateX(-Math.PI / 2);
-      const pulseRingMat = new THREE.MeshStandardMaterial({
-        color: 0x00f3ff,
-        emissive: 0x00f3ff,
-        emissiveIntensity: 2.8,
-        side: THREE.DoubleSide
-      });
-      const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
-      pulseRing.position.y = 0.068;
-      group.add(pulseRing);
-    }
-  } else {
-    // Standard 3-way or 4-way intersection (smaller group)
-    // Painted center yellow intersection circle
-    const centerCircleGeo = new THREE.RingGeometry(0.42, 0.48, 32);
-    centerCircleGeo.rotateX(-Math.PI / 2);
-    const centerCircleMat = new THREE.MeshStandardMaterial({
-      color: 0xfacc15,
-      emissive: 0xfacc15,
-      emissiveIntensity: isGlow ? 1.5 : 0.0,
-      side: THREE.DoubleSide
-    });
-    const centerCircle = new THREE.Mesh(centerCircleGeo, centerCircleMat);
-    centerCircle.position.y = 0.025;
-    group.add(centerCircle);
-
-    if (isGlow) {
-      const cyanRingGeo = new THREE.RingGeometry(0.24, 0.28, 32);
-      cyanRingGeo.rotateX(-Math.PI / 2);
-      const cyanRingMat = new THREE.MeshStandardMaterial({
-        color: 0x00f3ff,
-        emissive: 0x00f3ff,
-        emissiveIntensity: 2.5,
-        side: THREE.DoubleSide
-      });
-      const cyanRing = new THREE.Mesh(cyanRingGeo, cyanRingMat);
-      cyanRing.position.y = 0.026;
-      group.add(cyanRing);
-    }
-  }
-
-  return group;
-}
-
-function createJunctionMesh(
-  isGlow: boolean = false, 
-  isBridge: boolean = false, 
-  connectedDirs: { dirIdx: number; angle: number; neighborKey: string }[] = []
-): THREE.Group {
-  return createDynamicJunctionMesh({
-    connectedDirs,
-    isLargeJunction: false,
-    isGlow,
-    accentColor: 0xc87d55,
-  });
-}
-
-function createRoundaboutMesh(
-  isGlow: boolean = false, 
-  isBridge: boolean = false, 
-  connectedDirs: { dirIdx: number; angle: number; neighborKey: string }[] = []
-): THREE.Group {
-  return createDynamicJunctionMesh({
-    connectedDirs,
-    isLargeJunction: true,
-    isGlow,
-    accentColor: 0xc87d55,
-  });
 }
 
 function createComplexTowerMesh(accentColor: number): THREE.Group {
