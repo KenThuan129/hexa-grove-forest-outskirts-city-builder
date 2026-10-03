@@ -611,7 +611,7 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-house-amber']),
-    targetScore: { star1: 300, star2: 600, star3: 1000 },
+    targetScore: { star1: 100, star2: 400, star3: 500 },
     lightbulbBudget: 3,
   },
 
