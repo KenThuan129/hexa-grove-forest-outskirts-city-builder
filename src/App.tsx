@@ -2407,17 +2407,27 @@ export default function App() {
           highestCompletedLevel={highestCompletedLevel}
           currentLevelIndex={levelIndex}
           bypasses={bypasses}
+          isAdminUnlocked={isAdminUnlocked}
           onSelectBypass={handleSelectBypass}
-          onNavigateHome={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
-          onNavigateJourney={() => navigateWithTransition('journey', 'Resuming Frontier Expedition', `Level ${currentLevel.id}: ${currentLevel.name}`)}
-          onRequestHubReturn={() => {
+          onNavigateHome={() =>
+            navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')
+          }
+          onNavigateJourney={() =>
+            navigateWithTransition(
+              'journey',
+              'Resuming Frontier Expedition',
+              `Level ${currentLevel.id}: ${currentLevel.name}`
+            )
+          }
+          onRequestAdminAuth={(featureName) => setAdminAuthFeature(featureName || 'VN Studio')}
+          onRequestHubReturn={() =>
             navigateWithTransition(
               'memories',
               'Sealing the Chapter',
               'Returning to the Memories Gallery',
               true
-            );
-          }}
+            )
+          }
         />
       )}
 

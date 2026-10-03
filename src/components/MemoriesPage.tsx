@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { MemoryPicture, PenaltyBypassRecord, BypassablePenaltyType } from '../types/game';
-import { STORY_CHAPTERS } from '../data/storyData';
-import { StoryChapter } from '../types/story';
+import { VN_CHAPTERS } from '../data/vn';
+import type { VNChapter } from '../types/vn';
+import { loadCustomVNChapters } from '../utils/vnStorage';
 import { ChooseBypassModal } from './ChooseBypassModal';
 import { VNPlayer } from './vn/VNPlayer';
+import { VNStudioModal } from './vn/VNStudioModal';
 import { convertLegacyChapter } from '../data/vn/legacyAdapter';
 import {
   Sparkles,
@@ -27,9 +29,14 @@ interface MemoriesPageProps {
   highestCompletedLevel: number;
   currentLevelIndex: number;
   bypasses: PenaltyBypassRecord;
+  isAdminUnlocked?: boolean;
   onSelectBypass: (pictureId: number, penalty: BypassablePenaltyType) => void;
   onNavigateHome: () => void;
   onNavigateJourney: () => void;
+  /** Optional: request opening the admin gate for the studio. */
+  onRequestAdminAuth?: (featureName?: string) => void;
+  /** Optional: called when the studio finishes a preview and wants to
+   *  show the VN player. */
   onRequestHubReturn?: () => void;
 }
 
@@ -38,14 +45,27 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
   highestCompletedLevel,
   currentLevelIndex,
   bypasses,
+  isAdminUnlocked = false,
   onSelectBypass,
   onNavigateHome,
   onNavigateJourney,
+  onRequestAdminAuth,
   onRequestHubReturn,
 }) => {
   const [selectedPictureForBypass, setSelectedPictureForBypass] = useState<MemoryPicture | null>(null);
-  const [activeStoryChapter, setActiveStoryChapter] = useState<StoryChapter | null>(null);
+  const [activeStoryChapter, setActiveStoryChapter] = useState<VNChapter | null>(null);
   const [chapterAceBonds, setChapterAceBonds] = useState<Record<number, 'nature' | 'people' | 'self'>>({});
+  const [isStudioOpen, setIsStudioOpen] = useState(false);
+
+  // Merge built-in and custom chapters. Custom chapters override by id.
+  const allChapters: VNChapter[] = (() => {
+    const custom = loadCustomVNChapters();
+    const customIds = new Set(custom.map((c) => c.id));
+    return [
+      ...VN_CHAPTERS.map((c) => (customIds.has(c.id) ? custom.find((x) => x.id === c.id)! : c)),
+      ...custom.filter((c) => !VN_CHAPTERS.some((b) => b.id === c.id)),
+    ];
+  })();
 
   const handleSelectAceBond = (chapterId: number, aceBond: 'nature' | 'people' | 'self') => {
     setChapterAceBonds(prev => ({
@@ -79,13 +99,33 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
           <span>The Pioneer's Visual Novel & Memories Gallery</span>
         </div>
 
-        <button
-          onClick={onNavigateJourney}
-          className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg font-bold text-xs transition-all cursor-pointer"
-        >
-          <Compass className="w-4 h-4" />
-          <span>Resume Journey</span>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (!isAdminUnlocked) {
+                onRequestAdminAuth?.('VN Studio');
+                return;
+              }
+              setIsStudioOpen(true);
+            }}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-2xl border shadow-lg font-bold text-xs transition-all cursor-pointer ${isAdminUnlocked
+                ? 'bg-[#3d2317]/90 hover:bg-[#4d2d1e] text-cyan-200 border-cyan-500/50 hover:border-cyan-400'
+                : 'bg-[#3d2317]/70 text-amber-300/80 border-[#5a3624] hover:border-amber-500/60'
+              }`}
+            title={isAdminUnlocked ? 'Open VN Studio' : 'Requires Admin Passcode'}
+          >
+            <Feather className="w-4 h-4" />
+            <span>Author Chapter</span>
+          </button>
+
+          <button
+            onClick={onNavigateJourney}
+            className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg font-bold text-xs transition-all cursor-pointer"
+          >
+            <Compass className="w-4 h-4" />
+            <span>Resume Journey</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -148,18 +188,17 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
 
           {/* Visual Novel Chapter Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {STORY_CHAPTERS.map(chapter => {
+            {allChapters.map(chapter => {
               const isUnlocked = highestCompletedLevel >= chapter.levelReq;
               const chosenAce = chapterAceBonds[chapter.id];
 
               return (
                 <div
                   key={chapter.id}
-                  className={`relative rounded-3xl p-5 border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${
-                    isUnlocked
+                  className={`relative rounded-3xl p-5 border-2 transition-all duration-300 flex flex-col justify-between gap-4 ${isUnlocked
                       ? 'bg-gradient-to-br from-[#2d180f] to-[#1d0d08] border-[#7c482c] shadow-xl hover:border-amber-400/80'
                       : 'bg-[#180c07]/80 border-[#3a2014] opacity-70'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
@@ -242,11 +281,10 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
               return (
                 <div
                   key={picture.id}
-                  className={`relative rounded-3xl p-4 flex flex-col justify-between min-h-[220px] border-2 transition-all duration-300 ${
-                    isUnlocked
+                  className={`relative rounded-3xl p-4 flex flex-col justify-between min-h-[220px] border-2 transition-all duration-300 ${isUnlocked
                       ? 'bg-[#2a170e]/95 border-[#7c482c] shadow-xl text-amber-100 hover:border-amber-500/80'
                       : 'bg-[#1e1009]/70 border-[#4a2b1a]/60 text-amber-400/40 opacity-75'
-                  }`}
+                    }`}
                 >
                   <div className="flex-1 rounded-2xl flex flex-col items-center justify-center p-3 mb-2.5 border border-dashed border-amber-500/30 bg-[#1c0f09]/80 text-center gap-1.5">
                     {isUnlocked ? (
@@ -320,35 +358,31 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
       />
 
       {/* Visual Novel Modal */}
-      {activeStoryChapter && (() => {
-        const vnChapter = convertLegacyChapter(activeStoryChapter);
+      {activeStoryChapter && (
+        <VNPlayer
+          chapter={activeStoryChapter}
+          onClose={() => setActiveStoryChapter(null)}
+          onChapterComplete={() => {
+            setActiveStoryChapter(null);
+            onRequestHubReturn?.();
+          }}
+          onSelectAceBond={handleSelectAceBond}
+          selectedAceBond={
+            activeStoryChapter ? chapterAceBonds[activeStoryChapter.id] : undefined
+          }
+        />
+      )}
 
-        // TEMP DEMO — override the first scene's background with one of the
-        // city photos so you can see the frame render an actual illustration.
-        // Remove this block once real VN art layers are authored per scene.
-        if (vnChapter.scenes[0]) {
-          vnChapter.scenes[0].background.layers = [
-            { src: '/vn/backgrounds/demo/city-night-canyon.jpg', opacity: 1.0 },
-          ];
-          vnChapter.scenes[0].background.vignette = true;
-          vnChapter.scenes[0].background.particles = 'motes';
-        }
-
-        return (
-          <VNPlayer
-            chapter={vnChapter}
-            onClose={() => setActiveStoryChapter(null)}
-            onChapterComplete={() => {
-              setActiveStoryChapter(null);
-              onRequestHubReturn?.();
-            }}
-            onSelectAceBond={handleSelectAceBond}
-            selectedAceBond={
-              activeStoryChapter ? chapterAceBonds[activeStoryChapter.id] : undefined
-            }
-          />
-        );
-      })()}
+      {/* VN Studio Editor */}
+      <VNStudioModal
+        isOpen={isStudioOpen}
+        onClose={() => setIsStudioOpen(false)}
+        onPreviewChapter={(chapter) => {
+          // Close the studio and open the preview in the VN player.
+          setIsStudioOpen(false);
+          setActiveStoryChapter(chapter);
+        }}
+      />
     </div>
   );
 };
