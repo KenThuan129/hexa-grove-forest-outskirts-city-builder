@@ -646,7 +646,7 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
           )}
 
           {/* Choice overlay */}
-          {engine.hasChoice && line?.choice && (
+            {engine.hasChoice && !engine.state.isTyping && line?.choice && (
             <VNChoiceOverlay
               prompt={line.choice.prompt}
               options={line.choice.options}
