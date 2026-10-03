@@ -2414,7 +2414,8 @@ export default function App() {
             navigateWithTransition(
               'memories',
               'Sealing the Chapter',
-              'Returning to the Memories Gallery'
+              'Returning to the Memories Gallery',
+              true
             );
           }}
         />
