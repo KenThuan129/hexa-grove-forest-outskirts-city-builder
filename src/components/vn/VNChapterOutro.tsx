@@ -6,102 +6,111 @@ interface VNChapterOutroProps {
   onComplete: () => void;
 }
 
-type OutroPhase = 'in' | 'hold' | 'out';
-
-/**
- * Full-screen cinematic chapter outro overlay.
- *
- * Sequence:
- *  1. Frame has just faded out (parent's responsibility).
- *  2. Bottom-right blue bloom fades in from the corner edge.
- *  3. "To be continued" fades in just above the bloom.
- *  4. Holds.
- *  5. onComplete fires — the parent then triggers the transition loader
- *     and returns to the Memories hub.
- */
 export const VNChapterOutro: React.FC<VNChapterOutroProps> = ({ onComplete }) => {
-  const [phase, setPhase] = useState<OutroPhase>('in');
+  // Staged reveal: bloom → hairlines → text → hold → out
+  const [stage, setStage] = useState<0 | 1 | 2 | 3 | 4>(0);
+  // 0 = nothing
+  // 1 = bloom visible
+  // 2 = hairlines visible
+  // 3 = "To be continued" visible
+  // 4 = fading out
 
   useEffect(() => {
-    const t1 = window.setTimeout(() => setPhase('hold'), 900);   // after bloom + text in
-    const t2 = window.setTimeout(() => setPhase('out'), 900 + 1400); // hold duration
-    const t3 = window.setTimeout(() => onComplete(), 900 + 1400 + 400); // fade-out
+    const raf = requestAnimationFrame(() => setStage(1));
+    const t2 = window.setTimeout(() => setStage(2), 600);
+    const t3 = window.setTimeout(() => setStage(3), 1200);
+    const t4 = window.setTimeout(() => setStage(4), 1200 + 1800); // hold
+    const t5 = window.setTimeout(() => onComplete(), 1200 + 1800 + 700);
 
     return () => {
-      window.clearTimeout(t1);
+      cancelAnimationFrame(raf);
       window.clearTimeout(t2);
       window.clearTimeout(t3);
+      window.clearTimeout(t4);
+      window.clearTimeout(t5);
     };
   }, [onComplete]);
 
-  const visible = phase === 'in' || phase === 'hold';
+  const isOut = stage === 4;
+  const bloomVisible = stage >= 1 && !isOut;
+  const hairlinesVisible = stage >= 2 && !isOut;
+  const textVisible = stage >= 3 && !isOut;
 
   return (
     <div
       className="absolute inset-0 z-[200] pointer-events-none"
       style={{
-        // Solid black — hides the frame entirely while the outro plays.
         background: '#000000',
-        transition: 'opacity 400ms ease',
-        opacity: phase === 'out' ? 0 : 1,
+        transition: 'opacity 700ms ease',
+        opacity: isOut ? 0 : 1,
       }}
     >
-      {/* ── Bottom-right bloom rising from the corner ─────────── */}
+      {/* ── Bottom-right bloom, scaled up from the corner ─────── */}
       <div
         className="absolute right-0 bottom-0 pointer-events-none"
         style={{
-          width: '46%',
-          height: '46%',
+          width: '55%',
+          height: '55%',
           background:
-            'radial-gradient(ellipse at 100% 100%, rgba(96, 165, 250, 0.30) 0%, rgba(96, 165, 250, 0.10) 40%, rgba(96, 165, 250, 0) 75%)',
+            'radial-gradient(ellipse at 100% 100%, rgba(96, 165, 250, 0.32) 0%, rgba(96, 165, 250, 0.12) 38%, rgba(96, 165, 250, 0) 72%)',
           filter: 'blur(4px)',
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'scale(1)' : 'scale(0.96)',
+          opacity: bloomVisible ? 1 : 0,
+          transform: bloomVisible ? 'scale(1)' : 'scale(0.82)',
           transformOrigin: '100% 100%',
-          transition: 'opacity 900ms ease, transform 900ms ease',
-          animation: visible ? 'vn-outro-bloom 3.2s ease-in-out infinite' : undefined,
+          transition:
+            'opacity 1500ms cubic-bezier(0.22, 1, 0.36, 1), transform 1500ms cubic-bezier(0.22, 1, 0.36, 1)',
+          animation: bloomVisible ? 'vn-outro-bloom 3.6s ease-in-out infinite' : undefined,
         }}
       />
 
-      {/* A thin blue hairline tracing the bottom-right corner */}
+      {/* ── Corner hairlines drawing outward ──────────────────── */}
+      {/* Horizontal */}
       <div
         className="absolute bottom-0 right-0 pointer-events-none"
         style={{
-          width: '22%',
+          width: '26%',
           height: '2px',
           background:
-            'linear-gradient(to left, rgba(96, 165, 250, 0.65) 0%, rgba(96, 165, 250, 0) 100%)',
-          opacity: visible ? 1 : 0,
-          transition: 'opacity 900ms ease',
+            'linear-gradient(to left, rgba(96, 165, 250, 0.7) 0%, rgba(96, 165, 250, 0) 100%)',
+          opacity: hairlinesVisible ? 1 : 0,
+          transform: hairlinesVisible ? 'scaleX(1)' : 'scaleX(0)',
+          transformOrigin: '100% 50%',
+          transition:
+            'opacity 900ms ease, transform 1100ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       />
+      {/* Vertical */}
       <div
         className="absolute bottom-0 right-0 pointer-events-none"
         style={{
           width: '2px',
-          height: '22%',
+          height: '26%',
           background:
-            'linear-gradient(to top, rgba(96, 165, 250, 0.65) 0%, rgba(96, 165, 250, 0) 100%)',
-          opacity: visible ? 1 : 0,
-          transition: 'opacity 900ms ease',
+            'linear-gradient(to top, rgba(96, 165, 250, 0.7) 0%, rgba(96, 165, 250, 0) 100%)',
+          opacity: hairlinesVisible ? 1 : 0,
+          transform: hairlinesVisible ? 'scaleY(1)' : 'scaleY(0)',
+          transformOrigin: '50% 100%',
+          transition:
+            'opacity 900ms ease, transform 1100ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       />
 
-      {/* ── "To be continued" text, sitting near the bloom ────── */}
+      {/* ── "To be continued" ─────────────────────────────────── */}
       <div
         className="absolute pointer-events-none"
         style={{
           right: '5%',
           bottom: '12%',
-          opacity: visible ? 1 : 0,
-          transform: visible ? 'translateY(0)' : 'translateY(8px)',
-          transition: 'opacity 800ms ease 300ms, transform 800ms ease 300ms',
+          opacity: textVisible ? 1 : 0,
+          transform: textVisible ? 'translateY(0)' : 'translateY(16px)',
+          transition:
+            'opacity 1200ms cubic-bezier(0.22, 1, 0.36, 1), transform 1200ms cubic-bezier(0.22, 1, 0.36, 1)',
         }}
       >
         <span
           className="font-serif italic text-base sm:text-lg md:text-xl tracking-wide"
           style={{
-            color: '#bfdbfe', // blue-200
+            color: '#bfdbfe',
             textShadow:
               '0 2px 16px rgba(0, 0, 0, 0.9), 0 0 32px rgba(96, 165, 250, 0.35)',
           }}
@@ -110,11 +119,10 @@ export const VNChapterOutro: React.FC<VNChapterOutroProps> = ({ onComplete }) =>
         </span>
       </div>
 
-      {/* ── Scoped keyframes ──────────────────────────────────── */}
       <style>{`
         @keyframes vn-outro-bloom {
-          0%, 100% { opacity: 0.9; }
-          50%      { opacity: 1.0; }
+          0%, 100% { filter: blur(4px) brightness(0.9); }
+          50%      { filter: blur(4px) brightness(1.1); }
         }
       `}</style>
     </div>
