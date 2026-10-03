@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { MemoryPicture, PenaltyBypassRecord, BypassablePenaltyType } from '../types/game';
 import { STORY_CHAPTERS } from '../data/storyData';
 import { StoryChapter } from '../types/story';
-import { VisualNovelModal } from './VisualNovelModal';
 import { ChooseBypassModal } from './ChooseBypassModal';
+import { VNPlayer } from './vn/VNPlayer';
+import { convertLegacyChapter } from '../data/vn/legacyAdapter';
 import {
   Sparkles,
   ArrowLeft,
@@ -317,13 +318,31 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
       />
 
       {/* Visual Novel Modal */}
-      <VisualNovelModal
-        isOpen={Boolean(activeStoryChapter)}
-        chapter={activeStoryChapter}
-        onClose={() => setActiveStoryChapter(null)}
-        onSelectAceBond={handleSelectAceBond}
-        selectedAceBond={activeStoryChapter ? chapterAceBonds[activeStoryChapter.id] : undefined}
-      />
+      {activeStoryChapter && (() => {
+        const vnChapter = convertLegacyChapter(activeStoryChapter);
+
+        // TEMP DEMO — override the first scene's background with one of the
+        // city photos so you can see the frame render an actual illustration.
+        // Remove this block once real VN art layers are authored per scene.
+        if (vnChapter.scenes[0]) {
+          vnChapter.scenes[0].background.layers = [
+            { src: '/vn/backgrounds/demo/city-night-canyon.jpg', opacity: 1.0 },
+          ];
+          vnChapter.scenes[0].background.vignette = true;
+          vnChapter.scenes[0].background.particles = 'motes';
+        }
+
+        return (
+          <VNPlayer
+            chapter={vnChapter}
+            onClose={() => setActiveStoryChapter(null)}
+            onSelectAceBond={handleSelectAceBond}
+            selectedAceBond={
+              activeStoryChapter ? chapterAceBonds[activeStoryChapter.id] : undefined
+            }
+          />
+        );
+      })()}
     </div>
   );
 };
