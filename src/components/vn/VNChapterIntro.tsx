@@ -21,6 +21,12 @@ export const VNChapterIntro: React.FC<VNChapterIntroProps> = ({
   // 3 = chapter title visible
   // 4 = underline visible
   // 5 = everything fading out
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     // Frame 0 → 1: mount → glow in (next frame)
@@ -53,8 +59,12 @@ export const VNChapterIntro: React.FC<VNChapterIntroProps> = ({
       className="absolute inset-0 z-[200] flex flex-col items-center justify-center pointer-events-none"
       style={{
         background: '#000000',
-        transition: 'opacity 900ms ease',
-        opacity: isOut ? 0 : 1,
+        // Entrance: fade in from transparent → opaque over 700ms.
+        // Exit: fade to 0 over 900ms, driven by `isOut`.
+        transition: isOut
+          ? 'opacity 900ms ease'
+          : 'opacity 700ms cubic-bezier(0.22, 1, 0.36, 1)',
+        opacity: isOut ? 0 : mounted ? 1 : 0,
       }}
     >
       {/* ── Bottom-edge blue glow ─────────────────────────────── */}
