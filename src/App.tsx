@@ -89,9 +89,10 @@ export default function App() {
   const navigateWithTransition = (
     dest: 'home' | 'journey' | 'memories',
     title?: string,
-    subtitle?: string
+    subtitle?: string,
+    force?: boolean
   ) => {
-    if (activePage === dest) return;
+    if (activePage === dest && !force) return;
     setScreenTransition({
       destination: dest,
       title,
@@ -2409,6 +2410,13 @@ export default function App() {
           onSelectBypass={handleSelectBypass}
           onNavigateHome={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
           onNavigateJourney={() => navigateWithTransition('journey', 'Resuming Frontier Expedition', `Level ${currentLevel.id}: ${currentLevel.name}`)}
+          onRequestHubReturn={() => {
+            navigateWithTransition(
+              'memories',
+              'Sealing the Chapter',
+              'Returning to the Memories Gallery'
+            );
+          }}
         />
       )}
 

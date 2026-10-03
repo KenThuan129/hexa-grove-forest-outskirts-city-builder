@@ -30,6 +30,7 @@ interface MemoriesPageProps {
   onSelectBypass: (pictureId: number, penalty: BypassablePenaltyType) => void;
   onNavigateHome: () => void;
   onNavigateJourney: () => void;
+  onRequestHubReturn?: () => void;
 }
 
 export const MemoriesPage: React.FC<MemoriesPageProps> = ({
@@ -40,6 +41,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
   onSelectBypass,
   onNavigateHome,
   onNavigateJourney,
+  onRequestHubReturn,
 }) => {
   const [selectedPictureForBypass, setSelectedPictureForBypass] = useState<MemoryPicture | null>(null);
   const [activeStoryChapter, setActiveStoryChapter] = useState<StoryChapter | null>(null);
@@ -336,6 +338,10 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
           <VNPlayer
             chapter={vnChapter}
             onClose={() => setActiveStoryChapter(null)}
+            onChapterComplete={() => {
+              setActiveStoryChapter(null);
+              onRequestHubReturn?.();
+            }}
             onSelectAceBond={handleSelectAceBond}
             selectedAceBond={
               activeStoryChapter ? chapterAceBonds[activeStoryChapter.id] : undefined

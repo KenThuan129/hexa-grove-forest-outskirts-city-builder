@@ -8,7 +8,6 @@ import {
   MessageSquare,
   X,
   ChevronRight,
-  Settings,
   LogOut,
   Volume2,
   VolumeX,
@@ -17,6 +16,8 @@ import type { VNChapter, VNCharacterPlacement, VNChoiceOption } from '../../type
 import { VN_CHARACTERS } from '../../data/vn/character';
 import { useVNEngine } from '../../hooks/useVNEngine';
 import { VNStage } from './VNStage';
+import { VNChapterIntro } from './VNChapterIntro';
+import { VNChapterOutro } from './VNChapterOutro';
 import { sounds } from '../../utils/audio';
 
 // ─────────────────────────────────────────────────────────────────
@@ -25,23 +26,20 @@ import { sounds } from '../../utils/audio';
 
 interface VNPlayerProps {
   chapter: VNChapter;
-  /** Called when the player dismisses the player. */
+  /** Called when the player dismisses the player early. */
   onClose: () => void;
-  /** Optional callback when the chapter's final line completes. */
-  onComplete?: () => void;
-  /** Optional ACE bond selection callback — surfaces the player's pick upward. */
+  /** Called when the chapter's outro finishes. */
+  onChapterComplete?: () => void;
+  /** Optional ACE bond selection callback. */
   onSelectAceBond?: (chapterId: number, bond: 'nature' | 'people' | 'self') => void;
-  /** Currently selected ACE bond (for chapters replayed from Memory). */
   selectedAceBond?: 'nature' | 'people' | 'self';
-  /** Whether to allow sound toggle. Default true. */
   allowSoundToggle?: boolean;
 }
 
+type ChapterStage = 'intro' | 'playing' | 'outro';
+
 // ─────────────────────────────────────────────────────────────────
-// Character sprite — CSS silhouette placeholder
-//
-// When `portraitSrc` exists on the character definition, this renders
-// an <img>. Otherwise it falls back to a themed abstract silhouette.
+// Character sprite (same as before, unchanged)
 // ─────────────────────────────────────────────────────────────────
 
 const VNCharacterSprite: React.FC<{
@@ -52,24 +50,20 @@ const VNCharacterSprite: React.FC<{
   if (!character) return null;
 
   const active = isCurrentlySpeaking;
-  const animKey = active ? 'vn-char-active' : 'vn-char-idle';
   const transitionStyle: React.CSSProperties = {
     transition: 'opacity 400ms ease, filter 400ms ease, transform 400ms ease',
     opacity: active ? 1 : 0.52,
     filter: active ? 'saturate(1) brightness(1)' : 'saturate(0.35) brightness(0.62)',
     transform: active ? 'translateY(0) scale(1)' : 'translateY(8px) scale(0.97)',
-    animation: `${animKey} 3.5s ease-in-out infinite`,
+    animation: active
+      ? 'vn-char-active 3.5s ease-in-out infinite'
+      : 'vn-char-idle 3.5s ease-in-out infinite',
   };
 
   return (
     <div
       className="relative h-full"
-      style={{
-        ...transitionStyle,
-        // Width is derived from the frame's height via the aspect we set on the inner content.
-        width: '100%',
-        maxWidth: 340,
-      }}
+      style={{ ...transitionStyle, width: '100%', maxWidth: 340 }}
     >
       {character.portraitSrc ? (
         <img
@@ -77,16 +71,12 @@ const VNCharacterSprite: React.FC<{
           alt={character.name}
           draggable={false}
           className="h-full w-full object-contain object-bottom select-none pointer-events-none"
-          style={{
-            // Subtle drop shadow to lift the sprite off the background
-            filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.6))',
-          }}
+          style={{ filter: 'drop-shadow(0 12px 24px rgba(0,0,0,0.6))' }}
         />
       ) : (
         <SilhouettePlaceholder color={character.color} speakerType={character.speakerType} />
       )}
 
-      {/* Name plaque floating just above the sprite's feet (only when speaking) */}
       {active && (
         <div
           className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap"
@@ -104,27 +94,18 @@ const VNCharacterSprite: React.FC<{
   );
 };
 
-// Abstract silhouette placeholder. Uses layered radial/linear gradients
-// to feel illustrated rather than iconographic.
 const SilhouettePlaceholder: React.FC<{ color: string; speakerType: string }> = ({
   color,
   speakerType,
 }) => {
-  // Two-tone glow body: a soft head circle + a broader shoulders arc.
-  // The color drives everything so each character reads distinctly.
   const gradientBase = `radial-gradient(60% 55% at 50% 70%, ${color}cc 0%, ${color}00 70%)`;
 
   return (
     <div className="relative h-full w-full flex items-end justify-center">
-      {/* Glow halo */}
       <div
         className="absolute inset-0 pointer-events-none"
-        style={{
-          background: gradientBase,
-          filter: 'blur(18px)',
-        }}
+        style={{ background: gradientBase, filter: 'blur(18px)' }}
       />
-      {/* Head */}
       <div
         className="absolute rounded-full"
         style={{
@@ -135,7 +116,6 @@ const SilhouettePlaceholder: React.FC<{ color: string; speakerType: string }> = 
           boxShadow: `inset 0 0 40px ${color}44, 0 0 40px ${color}55`,
         }}
       />
-      {/* Shoulders / body */}
       <div
         className="absolute"
         style={{
@@ -147,7 +127,6 @@ const SilhouettePlaceholder: React.FC<{ color: string; speakerType: string }> = 
           boxShadow: `0 -12px 60px ${color}33`,
         }}
       />
-      {/* Speaker-type motif hint */}
       <div className="absolute top-2 text-[9px] font-mono uppercase tracking-widest opacity-40">
         {speakerType}
       </div>
@@ -156,7 +135,7 @@ const SilhouettePlaceholder: React.FC<{ color: string; speakerType: string }> = 
 };
 
 // ─────────────────────────────────────────────────────────────────
-// Text layer — typewriter dialogue at the bottom of the frame
+// Text layer
 // ─────────────────────────────────────────────────────────────────
 
 const VNTextLayer: React.FC<{
@@ -169,31 +148,18 @@ const VNTextLayer: React.FC<{
   return (
     <div
       className="absolute left-0 right-0 bottom-0 px-6 pb-6 sm:px-10 sm:pb-8"
-      style={{
-        // Keep text above the text-gradient that VNStage renders
-        zIndex: 30,
-      }}
+      style={{ zIndex: 30 }}
     >
-      <div
-        className="mx-auto"
-        style={{
-          maxWidth: 900,
-        }}
-      >
-        {/* Speaker name (skip for narration) */}
+      <div className="mx-auto" style={{ maxWidth: 900 }}>
         {!isNarration && speakerName && (
           <div
             className="mb-2 text-[10px] sm:text-xs font-black uppercase tracking-[0.2em]"
-            style={{
-              color: speakerColor,
-              textShadow: '0 1px 8px rgba(0,0,0,0.85)',
-            }}
+            style={{ color: speakerColor, textShadow: '0 1px 8px rgba(0,0,0,0.85)' }}
           >
             {speakerName}
           </div>
         )}
 
-        {/* The line itself */}
         <p
           className="font-serif text-white"
           style={{
@@ -223,7 +189,7 @@ const VNTextLayer: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────
-// Advance indicator — small pulsing diamond bottom-right
+// Advance indicator
 // ─────────────────────────────────────────────────────────────────
 
 const VNAdvanceIndicator: React.FC<{ visible: boolean; color: string }> = ({
@@ -232,10 +198,7 @@ const VNAdvanceIndicator: React.FC<{ visible: boolean; color: string }> = ({
 }) => {
   if (!visible) return null;
   return (
-    <div
-      className="absolute bottom-3 right-4 pointer-events-none"
-      style={{ zIndex: 31 }}
-    >
+    <div className="absolute bottom-3 right-4 pointer-events-none" style={{ zIndex: 31 }}>
       <div
         className="w-3 h-3 rotate-45"
         style={{
@@ -249,7 +212,7 @@ const VNAdvanceIndicator: React.FC<{ visible: boolean; color: string }> = ({
 };
 
 // ─────────────────────────────────────────────────────────────────
-// Choice overlay — options rendered over the frame
+// Choice overlay
 // ─────────────────────────────────────────────────────────────────
 
 const VNChoiceOverlay: React.FC<{
@@ -262,11 +225,7 @@ const VNChoiceOverlay: React.FC<{
   return (
     <div
       className="absolute inset-0 flex items-center justify-center px-6"
-      style={{
-        zIndex: 40,
-        background: 'rgba(0, 0, 0, 0.55)',
-        backdropFilter: 'blur(6px)',
-      }}
+      style={{ zIndex: 40, background: 'rgba(0, 0, 0, 0.55)', backdropFilter: 'blur(6px)' }}
     >
       <div className="w-full" style={{ maxWidth: 560 }}>
         <div
@@ -275,7 +234,6 @@ const VNChoiceOverlay: React.FC<{
         >
           {prompt}
         </div>
-
         <div className="flex flex-col gap-2.5">
           {options.map((opt) => {
             const isSelected = selectedId === opt.id;
@@ -286,9 +244,7 @@ const VNChoiceOverlay: React.FC<{
                 disabled={Boolean(selectedId)}
                 className="w-full text-left px-5 py-3.5 rounded-xl border transition-all cursor-pointer disabled:cursor-default"
                 style={{
-                  background: isSelected
-                    ? `${accentColor}22`
-                    : 'rgba(15, 23, 42, 0.82)',
+                  background: isSelected ? `${accentColor}22` : 'rgba(15, 23, 42, 0.82)',
                   borderColor: isSelected ? accentColor : 'rgba(148, 163, 184, 0.35)',
                   color: isSelected ? accentColor : '#e2e8f0',
                   boxShadow: isSelected ? `0 0 24px ${accentColor}55` : 'none',
@@ -315,7 +271,7 @@ const VNChoiceOverlay: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────
-// HUD — top-right cluster of controls
+// HUD
 // ─────────────────────────────────────────────────────────────────
 
 const VNHud: React.FC<{
@@ -399,7 +355,7 @@ const HudButton: React.FC<{
 );
 
 // ─────────────────────────────────────────────────────────────────
-// History modal — full-dialogue log
+// History modal
 // ─────────────────────────────────────────────────────────────────
 
 const VNHistoryModal: React.FC<{
@@ -408,19 +364,12 @@ const VNHistoryModal: React.FC<{
 }> = ({ history, onClose }) => (
   <div
     className="absolute inset-0 flex items-center justify-center p-4"
-    style={{
-      zIndex: 70,
-      background: 'rgba(0, 0, 0, 0.82)',
-      backdropFilter: 'blur(8px)',
-    }}
+    style={{ zIndex: 70, background: 'rgba(0, 0, 0, 0.82)', backdropFilter: 'blur(8px)' }}
     onClick={onClose}
   >
     <div
       className="w-full max-w-2xl max-h-[80%] rounded-2xl border p-5 flex flex-col"
-      style={{
-        background: 'rgba(15, 23, 42, 0.95)',
-        borderColor: 'rgba(96, 165, 250, 0.35)',
-      }}
+      style={{ background: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(96, 165, 250, 0.35)' }}
       onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-center justify-between border-b border-slate-700 pb-3 mb-3">
@@ -464,18 +413,11 @@ const VNQuitConfirm: React.FC<{
 }> = ({ chapterTitle, onConfirm, onCancel }) => (
   <div
     className="absolute inset-0 flex items-center justify-center p-4"
-    style={{
-      zIndex: 80,
-      background: 'rgba(0, 0, 0, 0.82)',
-      backdropFilter: 'blur(8px)',
-    }}
+    style={{ zIndex: 80, background: 'rgba(0, 0, 0, 0.82)', backdropFilter: 'blur(8px)' }}
   >
     <div
       className="w-full max-w-md rounded-2xl border p-6 flex flex-col items-center gap-4 text-center"
-      style={{
-        background: 'rgba(15, 23, 42, 0.95)',
-        borderColor: 'rgba(244, 63, 94, 0.4)',
-      }}
+      style={{ background: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(244, 63, 94, 0.4)' }}
     >
       <div className="w-12 h-12 rounded-2xl bg-rose-950 border border-rose-500/40 flex items-center justify-center text-rose-400">
         <LogOut className="w-6 h-6" />
@@ -509,15 +451,20 @@ const VNQuitConfirm: React.FC<{
 export const VNPlayer: React.FC<VNPlayerProps> = ({
   chapter,
   onClose,
-  onComplete,
+  onChapterComplete,
   onSelectAceBond,
   selectedAceBond,
   allowSoundToggle = true,
 }) => {
+  // ── Chapter stage machine ───────────────────────────────────
+  const [stage, setStage] = useState<ChapterStage>('intro');
+
   const engine = useVNEngine({
-    onComplete,
+    onComplete: () => {
+      // Last line of last scene is done. Move to outro.
+      setStage('outro');
+    },
     onSceneChange: (scene) => {
-      // Future: trigger background transition audio here
       void scene;
     },
   });
@@ -525,17 +472,21 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
   const [showHistory, setShowHistory] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [hudVisible, setHudVisible] = useState(true);
-  const [soundEnabled, setSoundEnabledLocal] = useState(true);
-
+  const [soundEnabledLocal, setSoundEnabledLocal] = useState(true);
   const hudTimerRef = useRef<number | null>(null);
 
-  // ── Start the engine on chapter change ─────────────────────
-  useEffect(() => {
+  // ── Start the engine only after the intro completes ─────────
+  const handleIntroComplete = useCallback(() => {
     engine.start(chapter, chapter.scenes[0]?.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chapter.id]);
+    setStage('playing');
+  }, [engine, chapter]);
 
-  // ── HUD auto-hide after inactivity ─────────────────────────
+  // ── Handle outro completion ─────────────────────────────────
+  const handleOutroComplete = useCallback(() => {
+    onChapterComplete?.();
+  }, [onChapterComplete]);
+
+  // ── HUD auto-hide ───────────────────────────────────────────
   const nudgeHud = useCallback(() => {
     setHudVisible(true);
     if (hudTimerRef.current) window.clearTimeout(hudTimerRef.current);
@@ -543,13 +494,14 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
   }, []);
 
   useEffect(() => {
+    if (stage !== 'playing') return;
     nudgeHud();
     return () => {
       if (hudTimerRef.current) window.clearTimeout(hudTimerRef.current);
     };
-  }, [nudgeHud]);
+  }, [stage, nudgeHud]);
 
-  // ── Broadcast ACE bond selection upward ────────────────────
+  // ── Broadcast ACE bond upward ───────────────────────────────
   useEffect(() => {
     if (engine.state.chosenAceBond && onSelectAceBond) {
       onSelectAceBond(chapter.id, engine.state.chosenAceBond);
@@ -557,29 +509,25 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engine.state.chosenAceBond]);
 
-  // ── Sound toggle wrapper ───────────────────────────────────
   const handleToggleSound = useCallback(() => {
-    const next = !soundEnabled;
+    const next = !soundEnabledLocal;
     setSoundEnabledLocal(next);
     sounds.enabled = next;
-  }, [soundEnabled]);
+  }, [soundEnabledLocal]);
 
-  // ── Choose handler ─────────────────────────────────────────
   const selectedOptionId =
     engine.line?.choice && engine.hasChoice === false
-      ? // If the choice was already picked, find the option that matches the ACE bond (if any)
-        engine.state.chosenAceBond
+      ? engine.state.chosenAceBond
         ? engine.line.choice.options.find((o) => o.aceBond === engine.state.chosenAceBond)?.id ?? null
         : null
       : null;
 
-  // ── Click on frame advances unless a choice is pending ─────
   const handleFrameClick = useCallback(() => {
+    if (stage !== 'playing') return;
     if (engine.hasChoice) return;
     engine.advance();
-  }, [engine]);
+  }, [stage, engine]);
 
-  // ── Guard: chapter must have at least one scene ────────────
   if (!chapter.scenes.length) {
     return (
       <div className="fixed inset-0 bg-black text-white flex items-center justify-center text-sm">
@@ -590,35 +538,39 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
 
   const scene = engine.scene;
   const line = engine.line;
-
-  // ── Determine which character is currently speaking ────────
   const speakingCharacterId = line?.speakerId ?? null;
   const isNarration = speakingCharacterId === 'narration';
   const speakerColor = engine.speaker?.color ?? '#cbd5e1';
 
+  const isPlaying = stage === 'playing';
+
   return (
     <div
       className="fixed inset-0 z-[100] bg-black"
-      onMouseMove={nudgeHud}
-      onClick={nudgeHud}
+      onMouseMove={isPlaying ? nudgeHud : undefined}
+      onClick={isPlaying ? nudgeHud : undefined}
     >
-      {/* ── The stage: black frame with the illustration inside ── */}
-      <div className="absolute inset-0" onClick={handleFrameClick}>
+      {/* ── Frame + content: only during playback ─────────────── */}
+      <div
+        className="absolute inset-0"
+        style={{
+          opacity: isPlaying ? 1 : 0,
+          transition: 'opacity 600ms ease',
+          pointerEvents: isPlaying ? 'auto' : 'none',
+        }}
+        onClick={handleFrameClick}
+      >
         <VNStage
           aspect={scene?.aspect ?? '16:9'}
           background={scene?.background ?? { mood: 'dream_forest' }}
         >
-          {/* Character layer */}
           {scene?.characters && scene.characters.length > 0 && (
             <div className="absolute inset-0 flex items-end justify-between px-8 sm:px-14 pb-[14%]">
-              {/* Group by anchor; we only support left/right for now */}
               {scene.characters.map((placement) => (
                 <div
                   key={placement.characterId}
                   className="flex-1 flex justify-center items-end h-[68%] pointer-events-none"
-                  style={{
-                    maxWidth: '42%',
-                  }}
+                  style={{ maxWidth: '42%' }}
                 >
                   <VNCharacterSprite
                     placement={placement}
@@ -629,7 +581,6 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
             </div>
           )}
 
-          {/* Text layer */}
           {line && (
             <VNTextLayer
               speakerName={engine.speaker?.name ?? ''}
@@ -640,13 +591,11 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
             />
           )}
 
-          {/* Advance indicator */}
           {line && !engine.state.isTyping && !engine.hasChoice && (
             <VNAdvanceIndicator visible color={speakerColor} />
           )}
 
-          {/* Choice overlay */}
-            {engine.hasChoice && !engine.state.isTyping && line?.choice && (
+          {engine.hasChoice && !engine.state.isTyping && line?.choice && (
             <VNChoiceOverlay
               prompt={line.choice.prompt}
               options={line.choice.options}
@@ -658,18 +607,32 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
         </VNStage>
       </div>
 
-      {/* ── HUD chrome, floating over the frame ── */}
-      <VNHud
-        mode={engine.state.mode}
-        setMode={engine.setMode}
-        onOpenHistory={() => setShowHistory(true)}
-        onRequestQuit={() => setShowQuitConfirm(true)}
-        soundEnabled={soundEnabled && allowSoundToggle}
-        onToggleSound={handleToggleSound}
-        visible={hudVisible}
-      />
+      {/* ── HUD: only during playback ─────────────────────────── */}
+      {isPlaying && (
+        <VNHud
+          mode={engine.state.mode}
+          setMode={engine.setMode}
+          onOpenHistory={() => setShowHistory(true)}
+          onRequestQuit={() => setShowQuitConfirm(true)}
+          soundEnabled={soundEnabledLocal && allowSoundToggle}
+          onToggleSound={handleToggleSound}
+          visible={hudVisible}
+        />
+      )}
 
-      {/* ── Modals ── */}
+      {/* ── Intro overlay ─────────────────────────────────────── */}
+      {stage === 'intro' && (
+        <VNChapterIntro
+          chapterNumber={chapter.chapterNumber}
+          chapterTitle={chapter.title}
+          onComplete={handleIntroComplete}
+        />
+      )}
+
+      {/* ── Outro overlay ─────────────────────────────────────── */}
+      {stage === 'outro' && <VNChapterOutro onComplete={handleOutroComplete} />}
+
+      {/* ── Modals ────────────────────────────────────────────── */}
       {showHistory && (
         <VNHistoryModal history={engine.state.history} onClose={() => setShowHistory(false)} />
       )}
@@ -685,7 +648,7 @@ export const VNPlayer: React.FC<VNPlayerProps> = ({
         />
       )}
 
-      {/* ── Scoped keyframes ── */}
+      {/* ── Scoped keyframes ──────────────────────────────────── */}
       <style>{`
         @keyframes vn-cursor-blink {
           0%, 50% { opacity: 1; }
