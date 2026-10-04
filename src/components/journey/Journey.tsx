@@ -5,6 +5,7 @@ import { JourneyMobile } from './JourneyMobile';
 import { useLayout } from '../../context/LayoutContext';
 import type { JourneySharedProps } from './JourneyTypes';
 
+
 /**
  * Journey entry point. Dispatches to mobile (portrait or landscape)
  * or falls back to a null render for desktop — the desktop layout is

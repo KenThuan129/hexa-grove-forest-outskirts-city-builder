@@ -35,6 +35,7 @@ export const JourneyBoosterRow: React.FC<JourneyBoosterRowProps> = ({
         const isUnlocked = highestCompletedLevel >= booster.unlockLevel;
         const count = boosterInventory[booster.id] || 0;
         const canUse = isUnlocked && count > 0;
+        
 
         return (
           <button
