@@ -22,6 +22,25 @@ import { BossBattleModal } from './components/BossBattleModal';
 import { SpecialIntroLoader } from './components/SpecialIntroLoader';
 import { ScreenTransitionLoader } from './components/ScreenTransitionLoader';
 import { LevelTransitLoader } from './components/LevelTransitLoader';
+import { AuthModal } from './components/AuthModal';
+import { useAuth } from './context/AuthContext';
+import { GuestWelcomeModal } from './components/GuestWelcomeModal';
+import { buildSaveBlob, deleteCloudBlob, readLocalBlob, writeLocalBlob } from './utils/cloudSave';
+import { useCloudSaveSync } from './hooks/useCloudSaveSync';
+import { CloudSaveIndicator } from './components/CloudSaveIndicator';
+import { JourneyMobileOnly } from './components/journey/Journey';
+import { useLayout } from './context/LayoutContext';
+import { ConflictResolutionModal } from './components/ConflictResolutionModal';
+import type { CloudSaveBlob } from './types/save';
+import {
+  GUEST_TRIAL_LEVEL_IDS,
+  getGuestTrialIndex,
+  getNextGuestTrialLevelId,
+  advanceGuestTrial,
+  hasSeenGuestWelcome,
+  markGuestWelcomeSeen,
+  isGuestTrialComplete,
+} from './utils/guestProgress';
 import { EndOfLevelCelebration, LevelCelebrationData } from './components/EndOfLevelCelebration';
 import { LEVELS, PIECE_PALETTE } from './data/levels';
 import { INITIAL_MEMORIES } from './data/memories';
@@ -65,11 +84,42 @@ import {
   Eye,
   EyeOff,
   Zap,
+  LogIn,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function App() {
   // Page Navigation: 'home' | 'journey' | 'memories'
   const [activePage, setActivePage] = useState<'home' | 'journey' | 'memories'>('home');
+
+  // Layout descriptor — device class + orientation + viewport
+  const layout = useLayout();
+
+  const { user, isLoading: isAuthLoading, isIdleSignedOut, signOut } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState<string | undefined>(undefined);
+  const [authMode, setAuthMode] = useState<'guest' | 'idle'>('guest');
+  const isGuest = !user;
+
+  const [guestTrialIndex, setGuestTrialIndex] = useState<number>(() => getGuestTrialIndex());
+  const [isWelcomeOpen, setIsWelcomeOpen] = useState(false);
+
+  useEffect(() => {
+    if (isAuthLoading) return;
+    if (!isGuest) return;
+    if (hasSeenGuestWelcome()) return;
+    // Small delay so the app has time to render its base layout first.
+    const t = window.setTimeout(() => {
+      setIsWelcomeOpen(true);
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [isAuthLoading, isGuest]);
+
+  // Keep guest index in state and localStorage aligned.
+  const handleGuestTrialAdvance = useCallback(() => {
+    const next = advanceGuestTrial();
+    setGuestTrialIndex(next);
+  }, []);
 
   // Loading Screens & Transit State
   const [showSpecialIntro, setShowSpecialIntro] = useState(true);
@@ -140,6 +190,20 @@ export default function App() {
   const triggerLevelTransit = useCallback((targetIndex: number, phaseNum?: number) => {
     const safeTargetIndex = Math.max(0, Math.min(allLevels.length - 1, targetIndex));
     const target = allLevels[safeTargetIndex] || allLevels[0];
+
+    // Do not gate on auth state while the session is still being restored.
+    // Otherwise a signed-in user could see the guest prompt momentarily.
+    if (isAuthLoading) {
+      return;
+    }
+
+    if (isGuest && !GUEST_TRIAL_LEVEL_IDS.includes(target.id as any)) {
+      sounds.playWarning();
+      setAuthPrompt(`Sign in to unlock Level ${target.id}. Guests can play trials: 5, 10, 16, 20, 23.`);
+      setAuthMode('guest');
+      setIsAuthModalOpen(true);
+      return;
+    }
     setLevelTransit({
       levelId: target.id,
       levelName: target.name,
@@ -148,10 +212,12 @@ export default function App() {
     });
     setLevelIndex(safeTargetIndex);
     setPhaseIndex(phaseNum !== undefined ? phaseNum : 0);
-  }, [allLevels]);
+  }, [allLevels, isAuthLoading, isGuest]);
 
   // Clean UI / Zen Mode for clutter-free viewport
   const [isCleanUiMode, setIsCleanUiMode] = useState(false);
+  const [isJourneyPaused, setIsJourneyPaused] = useState(false);
+  const [zoneHighlightKeys, setZoneHighlightKeys] = useState<Set<string>>(new Set());
 
   // Play Mode State: 'building' (Standard Journey Mode) vs 'challenger' (Stars, Score, Par, Penalties)
   const [playMode, setPlayMode] = useState<PlayMode>(() => {
@@ -344,6 +410,8 @@ export default function App() {
       return 0;
     }
   });
+  const [latestChapterExplore, setLatestChapterExplore] = useState<number>(0);
+  const [latestMemories, setLatestMemories] = useState<number>(0);
 
   // Persist gameMode and highestCompletedLevel
   useEffect(() => {
@@ -356,6 +424,13 @@ export default function App() {
     try {
       localStorage.setItem('hexa_highest_level', highestCompletedLevel.toString());
     } catch { }
+  }, [highestCompletedLevel]);
+
+  useEffect(() => {
+    const highestMemId = INITIAL_MEMORIES
+      .filter(m => highestCompletedLevel >= m.levelReq)
+      .reduce((max, m) => Math.max(max, m.id), 0);
+    setLatestMemories(prev => (prev === highestMemId ? prev : highestMemId));
   }, [highestCompletedLevel]);
 
   // Currency & Economy State
@@ -416,6 +491,15 @@ export default function App() {
     }
   });
 
+  // ── Cloud Save — conflict resolution + wipe ────────────────────
+  const [pendingConflict, setPendingConflict] = useState<{
+    local: CloudSaveBlob;
+    cloud: CloudSaveBlob;
+    resolve: (chosen: 'local' | 'cloud') => void;
+  } | null>(null);
+
+  const [isWipeCloudConfirmOpen, setIsWipeCloudConfirmOpen] = useState(false);
+
   const [isShopModalOpen, setIsShopModalOpen] = useState(false);
   const [isGoldenTicketModalOpen, setIsGoldenTicketModalOpen] = useState(false);
   const [activeParBonus, setActiveParBonus] = useState(0);
@@ -471,6 +555,78 @@ export default function App() {
 
   const currentLevel = allLevels[levelIndex] || allLevels[0];
   const currentPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
+
+  // ─────────────────────────────────────────────────────────────
+  // Cloud Save Blob — the snapshot pushed to Supabase
+  // ─────────────────────────────────────────────────────────────
+  const saveState: CloudSaveBlob = useMemo(() => {
+    // Constructions → Record<ConstructionId, number>
+    const constructionsMap: Record<string, number> = {};
+    constructions.forEach(c => {
+      constructionsMap[c.id] = c.currentLevel;
+    });
+
+    // Memories → Record<pictureId, BypassablePenaltyType>
+    const chosenBypassMap: Record<number, any> = {};
+    memories.forEach(m => {
+      if (m.chosenBypass) chosenBypassMap[m.id] = m.chosenBypass;
+    });
+
+    return buildSaveBlob({
+      highestCompletedLevel,
+      coins,
+      leaves,
+      boosters,
+      constructions: constructionsMap as any,
+      claimedChestIds,
+      hasGoldenTicket,
+      playMode,
+      gameMode,
+      latestChapterExplore,
+      latestMemories,
+      chosenBypass: chosenBypassMap as any,
+      memories,
+    });
+  }, [
+    highestCompletedLevel,
+    coins,
+    leaves,
+    boosters,
+    constructions,
+    claimedChestIds,
+    hasGoldenTicket,
+    playMode,
+    gameMode,
+    latestChapterExplore,
+    latestMemories,
+    memories,
+  ]);
+
+  // ─────────────────────────────────────────────────────────────
+  // Mirror blob to localStorage on any tracked state change.
+  // This is the offline-cold-start copy; the cloud is the
+  // server of record.
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    try {
+      writeLocalBlob(saveState);
+    } catch { }
+  }, [saveState]);
+
+  // ── Next playable level, mode-aware ─────────────────────────
+  // Signed-in: the level right after the highest completed.
+  // Guest: the next trial level in the trial list, or null if all done.
+  const nextPlayableIndex = useMemo(() => {
+    if (isGuest) {
+      const nextTrialId = getNextGuestTrialLevelId();
+      if (nextTrialId == null) return -1; // no trials left
+      return allLevels.findIndex((l) => l.id === nextTrialId);
+    }
+    // Signed-in / admin: sequential
+    const nextId = highestCompletedLevel + 1;
+    const idx = allLevels.findIndex((l) => l.id === nextId);
+    return idx >= 0 ? idx : allLevels.length - 1;
+  }, [isGuest, allLevels, highestCompletedLevel]);
 
   // Grid state: every cell key maps to an array/stack of placed tiles (to support overlapping error mechanics)
   const [unlockedCells, setUnlockedCells] = useState<Map<string, GridCell>>(new Map());
@@ -985,6 +1141,82 @@ export default function App() {
       coloredZonesCompleted: matched === total,
     };
   }, [currentPhase, placedTiles]);
+
+  // ── Zone highlight: keys of cells belonging to fully-completed zones ──
+  React.useEffect(() => {
+    if (!currentPhase) return;
+    const keys = new Set<string>();
+    for (const zone of currentPhase.coloredZones) {
+      const isComplete = zone.coords.every((c) => {
+        const stack = placedTiles.get(coordKey(c.q, c.r));
+        if (!stack || stack.length === 0) return false;
+        const top = stack[stack.length - 1];
+        if (top.type === 'bridge') return false;
+        return top.color === zone.color;
+      });
+      if (isComplete) {
+        for (const c of zone.coords) keys.add(coordKey(c.q, c.r));
+      }
+    }
+    setZoneHighlightKeys((prev) => {
+      // Only update if changed, to avoid re-render storms
+      if (prev.size === keys.size && [...keys].every((k) => prev.has(k))) return prev;
+      return keys;
+    });
+  }, [currentPhase, placedTiles]);
+
+  // ─────────────────────────────────────────────────────────────
+  // Long-press hex — zone preview tooltip
+  // ─────────────────────────────────────────────────────────────
+  const handleLongPressHex = React.useCallback(
+    (coord: HexCoord) => {
+      if (!currentPhase) return;
+
+      // Find zone at this coord
+      const zone = currentPhase.coloredZones.find((z) =>
+        z.coords.some((c) => c.q === coord.q && c.r === coord.r)
+      );
+
+      if (zone) {
+        const stack = placedTiles.get(coordKey(coord.q, coord.r));
+        let matched = 0;
+        for (const c of zone.coords) {
+          const s = placedTiles.get(coordKey(c.q, c.r));
+          if (s && s.length > 0 && s[s.length - 1].color === zone.color) matched++;
+        }
+        const pct = Math.round((matched / zone.coords.length) * 100);
+        showToast(
+          `🎯 ${zone.name} — ${matched}/${zone.coords.length} filled (${pct}%)`,
+          'info'
+        );
+        sounds.playZoneComplete();
+      } else {
+        // No zone — maybe a fog or road cell
+        const cell = unlockedCells.get(coordKey(coord.q, coord.r));
+        if (cell?.isFog) {
+          showToast('🌫️ Fog hex — must connect to safe ground', 'info');
+        } else if (cell?.isRiver) {
+          showToast('🌊 River barrier — unbuildable', 'info');
+        }
+      }
+    },
+    [currentPhase, placedTiles, unlockedCells]
+  );
+
+  const handleJourneyPauseToggle = React.useCallback(() => {
+    sounds.playClick();
+    setIsJourneyPaused((p) => !p);
+  }, []);
+
+  const handleJourneyRestart = React.useCallback(() => {
+    setIsJourneyPaused(false);
+    handleResetBoard();
+  }, []);
+
+  const handleJourneyExitToHome = React.useCallback(() => {
+    setIsJourneyPaused(false);
+    navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub');
+  }, []);
 
   // Calculate Base Raw Score (before mastery bonus)
   const rawScore = useMemo(() => {
@@ -1744,15 +1976,25 @@ export default function App() {
       if (coord) {
         const key = coordKey(coord.q, coord.r);
 
-        if (prePlacedTileKeys.has(key)) {
-          sounds.playWarning();
-          showToast('🚧 This road is locked by the Town Council — cannot be removed!', 'warn');
-          return;
-        }
-
         const stack = placedTiles.get(key);
         if (stack && stack.length > 0) {
           const topTile = stack[stack.length - 1];
+
+          // ─────────────────────────────────────────────────────────────
+          // LOCKED PRE-PLACED TILE GUARD
+          // Pre-placed roads/bridges are municipal infrastructure and
+          // cannot be removed. Check the top tile, not the cell, so a
+          // player's own tile stacked on top remains removable.
+          // ─────────────────────────────────────────────────────────────
+          const isPrePlacedTile =
+            typeof topTile.clusterId === 'string' &&
+            topTile.clusterId.startsWith('PREPLACED');
+
+          if (isPrePlacedTile) {
+            sounds.playWarning();
+            showToast('🚧 This structure is locked by the Town Council — it cannot be removed!', 'warn');
+            return;
+          }
 
           if (topTile.clusterId) {
             const targetClusterId = topTile.clusterId;
@@ -1792,7 +2034,7 @@ export default function App() {
         }
       }
     },
-    [placedTiles, selectedPiece, prePlacedTileKeys]
+    [placedTiles, selectedPiece]
   );
 
   const handleRightClickTrayPiece = (_piece: HexPiece) => {
@@ -1854,6 +2096,22 @@ export default function App() {
     const stack = placedTiles.get(key);
     if (stack && stack.length > 0) {
       const topTile = stack[stack.length - 1];
+
+      // ─────────────────────────────────────────────────────────────
+      // LOCKED PRE-PLACED TILE GUARD
+      // Pre-placed roads/houses/bridges are municipal infrastructure
+      // and cannot be picked up. Check the TOP tile, not the cell,
+      // so a player's own tile stacked on top remains removable.
+      // ─────────────────────────────────────────────────────────────
+      const isPrePlacedTile =
+        typeof topTile.clusterId === 'string' &&
+        topTile.clusterId.startsWith('PREPLACED');
+
+      if (isPrePlacedTile) {
+        sounds.playWarning();
+        showToast('🚧 This structure is locked by the Town Council — it cannot be moved!', 'warn');
+        return;
+      }
 
       // Giant Multi-Hex Cluster
       if (topTile.clusterId) {
@@ -1993,6 +2251,14 @@ export default function App() {
       const coinsEarned = 100 + (starsEarned >= 2 ? 50 : 0) + (starsEarned === 3 ? 100 : 0);
       setCoins(prev => prev + coinsEarned);
 
+      // ── Guest trial advancement ────────────────────────────────
+      // If a guest just finished one of the five trial levels, move
+      // them to the next trial. This keeps the Home Play button in sync
+      // with their progress.
+      if (isGuest && GUEST_TRIAL_LEVEL_IDS.includes(currentLevel.id as any)) {
+        handleGuestTrialAdvance();
+      }
+
       // Check if any new Journey chests unlocked
       const unlockedChests = JOURNEY_CHESTS.filter(
         c => newHighest >= c.levelThreshold && !claimedChestIds.includes(c.id)
@@ -2113,6 +2379,54 @@ export default function App() {
     sounds.enabled = next;
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // Cloud Save — apply a remote blob to React state
+  // ─────────────────────────────────────────────────────────────
+  const applyRemoteBlob = useCallback((blob: CloudSaveBlob) => {
+    console.log('[applyRemoteBlob] PULLING FROM CLOUD — setting latestChapterExplore:', blob.latestChapterExplore);
+    setHighestCompletedLevel(blob.highestCompletedLevel);
+    setCoins(blob.coins);
+    setLeaves(blob.leaves);
+    setBoosters(blob.boosters);
+    setClaimedChestIds(blob.claimedChestIds);
+    setHasGoldenTicket(blob.hasGoldenTicket);
+    setPlayMode(blob.playMode);
+    setGameMode(blob.gameMode);
+    setLatestChapterExplore(blob.latestChapterExplore);
+    setLatestMemories(blob.latestMemories);
+
+    if (Array.isArray(blob.memories) && blob.memories.length > 0) {
+      setMemories(blob.memories);
+    }
+
+    // Rehydrate constructions from the map
+    setConstructions(prev =>
+      prev.map(item => ({
+        ...item,
+        currentLevel: blob.constructions?.[item.id] ?? item.currentLevel,
+      }))
+    );
+
+    showToast('Cloud save loaded.', 'success');
+  }, []);
+
+  // ─────────────────────────────────────────────────────────────
+  // Cloud Save — the sync engine
+  // ─────────────────────────────────────────────────────────────
+  const {
+    status: saveStatus,
+    lastSyncedAt,
+    error: saveError,
+    forceSync,
+  } = useCloudSaveSync({
+    userId: user?.id ?? null,
+    saveState,
+    applyRemote: applyRemoteBlob,
+    onConflict: (local, cloud, resolve) => {
+      setPendingConflict({ local, cloud, resolve });
+    },
+  });
+
   const handleReturnPickedUpTile = () => {
     if (selectedPiece) {
       showToast(`${selectedPiece.name} returned to available hex cells!`, 'info');
@@ -2124,6 +2438,13 @@ export default function App() {
 
   // Economy Handlers
   const handleBuyBooster = (booster: BoosterItem) => {
+    if (isGuest) {
+      sounds.playWarning();
+      setAuthPrompt('Sign in to purchase tactical boosters from the Emporium.');
+      setAuthMode('guest');
+      setIsAuthModalOpen(true);
+      return;
+    }
     if (coins < booster.costCoins) {
       sounds.playWarning();
       showToast(`Not enough Coins! Need ${booster.costCoins} Coins.`, 'warn');
@@ -2139,6 +2460,13 @@ export default function App() {
   };
 
   const handleClaimChest = (chestId: number) => {
+    if (isGuest) {
+      sounds.playWarning();
+      setAuthPrompt('Sign in to claim Journey Chest rewards and expand your resort.');
+      setAuthMode('guest');
+      setIsAuthModalOpen(true);
+      return;
+    }
     const chest = JOURNEY_CHESTS.find(c => c.id === chestId);
     if (!chest) return;
     if (claimedChestIds.includes(chestId)) return;
@@ -2154,7 +2482,29 @@ export default function App() {
     showToast(`Claimed ${chest.title}: +${chest.leavesReward} Leaves & +${chest.coinsReward} Coins!`, 'success');
   };
 
+  // ─────────────────────────────────────────────────────────────
+  // Cloud Save — wipe cloud row (dangerous)
+  // ─────────────────────────────────────────────────────────────
+  const handleWipeCloudSave = useCallback(async () => {
+    if (!user?.id) return;
+    try {
+      await deleteCloudBlob(user.id);
+      showToast('Cloud save wiped. Signing out…', 'success');
+      setIsWipeCloudConfirmOpen(false);
+      try { await signOut(); } catch { /* ignore */ }
+    } catch (e: any) {
+      showToast(`Wipe failed: ${e?.message ?? 'unknown error'}`, 'warn');
+    }
+  }, [user?.id, signOut]);
+
   const handleUpgradeConstruction = (id: ConstructionId) => {
+    if (isGuest) {
+      sounds.playWarning();
+      setAuthPrompt('Sign in to build and upgrade your island resort.');
+      setAuthMode('guest');
+      setIsAuthModalOpen(true);
+      return;
+    }
     const target = constructions.find(c => c.id === id);
     if (!target) return;
     if (target.currentLevel >= target.maxLevel) {
@@ -2195,7 +2545,14 @@ export default function App() {
 
   const handleActivateBooster = (boosterId: BoosterId) => {
     if ((boosters[boosterId] || 0) <= 0) {
-      setIsShopModalOpen(true);
+      // Mobile uses MobileShopSheet (local state per Home screen).
+      // Only open the desktop ShopModal on non-mobile layouts.
+      if (!layout.useMobileLayout) {
+        setIsShopModalOpen(true);
+      } else {
+        sounds.playWarning();
+        showToast('Out of stock — tap Coins to buy more boosters!', 'warn');
+      }
       return;
     }
 
@@ -2209,10 +2566,14 @@ export default function App() {
       let removedCoord: HexCoord | null = null;
       let removedPiece: PlacedTile | null = null;
 
+      // Helper: is this tile locked infrastructure?
+      const isLocked = (t: PlacedTile) => t.clusterId?.startsWith('PREPLACED') === true;
+
       // First check if any overlap exists
       for (const [key, stack] of placedTiles.entries()) {
         if (stack.length > 1) {
           const top = stack[stack.length - 1];
+          if (isLocked(top)) continue; // can't remove locked top tile
           removedCoord = { q: top.q, r: top.r };
           removedPiece = top;
           setPlacedTiles(prev => {
@@ -2226,19 +2587,22 @@ export default function App() {
 
       // If no overlaps, pop the last placed tile
       if (!removedPiece && placedTiles.size > 0) {
-        for (const [key, stack] of placedTiles.entries()) {
-          if (stack.length > 0) {
-            const top = stack[stack.length - 1];
-            removedCoord = { q: top.q, r: top.r };
-            removedPiece = top;
-            setPlacedTiles(prev => {
-              const next = new Map(prev);
-              if (stack.length === 1) next.delete(key);
-              else next.set(key, stack.slice(0, stack.length - 1));
-              return next;
-            });
-            break;
-          }
+        // Iterate newest-first so we pop the most recently placed eligible tile
+        const entries = Array.from(placedTiles.entries());
+        for (let i = entries.length - 1; i >= 0; i--) {
+          const [key, stack] = entries[i];
+          if (stack.length === 0) continue;
+          const top = stack[stack.length - 1];
+          if (isLocked(top)) continue;
+          removedCoord = { q: top.q, r: top.r };
+          removedPiece = top;
+          setPlacedTiles(prev => {
+            const next = new Map(prev);
+            if (stack.length === 1) next.delete(key);
+            else next.set(key, stack.slice(0, stack.length - 1));
+            return next;
+          });
+          break;
         }
       }
 
@@ -2344,12 +2708,19 @@ export default function App() {
     <>
       {activePage === 'home' && (
         <HomePage
+          isGuest={isGuest}
+          guestTrialIndex={guestTrialIndex}
+          nextPlayableIndex={nextPlayableIndex}
           levels={allLevels}
           currentLevelIndex={levelIndex}
           isOpenShowcase={isOpenHomeShowcase}
           gameMode={gameMode}
           playMode={playMode}
           performanceMode={performanceMode}
+          cloudSaveStatus={saveStatus}
+          lastSyncedAt={lastSyncedAt}
+          cloudSaveError={saveError}
+          onForceCloudSync={forceSync}
           coins={coins}
           leaves={leaves}
           boosters={boosters}
@@ -2357,6 +2728,10 @@ export default function App() {
           hasGoldenTicket={hasGoldenTicket}
           isAdminUnlocked={isAdminUnlocked}
           unclaimedChestsCount={unclaimedChestsCount}
+          claimedChestIds={claimedChestIds}
+          boosterInventory={boosters}
+          onClaimChest={handleClaimChest}
+          onBuyBooster={handleBuyBooster}
           onUpgradeConstruction={handleUpgradeConstruction}
           onChangeGameMode={mode => {
             setGameMode(mode);
@@ -2382,10 +2757,23 @@ export default function App() {
           onCloseShowcase={() => setIsOpenHomeShowcase(false)}
           onSelectLevel={idx => triggerLevelTransit(idx)}
           onStartJourney={() => {
+            // Guests who've finished all trials must sign in.
+            if (isGuest && isGuestTrialComplete()) {
+              sounds.playWarning();
+              setAuthPrompt('Sign in to unlock all 40 levels and continue your journey.');
+              setAuthMode('guest');
+              setIsAuthModalOpen(true);
+              return;
+            }
+
+            const playIndex = nextPlayableIndex >= 0 ? nextPlayableIndex : levelIndex;
+            const playLevel = allLevels[playIndex] ?? currentLevel;
+
+            triggerLevelTransit(playIndex);
             navigateWithTransition(
               'journey',
-              `Embarking on Level ${currentLevel.id}: ${currentLevel.name}`,
-              `Par Limit: ${currentLevel.phases[0]?.targetTilesCount || 5} Tiles · 3★ Challenge`
+              `Embarking on Level ${playLevel.id}: ${playLevel.name}`,
+              `Par Limit: ${playLevel.phases[0]?.targetTilesCount || 5} Tiles · 3★ Challenge`
             );
           }}
           onNavigateMemories={() => {
@@ -2408,6 +2796,10 @@ export default function App() {
           currentLevelIndex={levelIndex}
           bypasses={bypasses}
           isAdminUnlocked={isAdminUnlocked}
+          onChapterOpen={(id) => {
+            console.log('[App.onChapterOpen] Setting latestChapterExplore to:', id);
+            setLatestChapterExplore(id);
+          }}
           onSelectBypass={handleSelectBypass}
           onNavigateHome={() =>
             navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')
@@ -2432,565 +2824,673 @@ export default function App() {
       )}
 
       {activePage === 'journey' && (
-        <div className="relative w-screen h-screen overflow-hidden bg-[#1e3520] font-sans flex flex-col justify-between select-none">
-          {/* Ambient Dappled Light & Mist Overlay */}
-          <div className="absolute inset-0 pointer-events-none z-[1] opacity-30 animate-dapple bg-radial from-[#f0c674]/20 via-transparent to-transparent" />
-          <div className="absolute inset-0 pointer-events-none z-[1] opacity-25 animate-mist bg-gradient-to-r from-transparent via-[#7a9b8e]/30 to-transparent" />
+        layout.useMobileLayout ? (
+          <JourneyMobileOnly
+            playMode={playMode}
+            coins={coins}
+            onBuyBooster={handleBuyBooster}
+            lightbulbsUsed={lightbulbsUsed}
+            lightbulbBudget={lightbulbBudget}
+            placedCount={inBoundsPlacedCount}
+            parCount={parCount}
+            penalties={penalties}
+            boosterInventory={boosters}
+            highestCompletedLevel={highestCompletedLevel}
+            onActivateBooster={handleActivateBooster}
+              onOpenShop={() => setIsShopModalOpen(true)}
+            availablePieces={currentLevel.availablePieces}
+            selectedPiece={selectedPiece}
+            activeDragPiece={activeDragPiece}
+            unlockedCells={unlockedCells}
+            placedTiles={placedTiles}
+            dragPointerPos={dragPointerPos}
+            hoveredCoord={hoveredCoord}
+            pickedUpCoord={pickedUpCoord}
+            disconnectedKeys={connectivity.disconnectedKeys}
+            rotationZones={currentPhase?.rotationZones}
+            onHoverCoordChange={setHoveredCoord}
+            onTileDroppedOnBoard={handleTileDroppedOnBoard}
+            onRightClickBoard={handleRightClickBoard}
+            onRotateZone={handleRotateZone}
+            isExpansionAnimating={isExpansionAnimating}
+            performanceMode={performanceMode}
+            targetFps={targetFps}
+            isLowPowerMode={isLowPowerMode}
+            textureQuality={textureQuality}
+            onUpdateRendererInfo={setRendererInfo}
+            isPaused={isJourneyPaused}
+            onPauseToggle={handleJourneyPauseToggle}
+            onRestart={handleJourneyRestart}
+            onOpenSettings={() => setIsSettingsModalOpen(true)}
+            onExitToHome={handleJourneyExitToHome}
+            onSelectPiece={(piece) => {
+              selectTimestampRef.current = Date.now();
+              setPickedUpCoord(null);
+              setSelectedPiece(piece);
+              if (piece) sounds.playPickup();
+            }}
+            onStartDragPiece={handleStartDrag}
+            onEndDragPiece={() => {
+              setActiveDragPiece(null);
+              setDragPointerPos(null);
+            }}
+            onClearHover={() => setHoveredCoord(null)}
+            canCompletePhase={canCompletePhase}
+            isLastPhase={isLastPhase}
+            phaseIndex={phaseIndex}
+            totalPhases={currentLevel.phases.length}
+            onCompletePhase={handleCompletePhase}
+            selectedPieceIsCluster={Boolean(selectedPiece?.clusterShape && selectedPiece.clusterShape.length > 1)}
+            hasSelectedPiece={Boolean(selectedPiece)}
+            onRotateCluster={handleRotateCluster}
+            onCancelSelected={handleReturnPickedUpTile}
+            hasRotationZone={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
+            onRotateTurntable={() => {
+              const zoneId = currentPhase?.rotationZones?.[0]?.id;
+              if (zoneId) handleRotateZone(zoneId);
+            }}
+          />
+        ) : (
+          <div className="relative w-screen h-screen overflow-hidden bg-[#1e3520] font-sans flex flex-col justify-between select-none">
+            {/* Ambient Dappled Light & Mist Overlay */}
+            <div className="absolute inset-0 pointer-events-none z-[1] opacity-30 animate-dapple bg-radial from-[#f0c674]/20 via-transparent to-transparent" />
+            <div className="absolute inset-0 pointer-events-none z-[1] opacity-25 animate-mist bg-gradient-to-r from-transparent via-[#7a9b8e]/30 to-transparent" />
 
-          {/* 3D WebGL Canvas Layer */}
-          <div className="absolute inset-0 z-0">
-            <ThreeScene
-              unlockedCells={unlockedCells}
-              placedTiles={placedTiles}
-              activeDragPiece={activeDragPiece || selectedPiece}
-              dragPointerPos={dragPointerPos}
-              hoveredCoord={hoveredCoord}
-              pickedUpCoord={pickedUpCoord}
-              disconnectedKeys={connectivity.disconnectedKeys}
-              rotationZones={currentPhase?.rotationZones}
-              onHoverCoordChange={setHoveredCoord}
-              onTileDroppedOnBoard={handleTileDroppedOnBoard}
-              onRightClickBoard={handleRightClickBoard}
-              onRotateZone={handleRotateZone}
-              isExpansionAnimating={isExpansionAnimating}
-              performanceMode={performanceMode}
-              targetFps={targetFps}
-              isLowPowerMode={isLowPowerMode}
-              textureQuality={textureQuality}
-              onUpdateRendererInfo={setRendererInfo}
-              hudInsetLeftPx={hudInsetLeftPx}
-              hudInsetRightPx={hudInsetRightPx}
-            />
-          </div>
+            {/* 3D WebGL Canvas Layer */}
+            <div className="absolute inset-0 z-0">
+              <ThreeScene
+                unlockedCells={unlockedCells}
+                placedTiles={placedTiles}
+                activeDragPiece={activeDragPiece || selectedPiece}
+                dragPointerPos={dragPointerPos}
+                hoveredCoord={hoveredCoord}
+                pickedUpCoord={pickedUpCoord}
+                disconnectedKeys={connectivity.disconnectedKeys}
+                rotationZones={currentPhase?.rotationZones}
+                onHoverCoordChange={setHoveredCoord}
+                onTileDroppedOnBoard={handleTileDroppedOnBoard}
+                onRightClickBoard={handleRightClickBoard}
+                onRotateZone={handleRotateZone}
+                isExpansionAnimating={isExpansionAnimating}
+                performanceMode={performanceMode}
+                targetFps={targetFps}
+                isLowPowerMode={isLowPowerMode}
+                textureQuality={textureQuality}
+                onUpdateRendererInfo={setRendererInfo}
+                hudInsetLeftPx={hudInsetLeftPx}
+                hudInsetRightPx={hudInsetRightPx}
+              />
+            </div>
 
-          {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
-          {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
-            <TutorialSpotlight
-              levelId={currentLevel.id}
-              currentPhaseIndex={phaseIndex}
-              totalPhases={currentLevel.phases.length}
-              selectedPiece={selectedPiece}
-              placedTiles={placedTiles}
-              canCompletePhase={canCompletePhase}
-              penalties={penalties}
-              onCompleteTutorialStep={handleCompletePhase}
-              onAutoDemoBuild={handleAutoDemoBuild}
-            />
-          )}
+            {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
+            {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
+              <TutorialSpotlight
+                levelId={currentLevel.id}
+                currentPhaseIndex={phaseIndex}
+                totalPhases={currentLevel.phases.length}
+                selectedPiece={selectedPiece}
+                placedTiles={placedTiles}
+                canCompletePhase={canCompletePhase}
+                penalties={penalties}
+                onCompleteTutorialStep={handleCompletePhase}
+                onAutoDemoBuild={handleAutoDemoBuild}
+              />
+            )}
 
-          {/* Main Cockpit HUD: Left Sidebar, Right Sidebar, Top Action Bar */}
-          <div className="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-2 sm:p-3">
-            {/* Top Floating Row: Navigation, Level Switcher & System Controls */}
-            {isCleanUiMode ? (
-              <div className="w-full flex justify-between items-center pointer-events-none animate-in fade-in duration-200">
-                <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-xs text-[#f4ecd8]">
-                  <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
-                  <span className="font-bold text-[#f4ecd8] font-rounded">{currentLevel.name}</span>
-                </div>
-
-                <button
-                  onClick={() => {
-                    setIsCleanUiMode(false);
-                    sounds.playClick();
-                  }}
-                  className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 btn-river-stone text-[#f4ecd8] text-xs font-bold shadow-2xl transition-all cursor-pointer"
-                  title="Show in-game HUD (or press H)"
-                >
-                  <Eye className="w-3.5 h-3.5 text-[#8fbc6f]" />
-                  <span>Show UI [H]</span>
-                </button>
-              </div>
-            ) : (
-              <div className="w-full flex justify-between items-start gap-2">
-                {/* Top Left: Home, Memories & Level Name ONLY */}
-                <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
-                  <button
-                    onClick={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
-                    className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
-                    title="Return to Home Menu"
-                  >
-                    <Home className="w-3.5 h-3.5 text-[#8fbc6f]" />
-                    <span className="font-bold hidden sm:inline">Home</span>
-                  </button>
-
-                  <button
-                    onClick={() => navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties')}
-                    className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
-                    title="Open Memories Gallery"
-                  >
-                    <BookOpen className="w-3.5 h-3.5 text-[#7a9b8e]" />
-                    <span className="font-bold hidden sm:inline">Memories</span>
-                  </button>
-
-                  <div className="flex items-center gap-1.5 font-rounded">
-                    <Compass className="w-3.5 h-3.5 text-[#f0c674] shrink-0" />
+            {/* Main Cockpit HUD: Left Sidebar, Right Sidebar, Top Action Bar */}
+            <div className="relative z-10 w-full h-full pointer-events-none flex flex-col justify-between p-2 sm:p-3">
+              {/* Top Floating Row: Navigation, Level Switcher & System Controls */}
+              {isCleanUiMode ? (
+                <div className="w-full flex justify-between items-center pointer-events-none animate-in fade-in duration-200">
+                  <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-xs text-[#f4ecd8]">
                     <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
-                    <span className="font-bold text-[#f4ecd8]">
-                      {currentLevel.name}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Tactical Boosters (All visible), Currency, Clean Mode & Settings */}
-                <div className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap">
-                  {/* Currency Pill */}
-                  <div className="hidden lg:flex items-center gap-2 wood-panel px-3 py-1.5 shadow-xl text-xs font-bold">
-                    <span className="flex items-center gap-1 text-[#f0c674]" title="Coins: Earned from levels and stars">
-                      <Coins className="w-3.5 h-3.5 text-[#f0c674]" />
-                      <span className="font-mono">{coins}</span>
-                    </span>
-                    <span className="flex items-center gap-1 text-[#8fbc6f]" title="Leaves: Earned from Journey chests">
-                      <Leaf className="w-3.5 h-3.5 text-[#8fbc6f]" />
-                      <span className="font-mono">{leaves}</span>
-                    </span>
+                    <span className="font-bold text-[#f4ecd8] font-rounded">{currentLevel.name}</span>
                   </div>
 
-                  {/* All Boosters displayed on bar */}
-                  <BoosterBar
-                    boosterInventory={boosters}
-                    highestCompletedLevel={highestCompletedLevel}
-                    onActivateBooster={handleActivateBooster}
-                    onOpenShop={() => setIsShopModalOpen(true)}
-                  />
-
-                  {/* Clean UI Mode Toggle Button */}
                   <button
                     onClick={() => {
-                      setIsCleanUiMode(true);
+                      setIsCleanUiMode(false);
                       sounds.playClick();
-                      showToast('Clean Mode active: UI hidden. Click Show UI or press H to restore.', 'info');
                     }}
-                    className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
-                    title="Hide UI for clean view (Press H)"
+                    className="pointer-events-auto flex items-center gap-1.5 px-3.5 py-1.5 btn-river-stone text-[#f4ecd8] text-xs font-bold shadow-2xl transition-all cursor-pointer"
+                    title="Show in-game HUD (or press H)"
                   >
-                    <EyeOff className="w-3.5 h-3.5 text-slate-400" />
-                    <span className="hidden sm:inline">Clean UI</span>
-                  </button>
-
-                  {/* 60 FPS Ultra-Performance Quick Toggle */}
-                  <button
-                    onClick={() => {
-                      sounds.playClick();
-                      handleRequestGraphicsReload(performanceMode === 'low' ? 'high' : 'low', targetFps);
-                    }}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl border backdrop-blur-md shadow-xl text-xs font-bold transition-all cursor-pointer ${performanceMode === 'low'
-                      ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900'
-                      : 'bg-slate-900/90 text-amber-300 border-slate-700 hover:bg-slate-800'
-                      }`}
-                    title="Toggle Graphics & Performance (Ultra Performance vs High FX Quality)"
-                  >
-                    <Zap className={`w-3.5 h-3.5 ${performanceMode === 'low' ? 'text-cyan-400' : 'text-slate-400'}`} />
-                    <span className="hidden sm:inline">{performanceMode === 'low' ? '⚡ Ultra-Perf' : '✨ High FX'}</span>
-                  </button>
-
-                  <button
-                    onClick={() => setIsSettingsModalOpen(true)}
-                    className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
-                    title="Settings (Sound, Game Mode & Performance)"
-                  >
-                    <span className="text-amber-400 text-xs">⚙️</span>
-                    <span className="hidden sm:inline">Settings</span>
+                    <Eye className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                    <span>Show UI [H]</span>
                   </button>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="w-full flex justify-between items-start gap-2">
+                  {/* Top Left: Home, Memories & Level Name ONLY */}
+                  <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
+                    <button
+                      onClick={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
+                      className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
+                      title="Return to Home Menu"
+                    >
+                      <Home className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                      <span className="font-bold hidden sm:inline">Home</span>
+                    </button>
 
-            {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
-            {!isCleanUiMode && (
-              <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
-                {playMode === 'building' ? (
-                  /* Single Merged Sidebar for Building Mode */
-                  <div onPointerEnter={() => setHoveredCoord(null)}>
-                    <UnifiedBuildingSidebar
-                      currentLevel={currentLevel}
-                      currentPhase={currentPhase}
-                      currentPhaseIndex={phaseIndex}
-                      totalPhases={currentLevel.phases.length}
-                      placedTiles={placedTiles}
-                      placedCount={inBoundsPlacedCount}
-                      parCount={parCount}
-                      matchedZonesCount={matchedZonesCount}
-                      totalZonesCount={totalZonesCount}
-                      lightbulbsUsed={lightbulbsUsed}
-                      lightbulbBudget={lightbulbBudget}
-                      bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
-                      inspectedZoneIds={inspectedZoneKeys}
-                      onInspectZone={handleInspectZone}
-                      rotationZones={currentPhase?.rotationZones}
-                      penalties={penalties}
-                      soundEnabled={soundEnabled}
-                      canCompletePhase={canCompletePhase}
-                      isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
-                      onRotateZone={handleRotateZone}
-                      onCompletePhase={handleCompletePhase}
-                      onOpenBossBattle={() => setIsBossBattleOpen(true)}
-                      onToggleSound={handleToggleSound}
-                      onResetBoard={handleResetBoard}
-                      onOpenRules={() => setIsRulesModalOpen(true)}
-                    />
-                  </div>
-                ) : (
-                  /* Standard Split 2 Sidebars Layout for Challenger Mode */
-                  <>
-                    {/* Left Sidebar */}
-                    {!currentLevel.uiConfig?.hideLeftSidebar ? (
-                      <div onPointerEnter={() => setHoveredCoord(null)}>
-                        <LeftSidebar
-                          placedCount={inBoundsPlacedCount}
-                          parCount={parCount}
-                          matchedZonesCount={matchedZonesCount}
-                          totalZonesCount={totalZonesCount}
-                          penalties={penalties}
-                          starsEarned={starsEarned}
-                          levelId={currentLevel.id}
-                          strictPenaltyLimit={strictPenaltyLimit}
-                          hidePenalties={currentLevel.uiConfig?.hidePenalties}
-                          highlightPenalties={highlightPenalties}
-                          bypasses={bypasses}
-                          gameMode={gameMode}
-                          playMode={playMode}
-                          lightbulbsUsed={lightbulbsUsed}
-                          lightbulbBudget={lightbulbBudget}
-                          bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
-                          isBossLevel={currentLevel.isBossLevel}
-                        />
-                      </div>
-                    ) : (
-                      <div />
+                    {!isGuest && (
+                      <button
+                        onClick={() => navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties')}
+                        className="flex items-center gap-1 text-[#a8b89a] hover:text-[#f4ecd8] pr-2.5 border-r border-[#5c3d2e] transition-colors cursor-pointer font-rounded"
+                        title="Open Memories Gallery"
+                      >
+                        <BookOpen className="w-3.5 h-3.5 text-[#7a9b8e]" />
+                        <span className="font-bold hidden sm:inline">Memories</span>
+                      </button>
                     )}
 
-                    {/* Right Sidebar */}
-                    {!currentLevel.uiConfig?.hideRightSidebar ? (
-                      <div onPointerEnter={() => setHoveredCoord(null)}>
-                        <RightSidebar
-                          currentLevel={currentLevel}
-                          currentPhase={currentPhase}
-                          currentPhaseIndex={phaseIndex}
-                          totalPhases={currentLevel.phases.length}
-                          placedTiles={placedTiles}
-                          score={score}
-                          starsEarned={starsEarned}
-                          soundEnabled={soundEnabled}
-                          canCompletePhase={canCompletePhase}
-                          isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
-                          hasCompletedFirstTrial={hasCompletedFirstTrial}
-                          masteryChallenge={currentLevel.masteryChallenge}
-                          isMasteryCompleted={isMasteryCompleted}
-                          gameMode={gameMode}
-                          playMode={playMode}
-                          bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
-                          inspectedZoneIds={inspectedZoneKeys}
-                          onInspectZone={handleInspectZone}
-                          rotationZones={currentPhase?.rotationZones}
-                          penalties={penalties}
-                          overlapErrorCount={penalties.overlap}
-                          hideScore={currentLevel.uiConfig?.hideScore}
-                          highlightScore={highlightScore}
-                          isFalsehoodActive={isFalsehoodActive}
-                          isPenaltyLimitExceeded={isPenaltyLimitExceeded}
-                          onRotateZone={handleRotateZone}
-                          onCompletePhase={handleCompletePhase}
-                          onOpenBossBattle={() => setIsBossBattleOpen(true)}
-                          onToggleSound={handleToggleSound}
-                          onResetBoard={handleResetBoard}
-                          onOpenRules={() => setIsRulesModalOpen(true)}
-                        />
-                      </div>
-                    ) : (
-                      <div />
-                    )}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Relocating Hex Floating Pill */}
-            {!isCleanUiMode && pickedUpCoord && (
-              <div className="pointer-events-auto self-center mb-1 flex items-center gap-2 px-3 py-1 bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 shadow-xl text-xs text-white animate-in fade-in">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                <span className="text-slate-300 font-mono text-[11px]">Relocating hex ({pickedUpCoord.q}, {pickedUpCoord.r})</span>
-                <button
-                  onClick={handleReturnPickedUpTile}
-                  className="flex items-center gap-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded-full transition-colors cursor-pointer"
-                >
-                  <ArrowDownToLine className="w-3 h-3" />
-                  <span>Cancel</span>
-                </button>
-              </div>
-            )}
-
-            {/* Bottom Available Hex Tiles Tray with 3D Visual Demos & Color Filter */}
-            {!isCleanUiMode && (
-              <div
-                className="pointer-events-auto w-full animate-in fade-in duration-150"
-                onPointerEnter={() => setHoveredCoord(null)}
-              >
-                <TileTray
-                  availablePieces={currentLevel.availablePieces}
-                  selectedPiece={selectedPiece}
-                  activeDragPiece={activeDragPiece}
-                  hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
-                  playMode={playMode}
-                  lightbulbsUsed={lightbulbsUsed}
-                  lightbulbBudget={lightbulbBudget}
-                  onSelectPiece={piece => {
-                    selectTimestampRef.current = Date.now();
-                    setPickedUpCoord(null);
-                    setSelectedPiece(piece);
-                    if (piece) sounds.playPickup();
-                  }}
-                  onRightClickPiece={handleRightClickTrayPiece}
-                  onStartDragPiece={handleStartDrag}
-                  onClearHover={() => setHoveredCoord(null)}
-                  onEndDragPiece={() => {
-                    setActiveDragPiece(null);
-                    setDragPointerPos(null);
-                  }}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Floating Drag Avatar following cursor/touch on mobile */}
-          {activeDragPiece && dragPointerPos && (
-            <div
-              className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2 transition-opacity duration-75"
-              style={{
-                left: `${dragPointerPos.x}px`,
-                top: `${dragPointerPos.y - 42}px`,
-              }}
-            >
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-white/95 rounded-2xl shadow-2xl border-2 border-emerald-500 scale-105 backdrop-blur-sm animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span className="text-[11px] font-bold text-slate-800">
-                  {activeDragPiece.name}
-                  {activeDragPiece.clusterShape && activeDragPiece.clusterShape.length > 1
-                    ? ` (${activeDragPiece.clusterShape.length}H)`
-                    : ''}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Floating Toast Notification */}
-          {alertToast && (
-            <div className="fixed top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all animate-in fade-in slide-in-from-top-3">
-              <div
-                className={`px-3.5 py-1.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-2 border ${alertToast.type === 'warn'
-                  ? 'bg-rose-50 text-rose-800 border-rose-300'
-                  : alertToast.type === 'success'
-                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
-                    : 'bg-slate-900 text-white border-slate-700'
-                  }`}
-              >
-                {alertToast.type === 'warn' && <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
-                <span>{alertToast.message}</span>
-              </div>
-            </div>
-          )}
-
-          {currentLevel.isBossLevel && hoveredZoneInfo && cursorScreenPos && (() => {
-            const TOOLTIP_W = 230;
-            const TOOLTIP_H = 140;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
-
-            // Position strictly on the right side of the cursor for optimal visibility
-            let left = cursorScreenPos.x + 22;
-            let top = cursorScreenPos.y - 25;
-
-            // Flip horizontally if clipping the right edge
-            if (left + TOOLTIP_W > vw - 16) {
-              left = cursorScreenPos.x - TOOLTIP_W - 22;
-            }
-            // Clamp vertically so tooltip never clips offscreen
-            top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
-
-            // Per-color theme (dot, border glow, gradient bg, label text)
-            const theme =
-              hoveredZoneInfo.color === 'amber'
-                ? { bg: 'from-amber-950/95 to-amber-900/95', border: 'border-amber-500/70', dot: 'bg-amber-400', label: 'text-amber-200', ring: 'shadow-[0_0_18px_rgba(245,158,11,0.4)]' }
-                : hoveredZoneInfo.color === 'emerald'
-                  ? { bg: 'from-emerald-950/95 to-emerald-900/95', border: 'border-emerald-500/70', dot: 'bg-emerald-400', label: 'text-emerald-200', ring: 'shadow-[0_0_18px_rgba(16,185,129,0.4)]' }
-                  : hoveredZoneInfo.color === 'sapphire'
-                    ? { bg: 'from-cyan-950/95 to-cyan-900/95', border: 'border-cyan-500/70', dot: 'bg-cyan-400', label: 'text-cyan-200', ring: 'shadow-[0_0_18px_rgba(6,182,212,0.4)]' }
-                    : hoveredZoneInfo.color === 'ruby'
-                      ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
-                      : { bg: 'from-slate-900/95 to-slate-800/95', border: 'border-slate-600/70', dot: 'bg-slate-400', label: 'text-slate-200', ring: '' };
-
-            const isComplete = hoveredZoneInfo.occupied >= hoveredZoneInfo.total;
-            const zoneKey = `${currentLevel.id}-${hoveredZoneInfo.name}`;
-            const isInspected = inspectedZoneKeys.has(zoneKey);
-            const isCollapsed = Boolean(bossBattleStats.isStatsCollapsed);
-
-            return (
-              <div
-                className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
-                style={{ left, top, width: TOOLTIP_W }}
-              >
-                <div
-                  className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
-                >
-                  {/* Header: color swatch + zone color name + inspected badge */}
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${theme.dot} shadow`} />
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${theme.label}`}>
-                        {hoveredZoneInfo.color} Zone
+                    <div className="flex items-center gap-1.5 font-rounded">
+                      <Compass className="w-3.5 h-3.5 text-[#f0c674] shrink-0" />
+                      <span className="font-bold text-[#f0c674]">Lvl {currentLevel.id}:</span>
+                      <span className="font-bold text-[#f4ecd8]">
+                        {currentLevel.name}
                       </span>
                     </div>
-                    {isComplete ? (
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
-                        ✓ DONE
-                      </span>
-                    ) : isInspected ? (
-                      <span className="text-[9px] font-bold text-amber-300">
-                        ✓ Inspected
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-medium text-white/70 animate-pulse">
-                        👁️ Inspecting...
-                      </span>
-                    )}
                   </div>
 
-                  {/* Zone name */}
-                  <div className="text-xs font-bold text-white mb-1.5 truncate">
-                    {hoveredZoneInfo.name}
-                  </div>
+                  {/* Tactical Boosters (All visible), Currency, Clean Mode & Settings */}
+                  <div className="pointer-events-auto flex items-center gap-1.5 whitespace-nowrap">
+                    {/* Currency Pill */}
+                    <div className="hidden lg:flex items-center gap-2 wood-panel px-3 py-1.5 shadow-xl text-xs font-bold">
+                      <span className="flex items-center gap-1 text-[#f0c674]" title="Coins: Earned from levels and stars">
+                        <Coins className="w-3.5 h-3.5 text-[#f0c674]" />
+                        <span className="font-mono">{coins}</span>
+                      </span>
+                      <span className="flex items-center gap-1 text-[#8fbc6f]" title="Leaves: Earned from Journey chests">
+                        <Leaf className="w-3.5 h-3.5 text-[#8fbc6f]" />
+                        <span className="font-mono">{leaves}</span>
+                      </span>
+                    </div>
 
-                  {/* Occupancy meter */}
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
-                      <div
-                        className={`h-full rounded-full transition-all duration-200 ${isComplete ? 'bg-emerald-400' : theme.dot
-                          }`}
-                        style={{ width: `${Math.round((hoveredZoneInfo.occupied / Math.max(1, hoveredZoneInfo.total)) * 100)}%` }}
+                    {/* All Boosters displayed on bar */}
+                    {!isGuest && (
+                      <BoosterBar
+                        boosterInventory={boosters}
+                        highestCompletedLevel={highestCompletedLevel}
+                        onActivateBooster={handleActivateBooster}
+                        onOpenShop={() => setIsShopModalOpen(true)}
                       />
-                    </div>
-                    <span className="text-[10px] text-white font-mono font-bold tabular-nums">
-                      {hoveredZoneInfo.occupied}/{hoveredZoneInfo.total}
-                    </span>
-                  </div>
+                    )}
 
-                  {/* Stats Preview & Zero Collapse Warning */}
-                  {isCollapsed ? (
-                    <div className="pt-1.5 border-t border-rose-500/30 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5 text-rose-300 font-black text-[10px]">
-                        <span>⚠️</span>
-                        <span>ALL STATS DROPPED TO 0</span>
-                      </div>
-                      <div className="text-[9px] text-rose-200/90 font-medium">
-                        {bossBattleStats.collapseReason || 'Lightbulb budget exceeded or 2+ penalties active'}
-                      </div>
+                    {/* Clean UI Mode Toggle Button */}
+                    <button
+                      onClick={() => {
+                        setIsCleanUiMode(true);
+                        sounds.playClick();
+                        showToast('Clean Mode active: UI hidden. Click Show UI or press H to restore.', 'info');
+                      }}
+                      className="flex items-center gap-1 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
+                      title="Hide UI for clean view (Press H)"
+                    >
+                      <EyeOff className="w-3.5 h-3.5 text-slate-400" />
+                      <span className="hidden sm:inline">Clean UI</span>
+                    </button>
+
+                    {/* 60 FPS Ultra-Performance Quick Toggle */}
+                    <button
+                      onClick={() => {
+                        sounds.playClick();
+                        handleRequestGraphicsReload(performanceMode === 'low' ? 'high' : 'low', targetFps);
+                      }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl border backdrop-blur-md shadow-xl text-xs font-bold transition-all cursor-pointer ${performanceMode === 'low'
+                        ? 'bg-cyan-950/90 text-cyan-300 border-cyan-500/60 hover:bg-cyan-900'
+                        : 'bg-slate-900/90 text-amber-300 border-slate-700 hover:bg-slate-800'
+                        }`}
+                      title="Toggle Graphics & Performance (Ultra Performance vs High FX Quality)"
+                    >
+                      <Zap className={`w-3.5 h-3.5 ${performanceMode === 'low' ? 'text-cyan-400' : 'text-slate-400'}`} />
+                      <span className="hidden sm:inline">{performanceMode === 'low' ? '⚡ Ultra-Perf' : '✨ High FX'}</span>
+                    </button>
+
+                    {/* Cloud Save indicator */}
+                    <CloudSaveIndicator
+                      status={saveStatus}
+                      lastSyncedAt={lastSyncedAt}
+                      error={saveError}
+                      onRetry={forceSync}
+                    />
+
+                    {!isAuthLoading && (
+
+                      user ? (
+                        <div
+                          className="flex items-center gap-1.5 bg-emerald-950/80 backdrop-blur-md text-emerald-200 px-2.5 py-1.5 rounded-2xl border border-emerald-500/40 shadow-xl text-xs font-bold"
+                          title={user.email ?? ''}
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                          <span className="hidden sm:inline truncate max-w-[120px]">
+                            {user.email?.split('@')[0] ?? 'Signed in'}
+                          </span>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setAuthPrompt('Sign in to unlock all 40 levels and sync your progress.');
+                            setAuthMode('guest');
+                            setIsAuthModalOpen(true);
+                          }}
+                          className="flex items-center gap-1.5 bg-cyan-950/80 hover:bg-cyan-900/80 backdrop-blur-md text-cyan-200 hover:text-white px-2.5 py-1.5 rounded-2xl border border-cyan-500/50 shadow-xl text-xs font-bold transition-colors cursor-pointer"
+                          title="Sign in to unlock all levels"
+                        >
+                          <LogIn className="w-3.5 h-3.5 text-cyan-400" />
+                          <span className="hidden sm:inline">Sign In</span>
+                        </button>
+                      )
+                    )}
+
+                    <button
+                      onClick={() => setIsSettingsModalOpen(true)}
+                      className="flex items-center gap-1 bg-slate-900/90 backdrop-blur-md text-slate-300 hover:text-white px-2.5 py-1.5 rounded-2xl border border-slate-700 shadow-xl text-xs font-bold transition-colors cursor-pointer"
+                      title="Settings (Sound, Game Mode & Performance)"
+                    >
+                      <span className="text-amber-400 text-xs">⚙️</span>
+                      <span className="hidden sm:inline">Settings</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
+              {!isCleanUiMode && (
+                <div className="flex-1 flex justify-between items-start w-full pointer-events-none overflow-hidden my-auto animate-in fade-in duration-150">
+                  {playMode === 'building' ? (
+                    /* Single Merged Sidebar for Building Mode */
+                    <div onPointerEnter={() => setHoveredCoord(null)}>
+                      <UnifiedBuildingSidebar
+                        currentLevel={currentLevel}
+                        currentPhase={currentPhase}
+                        currentPhaseIndex={phaseIndex}
+                        totalPhases={currentLevel.phases.length}
+                        placedTiles={placedTiles}
+                        placedCount={inBoundsPlacedCount}
+                        parCount={parCount}
+                        matchedZonesCount={matchedZonesCount}
+                        totalZonesCount={totalZonesCount}
+                        lightbulbsUsed={lightbulbsUsed}
+                        lightbulbBudget={lightbulbBudget}
+                        bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                        inspectedZoneIds={inspectedZoneKeys}
+                        onInspectZone={handleInspectZone}
+                        rotationZones={currentPhase?.rotationZones}
+                        penalties={penalties}
+                        soundEnabled={soundEnabled}
+                        canCompletePhase={canCompletePhase}
+                        isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
+                        onRotateZone={handleRotateZone}
+                        onCompletePhase={handleCompletePhase}
+                        onOpenBossBattle={() => setIsBossBattleOpen(true)}
+                        onToggleSound={handleToggleSound}
+                        onResetBoard={handleResetBoard}
+                        onOpenRules={() => setIsRulesModalOpen(true)}
+                      />
                     </div>
                   ) : (
-                    <div className="pt-1.5 border-t border-white/10 flex flex-col gap-0.5">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
-                        {hoveredZoneInfo.color === 'amber' || hoveredZoneInfo.color === 'ruby' ? (
-                          <>
-                            <span>⭐</span>
-                            <span>+35 Popularity (+{hoveredZoneInfo.color === 'ruby' ? '18' : '12'}/tile)</span>
-                          </>
-                        ) : hoveredZoneInfo.color === 'sapphire' ? (
-                          <>
-                            <span>✨</span>
-                            <span>+35 Ambience (+15/tile)</span>
-                          </>
-                        ) : (
-                          <>
-                            <span>🎁</span>
-                            <span>+1 Bonus Selection Slot</span>
-                          </>
-                        )}
-                      </div>
-                      <div className="text-[9px] text-white/60 font-medium">
-                        {isComplete ? '✨ Zone fulfilled · Synthesia boosted' : 'Match all zone tiles for Synthesia multiplier'}
-                      </div>
-                    </div>
+                    /* Standard Split 2 Sidebars Layout for Challenger Mode */
+                    <>
+                      {/* Left Sidebar */}
+                      {!currentLevel.uiConfig?.hideLeftSidebar ? (
+                        <div onPointerEnter={() => setHoveredCoord(null)}>
+                          <LeftSidebar
+                            placedCount={inBoundsPlacedCount}
+                            parCount={parCount}
+                            matchedZonesCount={matchedZonesCount}
+                            totalZonesCount={totalZonesCount}
+                            penalties={penalties}
+                            starsEarned={starsEarned}
+                            levelId={currentLevel.id}
+                            strictPenaltyLimit={strictPenaltyLimit}
+                            hidePenalties={currentLevel.uiConfig?.hidePenalties}
+                            highlightPenalties={highlightPenalties}
+                            bypasses={bypasses}
+                            gameMode={gameMode}
+                            playMode={playMode}
+                            lightbulbsUsed={lightbulbsUsed}
+                            lightbulbBudget={lightbulbBudget}
+                            bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                            isBossLevel={currentLevel.isBossLevel}
+                          />
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+
+                      {/* Right Sidebar */}
+                      {!currentLevel.uiConfig?.hideRightSidebar ? (
+                        <div onPointerEnter={() => setHoveredCoord(null)}>
+                          <RightSidebar
+                            currentLevel={currentLevel}
+                            currentPhase={currentPhase}
+                            currentPhaseIndex={phaseIndex}
+                            totalPhases={currentLevel.phases.length}
+                            placedTiles={placedTiles}
+                            score={score}
+                            starsEarned={starsEarned}
+                            soundEnabled={soundEnabled}
+                            canCompletePhase={canCompletePhase}
+                            isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
+                            hasCompletedFirstTrial={hasCompletedFirstTrial}
+                            masteryChallenge={currentLevel.masteryChallenge}
+                            isMasteryCompleted={isMasteryCompleted}
+                            gameMode={gameMode}
+                            playMode={playMode}
+                            bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
+                            inspectedZoneIds={inspectedZoneKeys}
+                            onInspectZone={handleInspectZone}
+                            rotationZones={currentPhase?.rotationZones}
+                            penalties={penalties}
+                            overlapErrorCount={penalties.overlap}
+                            hideScore={currentLevel.uiConfig?.hideScore}
+                            highlightScore={highlightScore}
+                            isFalsehoodActive={isFalsehoodActive}
+                            isPenaltyLimitExceeded={isPenaltyLimitExceeded}
+                            onRotateZone={handleRotateZone}
+                            onCompletePhase={handleCompletePhase}
+                            onOpenBossBattle={() => setIsBossBattleOpen(true)}
+                            onToggleSound={handleToggleSound}
+                            onResetBoard={handleResetBoard}
+                            onOpenRules={() => setIsRulesModalOpen(true)}
+                          />
+                        </div>
+                      ) : (
+                        <div />
+                      )}
+                    </>
                   )}
                 </div>
-              </div>
-            );
-          })()}
+              )}
 
-          {!isPickingTile && hoveredRoadRequirement && cursorScreenPos && (() => {
-            const TOOLTIP_W = 220;
-            const TOOLTIP_H = 110;
-            const vw = window.innerWidth;
-            const vh = window.innerHeight;
+              {/* Relocating Hex Floating Pill */}
+              {!isCleanUiMode && pickedUpCoord && (
+                <div className="pointer-events-auto self-center mb-1 flex items-center gap-2 px-3 py-1 bg-slate-900/90 backdrop-blur-md rounded-full border border-slate-700 shadow-xl text-xs text-white animate-in fade-in">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  <span className="text-slate-300 font-mono text-[11px]">Relocating hex ({pickedUpCoord.q}, {pickedUpCoord.r})</span>
+                  <button
+                    onClick={handleReturnPickedUpTile}
+                    className="flex items-center gap-1 text-[10px] font-bold bg-rose-600 hover:bg-rose-500 text-white px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+                  >
+                    <ArrowDownToLine className="w-3 h-3" />
+                    <span>Cancel</span>
+                  </button>
+                </div>
+              )}
 
-            let left = cursorScreenPos.x + 22;
-            let top = cursorScreenPos.y - 25;
-            if (left + TOOLTIP_W > vw - 16) left = cursorScreenPos.x - TOOLTIP_W - 22;
-            top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
-
-            const isDone = hoveredRoadRequirement.satisfied;
-
-            return (
-              <div
-                className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
-                style={{ left, top, width: TOOLTIP_W }}
-              >
+              {/* Bottom Available Hex Tiles Tray with 3D Visual Demos & Color Filter */}
+              {!isCleanUiMode && (
                 <div
-                  className={`bg-gradient-to-br ${isDone
-                    ? 'from-emerald-950/95 to-emerald-900/95 border-emerald-500/70 shadow-[0_0_18px_rgba(16,185,129,0.4)]'
-                    : 'from-slate-950/95 to-slate-900/95 border-amber-500/70 shadow-[0_0_18px_rgba(245,158,11,0.4)]'
-                    } border-2 rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
+                  className="pointer-events-auto w-full animate-in fade-in duration-150"
+                  onPointerEnter={() => setHoveredCoord(null)}
                 >
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
-                        } shadow`} />
-                      <span className={`text-[10px] font-black uppercase tracking-widest ${isDone ? 'text-emerald-200' : 'text-amber-200'
-                        }`}>
-                        Transit Charter
-                      </span>
-                    </div>
-                    {isDone ? (
-                      <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
-                        ✓ MET
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-bold text-amber-300 animate-pulse">
-                        ⚠️ Unmet
-                      </span>
-                    )}
-                  </div>
+                  <TileTray
+                    availablePieces={currentLevel.availablePieces}
+                    selectedPiece={selectedPiece}
+                    activeDragPiece={activeDragPiece}
+                    hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
+                    playMode={playMode}
+                    lightbulbsUsed={lightbulbsUsed}
+                    lightbulbBudget={lightbulbBudget}
+                    onSelectPiece={piece => {
+                      selectTimestampRef.current = Date.now();
+                      setPickedUpCoord(null);
+                      setSelectedPiece(piece);
+                      if (piece) sounds.playPickup();
+                    }}
+                    onRightClickPiece={handleRightClickTrayPiece}
+                    onStartDragPiece={handleStartDrag}
+                    onClearHover={() => setHoveredCoord(null)}
+                    onEndDragPiece={() => {
+                      setActiveDragPiece(null);
+                      setDragPointerPos(null);
+                    }}
+                  />
+                </div>
+              )}
+            </div>
 
-                  <div className="text-xs font-bold text-white mb-1.5 truncate capitalize">
-                    {hoveredRoadRequirement.roadKey.replace(/-/g, ' ')}
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
-                      <div
-                        className={`h-full rounded-full transition-all duration-200 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
-                          }`}
-                        style={{
-                          width: `${Math.round((hoveredRoadRequirement.adjacent / Math.max(1, hoveredRoadRequirement.required)) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-white font-mono font-bold tabular-nums">
-                      {hoveredRoadRequirement.adjacent}/{hoveredRoadRequirement.required}
-                    </span>
-                  </div>
-
-                  <div className="pt-1.5 border-t border-white/10 text-[10px] font-bold text-amber-200">
-                    🏠 Requires {hoveredRoadRequirement.required} adjacent houses
-                  </div>
+            {/* Floating Drag Avatar following cursor/touch on mobile */}
+            {activeDragPiece && dragPointerPos && (
+              <div
+                className="fixed pointer-events-none z-50 transform -translate-x-1/2 -translate-y-1/2 transition-opacity duration-75"
+                style={{
+                  left: `${dragPointerPos.x}px`,
+                  top: `${dragPointerPos.y - 42}px`,
+                }}
+              >
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-white/95 rounded-2xl shadow-2xl border-2 border-emerald-500 scale-105 backdrop-blur-sm animate-pulse">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[11px] font-bold text-slate-800">
+                    {activeDragPiece.name}
+                    {activeDragPiece.clusterShape && activeDragPiece.clusterShape.length > 1
+                      ? ` (${activeDragPiece.clusterShape.length}H)`
+                      : ''}
+                  </span>
                 </div>
               </div>
-            );
-          })()}
+            )}
 
-          {/* Level 3 Penalty Discovery Modal */}
-          <PenaltyDiscoveryModal
-            isOpen={isPenaltyDiscoveryModalOpen}
-            onClose={() => setIsPenaltyDiscoveryModalOpen(false)}
-          />
-        </div>
+            {/* Floating Toast Notification */}
+            {alertToast && (
+              <div className="fixed top-12 left-1/2 -translate-x-1/2 z-40 pointer-events-none transition-all animate-in fade-in slide-in-from-top-3">
+                <div
+                  className={`px-3.5 py-1.5 rounded-full shadow-xl text-xs font-bold flex items-center gap-2 border ${alertToast.type === 'warn'
+                    ? 'bg-rose-50 text-rose-800 border-rose-300'
+                    : alertToast.type === 'success'
+                      ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      : 'bg-slate-900 text-white border-slate-700'
+                    }`}
+                >
+                  {alertToast.type === 'warn' && <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />}
+                  <span>{alertToast.message}</span>
+                </div>
+              </div>
+            )}
+
+            {currentLevel.isBossLevel && hoveredZoneInfo && cursorScreenPos && (() => {
+              const TOOLTIP_W = 230;
+              const TOOLTIP_H = 140;
+              const vw = window.innerWidth;
+              const vh = window.innerHeight;
+
+              // Position strictly on the right side of the cursor for optimal visibility
+              let left = cursorScreenPos.x + 22;
+              let top = cursorScreenPos.y - 25;
+
+              // Flip horizontally if clipping the right edge
+              if (left + TOOLTIP_W > vw - 16) {
+                left = cursorScreenPos.x - TOOLTIP_W - 22;
+              }
+              // Clamp vertically so tooltip never clips offscreen
+              top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
+
+              // Per-color theme (dot, border glow, gradient bg, label text)
+              const theme =
+                hoveredZoneInfo.color === 'amber'
+                  ? { bg: 'from-amber-950/95 to-amber-900/95', border: 'border-amber-500/70', dot: 'bg-amber-400', label: 'text-amber-200', ring: 'shadow-[0_0_18px_rgba(245,158,11,0.4)]' }
+                  : hoveredZoneInfo.color === 'emerald'
+                    ? { bg: 'from-emerald-950/95 to-emerald-900/95', border: 'border-emerald-500/70', dot: 'bg-emerald-400', label: 'text-emerald-200', ring: 'shadow-[0_0_18px_rgba(16,185,129,0.4)]' }
+                    : hoveredZoneInfo.color === 'sapphire'
+                      ? { bg: 'from-cyan-950/95 to-cyan-900/95', border: 'border-cyan-500/70', dot: 'bg-cyan-400', label: 'text-cyan-200', ring: 'shadow-[0_0_18px_rgba(6,182,212,0.4)]' }
+                      : hoveredZoneInfo.color === 'ruby'
+                        ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
+                        : { bg: 'from-slate-900/95 to-slate-800/95', border: 'border-slate-600/70', dot: 'bg-slate-400', label: 'text-slate-200', ring: '' };
+
+              const isComplete = hoveredZoneInfo.occupied >= hoveredZoneInfo.total;
+              const zoneKey = `${currentLevel.id}-${hoveredZoneInfo.name}`;
+              const isInspected = inspectedZoneKeys.has(zoneKey);
+              const isCollapsed = Boolean(bossBattleStats.isStatsCollapsed);
+
+              return (
+                <div
+                  className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
+                  style={{ left, top, width: TOOLTIP_W }}
+                >
+                  <div
+                    className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
+                  >
+                    {/* Header: color swatch + zone color name + inspected badge */}
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${theme.dot} shadow`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${theme.label}`}>
+                          {hoveredZoneInfo.color} Zone
+                        </span>
+                      </div>
+                      {isComplete ? (
+                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
+                          ✓ DONE
+                        </span>
+                      ) : isInspected ? (
+                        <span className="text-[9px] font-bold text-amber-300">
+                          ✓ Inspected
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-medium text-white/70 animate-pulse">
+                          👁️ Inspecting...
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Zone name */}
+                    <div className="text-xs font-bold text-white mb-1.5 truncate">
+                      {hoveredZoneInfo.name}
+                    </div>
+
+                    {/* Occupancy meter */}
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          className={`h-full rounded-full transition-all duration-200 ${isComplete ? 'bg-emerald-400' : theme.dot
+                            }`}
+                          style={{ width: `${Math.round((hoveredZoneInfo.occupied / Math.max(1, hoveredZoneInfo.total)) * 100)}%` }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-white font-mono font-bold tabular-nums">
+                        {hoveredZoneInfo.occupied}/{hoveredZoneInfo.total}
+                      </span>
+                    </div>
+
+                    {/* Stats Preview & Zero Collapse Warning */}
+                    {isCollapsed ? (
+                      <div className="pt-1.5 border-t border-rose-500/30 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-rose-300 font-black text-[10px]">
+                          <span>⚠️</span>
+                          <span>ALL STATS DROPPED TO 0</span>
+                        </div>
+                        <div className="text-[9px] text-rose-200/90 font-medium">
+                          {bossBattleStats.collapseReason || 'Lightbulb budget exceeded or 2+ penalties active'}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="pt-1.5 border-t border-white/10 flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
+                          {hoveredZoneInfo.color === 'amber' || hoveredZoneInfo.color === 'ruby' ? (
+                            <>
+                              <span>⭐</span>
+                              <span>+35 Popularity (+{hoveredZoneInfo.color === 'ruby' ? '18' : '12'}/tile)</span>
+                            </>
+                          ) : hoveredZoneInfo.color === 'sapphire' ? (
+                            <>
+                              <span>✨</span>
+                              <span>+35 Ambience (+15/tile)</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>🎁</span>
+                              <span>+1 Bonus Selection Slot</span>
+                            </>
+                          )}
+                        </div>
+                        <div className="text-[9px] text-white/60 font-medium">
+                          {isComplete ? '✨ Zone fulfilled · Synthesia boosted' : 'Match all zone tiles for Synthesia multiplier'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {!isPickingTile && hoveredRoadRequirement && cursorScreenPos && (() => {
+              const TOOLTIP_W = 220;
+              const TOOLTIP_H = 110;
+              const vw = window.innerWidth;
+              const vh = window.innerHeight;
+
+              let left = cursorScreenPos.x + 22;
+              let top = cursorScreenPos.y - 25;
+              if (left + TOOLTIP_W > vw - 16) left = cursorScreenPos.x - TOOLTIP_W - 22;
+              top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
+
+              const isDone = hoveredRoadRequirement.satisfied;
+
+              return (
+                <div
+                  className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
+                  style={{ left, top, width: TOOLTIP_W }}
+                >
+                  <div
+                    className={`bg-gradient-to-br ${isDone
+                      ? 'from-emerald-950/95 to-emerald-900/95 border-emerald-500/70 shadow-[0_0_18px_rgba(16,185,129,0.4)]'
+                      : 'from-slate-950/95 to-slate-900/95 border-amber-500/70 shadow-[0_0_18px_rgba(245,158,11,0.4)]'
+                      } border-2 rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
+                          } shadow`} />
+                        <span className={`text-[10px] font-black uppercase tracking-widest ${isDone ? 'text-emerald-200' : 'text-amber-200'
+                          }`}>
+                          Transit Charter
+                        </span>
+                      </div>
+                      {isDone ? (
+                        <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
+                          ✓ MET
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-bold text-amber-300 animate-pulse">
+                          ⚠️ Unmet
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-xs font-bold text-white mb-1.5 truncate capitalize">
+                      {hoveredRoadRequirement.roadKey.replace(/-/g, ' ')}
+                    </div>
+
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                        <div
+                          className={`h-full rounded-full transition-all duration-200 ${isDone ? 'bg-emerald-400' : 'bg-amber-400'
+                            }`}
+                          style={{
+                            width: `${Math.round((hoveredRoadRequirement.adjacent / Math.max(1, hoveredRoadRequirement.required)) * 100)}%`,
+                          }}
+                        />
+                      </div>
+                      <span className="text-[10px] text-white font-mono font-bold tabular-nums">
+                        {hoveredRoadRequirement.adjacent}/{hoveredRoadRequirement.required}
+                      </span>
+                    </div>
+
+                    <div className="pt-1.5 border-t border-white/10 text-[10px] font-bold text-amber-200">
+                      🏠 Requires {hoveredRoadRequirement.required} adjacent houses
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Level 3 Penalty Discovery Modal */}
+            <PenaltyDiscoveryModal
+              isOpen={isPenaltyDiscoveryModalOpen}
+              onClose={() => setIsPenaltyDiscoveryModalOpen(false)}
+            />
+          </div>
+        )
       )}
 
       {/* Global System Modals */}
@@ -3001,6 +3501,12 @@ export default function App() {
 
       <SettingsModal
         isOpen={isSettingsModalOpen}
+        isGuest={isGuest}
+        syncStatus={saveStatus}
+        lastSyncedAt={lastSyncedAt}
+        syncError={saveError}
+        onForceSync={forceSync}
+        onWipeCloudSave={() => setIsWipeCloudConfirmOpen(true)}
         soundEnabled={soundEnabled}
         gameMode={gameMode}
         playMode={playMode}
@@ -3051,12 +3557,18 @@ export default function App() {
           setHasDiscoveredPenalties(false);
         }}
         onPlayIntro={() => setShowSpecialIntro(true)}
+        onRequestAuth={() => {
+          setAuthPrompt('Sign in to unlock all 40 levels and sync your progress.');
+          setAuthMode('guest');
+          setIsAuthModalOpen(true);
+        }}
         onClose={() => setIsSettingsModalOpen(false)}
       />
 
       {/* Developer Device Debugger Overlay & Password Authenticator */}
       <DeviceDebugger
         isOpen={isDevDebuggerOpen}
+        isGuest={isGuest}
         isUnlocked={isDevUnlocked}
         targetFps={targetFps}
         performanceMode={performanceMode}
@@ -3148,7 +3660,7 @@ export default function App() {
       />
 
       <ShopModal
-        isOpen={isShopModalOpen}
+        isOpen={!layout.useMobileLayout && !isGuest && isShopModalOpen}
         coins={coins}
         leaves={leaves}
         highestCompletedLevel={highestCompletedLevel}
@@ -3163,7 +3675,7 @@ export default function App() {
       />
 
       <GoldenTicketModal
-        isOpen={isGoldenTicketModalOpen}
+        isOpen={!isGuest && isGoldenTicketModalOpen}
         hasGoldenTicket={hasGoldenTicket}
         maxedBuildingsCount={constructions.filter(c => c.currentLevel === 3).length}
         constructions={constructions}
@@ -3174,6 +3686,50 @@ export default function App() {
           } catch { }
         }}
         onClose={() => setIsGoldenTicketModalOpen(false)}
+      />
+
+      {isWipeCloudConfirmOpen && (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-slate-900 border border-rose-500/50 rounded-3xl p-6 shadow-2xl flex flex-col gap-4 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-rose-950 border border-rose-500/40 flex items-center justify-center mx-auto text-rose-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-white">Wipe Cloud Save?</h3>
+              <p className="text-xs text-slate-300 mt-1.5 leading-relaxed">
+                This permanently deletes your entire cloud save. Your local device save
+                remains, and will be re-synced to a fresh cloud slot if you sign in again
+                on this device.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsWipeCloudConfirmOpen(false)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-300 font-bold text-xs hover:bg-slate-800 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleWipeCloudSave}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs shadow-lg cursor-pointer"
+              >
+                Wipe Cloud &amp; Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Conflict Resolution Modal */}
+      <ConflictResolutionModal
+        isOpen={Boolean(pendingConflict)}
+        local={pendingConflict?.local ?? null}
+        cloud={pendingConflict?.cloud ?? null}
+        onChoose={(chosen) => {
+          const resolve = pendingConflict?.resolve;
+          setPendingConflict(null);
+          resolve?.(chosen);
+        }}
       />
 
       {/* Admin Code Authorization Modal */}
@@ -3203,6 +3759,45 @@ export default function App() {
         }}
         onClose={() => setAdminAuthFeature(null)}
       />
+
+      {/* Auth Modal — sign in, sign up, and idle re-auth */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        mode={authMode}
+        prompt={authPrompt}
+        onClose={() => {
+          setIsAuthModalOpen(false);
+          setAuthPrompt(undefined);
+          setAuthMode('guest');
+        }}
+      />
+
+      {/* First-time guest welcome — shown once per browser */}
+      <GuestWelcomeModal
+        isOpen={isWelcomeOpen}
+        onContinue={() => {
+          markGuestWelcomeSeen();
+          setIsWelcomeOpen(false);
+        }}
+        onSignIn={() => {
+          markGuestWelcomeSeen();
+          setIsWelcomeOpen(false);
+          setAuthPrompt('Sign in to unlock all 40 levels and sync your progress.');
+          setAuthMode('guest');
+          setIsAuthModalOpen(true);
+        }}
+      />
+
+      {/* Idle Sign-Out Prompt — opens automatically when the idle timer fires */}
+      {isIdleSignedOut && (
+        <AuthModal
+          isOpen
+          mode="idle"
+          onClose={() => {
+            /* idle mode cannot be dismissed — must sign in */
+          }}
+        />
+      )}
 
       {/* Fully Functional Map & Level Editor */}
       <LevelEditorModal

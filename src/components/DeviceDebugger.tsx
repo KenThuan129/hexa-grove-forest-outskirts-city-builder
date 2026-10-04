@@ -25,6 +25,7 @@ import { RendererInfo } from './ThreeScene';
 
 interface DeviceDebuggerProps {
   isOpen: boolean;
+  isGuest: boolean;
   isUnlocked: boolean;
   targetFps: 60 | 30 | 24;
   performanceMode: 'low' | 'high';
@@ -47,6 +48,7 @@ interface DeviceDebuggerProps {
 
 export const DeviceDebugger: React.FC<DeviceDebuggerProps> = ({
   isOpen,
+  isGuest = false,
   isUnlocked,
   targetFps,
   performanceMode,
@@ -464,7 +466,8 @@ export const DeviceDebugger: React.FC<DeviceDebuggerProps> = ({
           </div>
 
           {/* Developer Quick Actions */}
-          <div className="flex flex-col gap-1.5 pt-1">
+          {!isGuest && (
+<div className="flex flex-col gap-1.5 pt-1">
             <span className="text-[10px] text-slate-400 font-bold">Developer Utilities</span>
             <div className="grid grid-cols-2 gap-1.5">
               {onUnlockAllLevels && (
@@ -485,6 +488,8 @@ export const DeviceDebugger: React.FC<DeviceDebuggerProps> = ({
               )}
             </div>
           </div>
+          )}
+          
         </div>
       )}
     </div>

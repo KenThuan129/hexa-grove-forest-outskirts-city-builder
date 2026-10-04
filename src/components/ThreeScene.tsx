@@ -71,6 +71,12 @@ interface ThreeSceneProps {
   onUpdateRendererInfo?: (info: RendererInfo) => void;
   hudInsetLeftPx?: number;
   hudInsetRightPx?: number;
+  /** Camera framing hint — 'mobile' zooms the board a bit closer. */
+  layoutMode?: 'desktop' | 'mobile';
+  /** Long-press handler — fires when user holds a hex cell without dragging. */
+  onLongPressHex?: (coord: { q: number; r: number }) => void;
+  /** Set of cell keys that should pulse-glow (finished zones). */
+  highlightedZoneKeys?: Set<string>;
 }
 
 // Color palette constants for 3D materials
@@ -103,6 +109,9 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   onUpdateRendererInfo,
   hudInsetLeftPx = 0,
   hudInsetRightPx = 0,
+  layoutMode = 'desktop',
+  onLongPressHex,
+  highlightedZoneKeys,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -434,6 +443,15 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
               tileSphere.center.copy(child.position);
               tileSphere.center.y = 0.2;
               child.visible = frustum.intersectsSphere(tileSphere);
+
+              // Zone pulse animation
+              child.traverse((sub) => {
+                if (sub.userData?.isZonePulse) {
+                  const pulse = 0.85 + Math.sin(elapsedTime * 3) * 0.15;
+                  sub.scale.setScalar(pulse);
+                  (sub as THREE.Mesh<any, THREE.MeshBasicMaterial>).material.opacity = 0.4 + Math.sin(elapsedTime * 3) * 0.3;
+                }
+              });
             }
           });
         }
@@ -691,7 +709,7 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
       rendererRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryKey, performanceMode]);
+  }, [retryKey, performanceMode, layoutMode]);
 
   useEffect(() => {
     if (unlockedCells.size === 0) return;
@@ -716,17 +734,19 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     const requiredDistanceForDepth = bounds.spanZ / (2 * tanHalfFovY);
 
     // Add a margin of 1.35x so the outer tiles have breathing room
+    const mobileZoom = layoutMode === 'mobile' ? 0.82 : 1.0;
+
     const fitDistance = Math.max(
       14,
       requiredDistanceForWidth * 1.35,
       requiredDistanceForDepth * 1.35,
-      maxSpan * 1.2   // fallback minimum
-    );
+      maxSpan * 1.2
+    ) * mobileZoom;
 
     cameraTargetRef.current.set(bounds.centerX, 0, bounds.centerZ);
     cameraOffsetRef.current.set(0, fitDistance * 1.05, fitDistance * 0.85);
     currentZoomRef.current = 1;
-  }, [boardBounds, unlockedCells.size]);
+  }, [boardBounds, unlockedCells.size, layoutMode]);
 
   // Sync Unlocked Base Grid Hexes with InstancedMesh geometry instancing for low-GPU optimization
   useEffect(() => {
@@ -918,9 +938,25 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
         animateRise(cellGroup, 0, 400 + Math.random() * 200);
       }
 
+      // Zone-finished highlight pulse
+      if (highlightedZoneKeys && highlightedZoneKeys.has(coordKey(cell.q, cell.r))) {
+        const pulseRingGeo = new THREE.RingGeometry(HEX_RADIUS * 0.85, HEX_RADIUS * 0.98, 32);
+        pulseRingGeo.rotateX(-Math.PI / 2);
+        const pulseRingMat = new THREE.MeshBasicMaterial({
+          color: 0xf0c674,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.65,
+        });
+        const pulseRing = new THREE.Mesh(pulseRingGeo, pulseRingMat);
+        pulseRing.position.y = 0.18;
+        cellGroup.add(pulseRing);
+        pulseRing.userData.isZonePulse = true;
+      }
+
       group.add(cellGroup);
     });
-  }, [unlockedCells, isExpansionAnimating]);
+  }, [unlockedCells, isExpansionAnimating, highlightedZoneKeys]);
 
   // Sync Placed 3D Tiles
   useEffect(() => {
@@ -962,52 +998,6 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
           clusterMap.set(tile.clusterId, list);
         }
       });
-    });
-
-    const accentColors: Record<TileColor, number> = {
-      neutral: 0xc87d55,
-      amber: 0xf59e0b,
-      emerald: 0x10b981,
-      sapphire: 0x3b82f6,
-      ruby: 0xef4444,
-    };
-
-    clusterMap.forEach(tiles => {
-      for (let i = 0; i < tiles.length; i++) {
-        for (let j = i + 1; j < tiles.length; j++) {
-          const tA = tiles[i];
-          const tB = tiles[j];
-          // Hex distance: (abs(q1-q2) + abs(q1+r1 - q2-r2) + abs(r1-r2)) / 2
-          const hexDist = (Math.abs(tA.q - tB.q) + Math.abs(tA.q + tA.r - tB.q - tB.r) + Math.abs(tA.r - tB.r)) / 2;
-          if (hexDist === 1) {
-            const posA = hexToWorld(tA.q, tA.r);
-            const posB = hexToWorld(tB.q, tB.r);
-            const midX = (posA.x + posB.x) / 2;
-            const midZ = (posA.z + posB.z) / 2;
-            const rotY = -Math.atan2(posB.z - posA.z, posB.x - posA.x);
-
-            // Substantial foundation bridge connecting the two hexes
-            const bridgeGeo = new THREE.BoxGeometry(0.55, 0.16, 0.96);
-            const bridgeMat = new THREE.MeshStandardMaterial({
-              color: 0x334155,
-              roughness: 0.6,
-              metalness: 0.3,
-            });
-            const bridge = new THREE.Mesh(bridgeGeo, bridgeMat);
-            bridge.position.set(midX, 0.16, midZ);
-            bridge.rotation.y = rotY;
-            group.add(bridge);
-
-            // Colored architectural trim inlay
-            const trimGeo = new THREE.BoxGeometry(0.18, 0.08, 0.92);
-            const trimMat = new THREE.MeshBasicMaterial({ color: accentColors[tA.color] || 0xc87d55 });
-            const trimMesh = new THREE.Mesh(trimGeo, trimMat);
-            trimMesh.position.set(midX, 0.22, midZ);
-            trimMesh.rotation.y = rotY;
-            group.add(trimMesh);
-          }
-        }
-      }
     });
   }, [placedTiles, disconnectedKeys, pickedUpCoord, unlockedCells]);
 
@@ -1245,11 +1235,31 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     }
   }, [dragPointerPos, activeDragPiece, onHoverCoordChange]);
 
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressCoordRef = useRef<{ q: number; r: number } | null>(null);
+
   const handlePointerDown = (e: React.PointerEvent) => {
     // Only primary mouse button initiates camera pan
     if (e.button !== 0) return;
     isPointerDownRef.current = true;
     pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
+
+    // Long-press detection: if user holds on a hex without dragging,
+    // fire onLongPressHex after 400ms.
+    if (onLongPressHex) {
+      const hit = getPointerGroundIntersection(e.clientX, e.clientY);
+      if (hit) {
+        const hex = worldToHex(hit.x, hit.z);
+        longPressCoordRef.current = hex;
+        if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = setTimeout(() => {
+          if (longPressCoordRef.current) {
+            onLongPressHex(longPressCoordRef.current);
+          }
+          longPressTimerRef.current = null;
+        }, 400);
+      }
+    }
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -1264,6 +1274,17 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
   };
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    // Cancel long-press if pointer moved
+    if (longPressTimerRef.current && pointerStartPosRef.current) {
+      const dx = e.clientX - pointerStartPosRef.current.x;
+      const dy = e.clientY - pointerStartPosRef.current.y;
+      if (Math.hypot(dx, dy) > 12) {
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+        longPressCoordRef.current = null;
+      }
+    }
+
     // If dragging a tile from the tray or board, calculate hover hex
     if (activeDragPieceRef.current) {
       const hit = getPointerGroundIntersection(e.clientX, e.clientY);
@@ -1316,6 +1337,12 @@ export const ThreeScene: React.FC<ThreeSceneProps> = ({
     if (!isPointerDownRef.current) return;
     isPointerDownRef.current = false;
     pinchStartDistRef.current = null;
+
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      longPressCoordRef.current = null;
+    }
 
     const isDragGesture = Math.hypot(
       e.clientX - pointerStartPosRef.current.x,

@@ -535,8 +535,10 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
                         {selectedSceneId}
                       </div>
                       <div className="text-[10.5px] text-slate-500">
-                        Edit its lines in the panel below. Drag the port on the
-                        node's right edge to another node to set the scene's next jump.
+                         Drag nodes to arrange the graph. Drag from a node's right-edge
+                      port to another node to set its next-scene jump. Edit lines in the
+                      bottom panel — choices open an inline editor. Every change is
+                      auto-saved to local storage.
                       </div>
                     </div>
                   )}

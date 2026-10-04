@@ -7,6 +7,8 @@ interface Resort3DSceneProps {
   selectedConstructionId: ConstructionId | null;
   onSelectConstruction: (id: ConstructionId) => void;
   performanceMode?: 'low' | 'high';
+  /** Pass 'mobile' to tighten camera framing for a smaller board viewport */
+  layoutMode?: 'mobile' | 'desktop';
 }
 
 export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
@@ -14,6 +16,7 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
   selectedConstructionId,
   onSelectConstruction,
   performanceMode = 'low',
+  layoutMode = 'desktop',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,11 +64,17 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
 
     const scene = new THREE.Scene();
     sceneRef.current = scene;
-    scene.background = new THREE.Color(0x0a1610); // Deep forest dusk
-    scene.fog = new THREE.FogExp2(0x0a1610, 0.025);
+    // Gradient background handled via CSS on the parent container.
+    // Three.js keeps a matching solid tint for fog blending.
+    scene.background = new THREE.Color(0x14281a); // Mid forest green — hòa với UI
+    scene.fog = new THREE.FogExp2(0x14281a, 0.022);
 
     const camera = new THREE.PerspectiveCamera(45, width / height, 0.5, 100);
     cameraRef.current = camera;
+
+    // Mobile: zoom in slightly so the resort island fits the visible viewport
+    // between the top bar and the bottom action stack.
+    const mobileCameraBoost = layoutMode === 'mobile' ? 0.88 : 1.0;
 
     let renderer: THREE.WebGLRenderer | null = null;
     try {
@@ -308,6 +317,12 @@ export const Resort3DScene: React.FC<Resort3DSceneProps> = ({
       rendererRef.current = null;
     };
   }, [performanceMode]);
+
+  useEffect(() => {
+    if (layoutMode === 'mobile') {
+      cameraSphericalRef.current.radius = 15.5; // smaller = closer
+    }
+  }, [layoutMode]);
 
   // Update Construction Meshes when constructions prop changes
   useEffect(() => {

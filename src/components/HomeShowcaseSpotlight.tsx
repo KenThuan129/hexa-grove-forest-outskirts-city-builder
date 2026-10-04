@@ -37,6 +37,17 @@ export const HomeShowcaseSpotlight: React.FC<HomeShowcaseSpotlightProps> = ({
 
   const totalSteps = 5;
 
+  // Skip Memory step if the target doesn't exist (guest mode)
+  React.useEffect(() => {
+    if (step === 4) {
+      const el = document.querySelector('[data-tutorial-id="home-memories-btn"]');
+      if (!el) {
+        // Auto-advance to step 5
+        setStep(5);
+      }
+    }
+  }, [step]);
+
   const handleNextStep = () => {
     sounds.playPickup();
     if (step < totalSteps) {
@@ -62,43 +73,43 @@ export const HomeShowcaseSpotlight: React.FC<HomeShowcaseSpotlightProps> = ({
   let themeColor: 'emerald' | 'amber' | 'cyan' | 'purple' = 'emerald';
   let pointerDirection: 'down' | 'up' = 'down';
 
-  switch (step) {
+    switch (step) {
     case 1:
       targetSelector = '[data-tutorial-id="home-play-btn"]';
       tooltipTitle = `1. Continue Frontier Journey (Level ${currentLevelId})`;
-      tooltipDesc = `Level 5 complete! Level 6 is now unlocked, introducing giant multi-hex "Cluster" mechanics. Click the Play button to start!`;
-      badgeLabel = 'LEVEL 6 UNLOCKED';
+      tooltipDesc = 'Click the Play button to launch your current expedition. Progress saves automatically as you build!';
+      badgeLabel = 'CONTINUE JOURNEY';
       themeColor = 'emerald';
       pointerDirection = 'down';
       break;
     case 2:
-      targetSelector = '[data-tutorial-id="home-editor-btn"]';
-      tooltipTitle = '2. Level Editor Hub';
-      tooltipDesc = 'Create and test custom hex boards with tailored color zones and par targets (Feature coming soon).';
-      badgeLabel = 'EDITOR PREVIEW';
-      themeColor = 'amber';
+      targetSelector = '[data-tutorial-id="home-play-mode-toggle"]';
+      tooltipTitle = '2. Primary Game Mode';
+      tooltipDesc = 'Switch between relaxed Building Mode (lightbulbs, no penalties) and Challenger Mode (stars, par quotas, penalties).';
+      badgeLabel = 'GAME MODE';
+      themeColor = 'purple';
       pointerDirection = 'down';
       break;
     case 3:
+      targetSelector = '[data-tutorial-id="home-editor-btn"]';
+      tooltipTitle = '3. Map Level Editor';
+      tooltipDesc = 'Craft custom hex boards with tailored color zones, boss encounters, and stock limits. Admin tools unlock the full editor.';
+      badgeLabel = 'LEVEL EDITOR';
+      themeColor = 'amber';
+      pointerDirection = 'down';
+      break;
+    case 4:
       targetSelector = '[data-tutorial-id="home-memories-btn"]';
-      tooltipTitle = '3. Memories & Penalty Bypasses';
-      tooltipDesc = 'Inspect unlocked frontier sketches in your gallery and choose permanent free passes for penalties!';
+      tooltipTitle = '4. Memories & Island Relics';
+      tooltipDesc = 'Revisit unlocked frontier sketches in your gallery and assign permanent free passes for penalties.';
       badgeLabel = 'MEMORIES GALLERY';
       themeColor = 'cyan';
       pointerDirection = 'down';
       break;
-    case 4:
-      targetSelector = '[data-tutorial-id="home-level-selector-btn"]';
-      tooltipTitle = '4. Level Selector (Levels 1 - 20)';
-      tooltipDesc = 'Replay any previous stage to earn missing Master Stars and conquer all mastery challenges.';
-      badgeLabel = 'LEVEL BROWSER';
-      themeColor = 'purple';
-      pointerDirection = 'down';
-      break;
     case 5:
       targetSelector = '[data-tutorial-id="home-rules-settings-bar"]';
-      tooltipTitle = '5. Rules & Custom Settings';
-      tooltipDesc = 'Access complete settlement scoring formulas, penalty deductions, and sound toggles anytime.';
+      tooltipTitle = '5. Settings & Rules';
+      tooltipDesc = 'Access complete settlement scoring formulas, penalty deductions, and audio toggles anytime.';
       badgeLabel = 'SETTINGS & RULES';
       themeColor = 'amber';
       pointerDirection = 'up';

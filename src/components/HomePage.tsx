@@ -27,8 +27,12 @@ import {
   Lightbulb,
   Swords,
   Trophy,
+  LogIn,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
+import { CloudSaveIndicator } from './CloudSaveIndicator';
+import { HomePageMobile } from './home/HomePageMobile';
+import { useLayout } from '../context/LayoutContext';
 
 interface HomePageProps {
   levels: LevelConfig[];
@@ -46,6 +50,17 @@ interface HomePageProps {
   hasGoldenTicket: boolean;
   isAdminUnlocked?: boolean;
   unclaimedChestsCount?: number;
+  isGuest?: boolean;
+  guestTrialIndex?: number;
+  nextPlayableIndex?: number;
+  cloudSaveStatus?: 'idle' | 'syncing' | 'synced' | 'error' | 'signed-out';
+  lastSyncedAt?: number | null;
+  cloudSaveError?: string | null;
+  claimedChestIds?: number[];
+  boosterInventory?: Record<string, number>;
+  onClaimChest?: (chestId: number) => void;
+  onBuyBooster?: (booster: any) => void;
+  onForceCloudSync?: () => void;
   onUpgradeConstruction: (id: ConstructionId) => void;
   onCloseShowcase?: () => void;
   onSelectLevel: (index: number) => void;
@@ -76,8 +91,19 @@ export const HomePage: React.FC<HomePageProps> = ({
   hasGoldenTicket = false,
   isAdminUnlocked = false,
   unclaimedChestsCount = 0,
+  isGuest = false,
+  guestTrialIndex = 0,
+  nextPlayableIndex = 0,
+  cloudSaveStatus = 'signed-out',
+  lastSyncedAt = null,
+  cloudSaveError = null,
+  claimedChestIds,
+  boosterInventory,
+  onClaimChest,
+  onBuyBooster,
+  onForceCloudSync,
   onUpgradeConstruction,
-  onCloseShowcase = () => {},
+  onCloseShowcase = () => { },
   onSelectLevel,
   onStartJourney,
   onNavigateMemories,
@@ -85,12 +111,60 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenRules,
   onOpenLevelEditor,
   onOpenAdminAuth,
-  onChangeGameMode = () => {},
-  onChangePlayMode = () => {},
+  onChangeGameMode = () => { },
+  onChangePlayMode = () => { },
   onOpenShop,
   onShowGoldenTicket,
   onPlayIntro,
+
 }) => {
+  const layout = useLayout();
+
+  if (layout.useMobileLayout) {
+    return (
+      <HomePageMobile
+        levels={levels}
+        currentLevelIndex={currentLevelIndex}
+        isOpenShowcase={isOpenShowcase}
+        gameMode={gameMode}
+        playMode={playMode}
+        performanceMode={performanceMode}
+        highestCompletedLevel={highestCompletedLevel}
+        coins={coins}
+        leaves={leaves}
+        constructions={constructions}
+        hasGoldenTicket={hasGoldenTicket}
+        isAdminUnlocked={isAdminUnlocked}
+        unclaimedChestsCount={unclaimedChestsCount}
+        claimedChestIds={claimedChestIds}
+        boosterInventory={boosterInventory}
+        onClaimChest={onClaimChest}
+        onBuyBooster={onBuyBooster}
+        isGuest={isGuest}
+        guestTrialIndex={guestTrialIndex}
+        nextPlayableIndex={nextPlayableIndex}
+        cloudSaveStatus={cloudSaveStatus}
+        lastSyncedAt={lastSyncedAt}
+        cloudSaveError={cloudSaveError}
+        onForceCloudSync={onForceCloudSync}
+        onUpgradeConstruction={onUpgradeConstruction}
+        onCloseShowcase={onCloseShowcase}
+        onSelectLevel={onSelectLevel}
+        onStartJourney={onStartJourney}
+        onNavigateMemories={onNavigateMemories}
+        onOpenSettings={onOpenSettings}
+        onOpenRules={onOpenRules}
+        onOpenLevelEditor={onOpenLevelEditor}
+        onOpenAdminAuth={onOpenAdminAuth}
+        onChangeGameMode={onChangeGameMode}
+        onChangePlayMode={onChangePlayMode}
+        onOpenShop={onOpenShop}
+        onShowGoldenTicket={onShowGoldenTicket}
+        onPlayIntro={onPlayIntro}
+      />
+    );
+  }
+
   const [selectedId, setSelectedId] = useState<ConstructionId>('timber_lodge');
   const [isBuildingTrayCollapsed, setIsBuildingTrayCollapsed] = useState(false);
   const [isLevelSelectorOpen, setIsLevelSelectorOpen] = useState(false);
@@ -118,7 +192,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
     if (!isTryHardUnlocked) {
       sounds.playWarning();
-      setModeNotice(`🔒 Try-Hard Mode unlocks at Level 40 (${highestCompletedLevel}/40 completed)`);
+      setModeNotice(`${isGuest ? 'No one knows what lies ahead' : `🔒 Try-Hard Mode unlocks at Level 40 (${highestCompletedLevel}/40 completed)`}`);
       setTimeout(() => setModeNotice(null), 3000);
       return;
     }
@@ -176,57 +250,66 @@ export const HomePage: React.FC<HomePageProps> = ({
 
         {/* Right: Currency Balances, Shop & System Modals */}
         <div className="pointer-events-auto flex items-center gap-2">
-          {/* Golden Ticket Badge Button (Locked until Admin Unlocked) */}
-          {hasGoldenTicket ? (
-            <button
-              onClick={() => {
-                sounds.playClick();
-                if (!isAdminUnlocked) {
-                  onOpenAdminAuth?.('Golden Ticket');
-                } else {
-                  onShowGoldenTicket();
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight font-bold text-xs shadow-xl cursor-pointer"
-              title="View Legendary Golden Ticket"
-            >
-              <Crown className="w-4 h-4 text-[#2b1a11]" />
-              <span className="hidden sm:inline">Golden Ticket 🌟</span>
-            </button>
-          ) : totalMaxedCount === 10 ? (
-            <button
-              onClick={() => {
-                sounds.playClick();
-                if (!isAdminUnlocked) {
-                  onOpenAdminAuth?.('Golden Ticket');
-                } else {
-                  onShowGoldenTicket();
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight text-[#2b1a11] font-bold text-xs shadow-xl cursor-pointer animate-pulse"
-              title="All 10 constructions maxed! Click to claim your Golden Ticket!"
-            >
-              <Sparkles className="w-4 h-4 text-[#2b1a11]" />
-              <span>Claim Ticket! (10/10)</span>
-            </button>
-          ) : (
-            <button
-              onClick={() => {
-                sounds.playClick();
-                if (!isAdminUnlocked) {
-                  onOpenAdminAuth?.('Golden Ticket');
-                } else {
-                  onShowGoldenTicket();
-                }
-              }}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 wood-panel text-[#a8b89a] text-xs font-bold cursor-pointer hover:border-[#f0c674] hover:text-[#f0c674] transition-all shadow-lg"
-              title={isAdminUnlocked ? `Golden Ticket Vault: Max out all 10 resort buildings (${totalMaxedCount}/10 maxed)` : 'Golden Ticket: Requires Admin Code'}
-            >
-              <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
-              <span className="hidden md:inline">Ticket</span>
-              <span className="text-[#f0c674]">({totalMaxedCount}/10)</span>
-            </button>
+          {/* Golden Ticket Badge Button — hidden for guests */}
+          {!isGuest && (
+            hasGoldenTicket ? (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  if (!isAdminUnlocked) {
+                    onOpenAdminAuth?.('Golden Ticket');
+                  } else {
+                    onShowGoldenTicket();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight font-bold text-xs shadow-xl cursor-pointer"
+                title="View Legendary Golden Ticket"
+              >
+                <Crown className="w-4 h-4 text-[#2b1a11]" />
+                <span className="hidden sm:inline">Golden Ticket 🌟</span>
+              </button>
+            ) : totalMaxedCount === 10 ? (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  if (!isAdminUnlocked) {
+                    onOpenAdminAuth?.('Golden Ticket');
+                  } else {
+                    onShowGoldenTicket();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight text-[#2b1a11] font-bold text-xs shadow-xl cursor-pointer animate-pulse"
+                title="All 10 constructions maxed! Click to claim your Golden Ticket!"
+              >
+                <Sparkles className="w-4 h-4 text-[#2b1a11]" />
+                <span>Claim Ticket! (10/10)</span>
+              </button>
+            ) : (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  if (!isAdminUnlocked) {
+                    onOpenAdminAuth?.('Golden Ticket');
+                  } else {
+                    onShowGoldenTicket();
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 wood-panel text-[#a8b89a] text-xs font-bold cursor-pointer hover:border-[#f0c674] hover:text-[#f0c674] transition-all shadow-lg"
+                title={isAdminUnlocked ? `Golden Ticket Vault: Max out all 10 resort buildings (${totalMaxedCount}/10 maxed)` : 'Golden Ticket: Requires Admin Code'}
+              >
+                <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
+                <span className="hidden md:inline">Ticket</span>
+                <span className="text-[#f0c674]">({totalMaxedCount}/10)</span>
+              </button>
+            )
           )}
+
+          <CloudSaveIndicator
+            status={cloudSaveStatus}
+            lastSyncedAt={lastSyncedAt}
+            error={cloudSaveError}
+            onRetry={onForceCloudSync}
+          />
 
           {/* Leaves Balance */}
           <div
@@ -248,20 +331,22 @@ export const HomePage: React.FC<HomePageProps> = ({
             <span className="text-[9.5px] text-[#f4ecd8]/80 hidden sm:inline">Coins</span>
           </div>
 
-          {/* Shop / Emporium Button */}
-          <button
-            onClick={onOpenShop}
-            className="relative flex items-center gap-1.5 px-3 py-1.5 btn-wooden-sign text-[#f4ecd8] font-bold text-xs shadow-lg transition-all cursor-pointer"
-            title="Open Emporium (Boosters & Journey Leaves Chests)"
-          >
-            <ShoppingBag className="w-4 h-4 text-[#f0c674]" />
-            <span className="hidden sm:inline">Emporium</span>
-            {unclaimedChestsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e8b04b] text-[#2b1a11] font-bold text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
-                {unclaimedChestsCount}
-              </span>
-            )}
-          </button>
+          {/* Shop / Emporium Button — hidden for guests */}
+          {!isGuest && (
+            <button
+              onClick={onOpenShop}
+              className="relative flex items-center gap-1.5 px-3 py-1.5 btn-wooden-sign text-[#f4ecd8] font-bold text-xs shadow-lg transition-all cursor-pointer"
+              title="Open Emporium (Boosters & Journey Leaves Chests)"
+            >
+              <ShoppingBag className="w-4 h-4 text-[#f0c674]" />
+              <span className="hidden sm:inline">Emporium</span>
+              {unclaimedChestsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e8b04b] text-[#2b1a11] font-bold text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
+                  {unclaimedChestsCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* Clean View / Zen Mode Toggle */}
           <button
@@ -298,6 +383,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           {/* Settings */}
           <button
             onClick={onOpenSettings}
+            data-tutorial-id="home-rules-settings-bar"
             className="p-2 wood-panel text-[#f4ecd8] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
             title="Settings"
           >
@@ -314,7 +400,9 @@ export const HomePage: React.FC<HomePageProps> = ({
             <div className="absolute -top-2 -right-2 text-lg pointer-events-none">🍃</div>
 
             {/* Primary Gameplay Mode Selector: Building Mode (Standard Journey) vs Challenger Mode */}
-            <div className="flex flex-col gap-1.5 p-2 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
+            <div
+              data-tutorial-id="home-play-mode-toggle" 
+              className="flex flex-col gap-1.5 p-2 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
               <span className="text-[10.5px] text-[#a8b89a] font-bold flex items-center gap-1 font-rounded">
                 <Sparkles className="w-3 h-3 text-[#f0c674]" />
                 <span>Primary Game Mode</span>
@@ -326,11 +414,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     onChangePlayMode('building');
                     sounds.playClick();
                   }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${
-                    playMode === 'building'
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'building'
                       ? 'btn-sunlight border-[#f0c674]'
                       : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-1 font-rounded">
                     <Lightbulb className="w-3.5 h-3.5 fill-current" />
@@ -338,10 +425,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                   </div>
                   <span className="text-[9px] font-medium opacity-85">Lightbulbs · 0 Stars · 1v1 Boss</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={() => {
+                    if (isGuest) return;
                     sounds.playClick();
                     if (!isAdminUnlocked) {
                       onOpenAdminAuth?.('Challenger Mode');
@@ -349,18 +436,17 @@ export const HomePage: React.FC<HomePageProps> = ({
                       onChangePlayMode('challenger');
                     }
                   }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${
-                    playMode === 'challenger'
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'challenger'
                       ? 'btn-river-stone border-[#8fbc6f]'
                       : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-1 font-rounded">
-                    {!isAdminUnlocked ? <Lock className="w-3.5 h-3.5 text-[#f0c674]" /> : <Trophy className="w-3.5 h-3.5 text-[#8fbc6f]" />}
-                    <span>Challenger Mode</span>
+                    {!isGuest ? <Lock className="w-3.5 h-3.5 text-[#f0c674]" /> : <Trophy className="w-3.5 h-3.5 text-[#8fbc6f]" />}
+                    <span>{isGuest ? '???' : 'Challenger Mode'}</span>
                   </div>
                   <span className="text-[9px] font-medium opacity-85">
-                    {!isAdminUnlocked ? '🔒 Requires Admin Code' : 'Stars · Par · Penalties'}
+                    {!isGuest ? '🔒 Requires Admin Code' : '??? · ??? · ???'}
                   </span>
                 </button>
               </div>
@@ -373,17 +459,21 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <span>EXPEDITION CAMPAIGN</span>
               </div>
 
-              <button
-                onClick={() => setIsLevelSelectorOpen(!isLevelSelectorOpen)}
-                className="text-[11px] font-bold text-[#8fbc6f] hover:text-[#f4ecd8] cursor-pointer flex items-center gap-1 bg-[#1e3520] px-2.5 py-1 rounded-lg border border-[#6b8e5a]/50"
-              >
-                <span>Select Level</span>
-                {isLevelSelectorOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-              </button>
+              {/* Select Level button — Admin only */}
+              {!isGuest && isAdminUnlocked && (
+                <button
+                  onClick={() => setIsLevelSelectorOpen(!isLevelSelectorOpen)}
+                  data-tutorial-id="home-level-selector-btn"
+                  className="text-[11px] font-bold text-[#8fbc6f] hover:text-[#f4ecd8] cursor-pointer flex items-center gap-1 bg-[#1e3520] px-2.5 py-1 rounded-lg border border-[#6b8e5a]/50"
+                >
+                  <span>Select Level</span>
+                  {isLevelSelectorOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                </button>
+              )}
             </div>
 
-            {/* Level Switcher Dropdown */}
-            {isLevelSelectorOpen && (
+            {/* Level Switcher Dropdown — Admin only */}
+            {isAdminUnlocked && isLevelSelectorOpen && (
               <div className="max-h-48 overflow-y-auto bg-[#1e3520] p-1.5 rounded-xl border border-[#6b8e5a]/50 space-y-1 shadow-inner">
                 {levels.map((lvl, idx) => (
                   <button
@@ -393,11 +483,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                       setIsLevelSelectorOpen(false);
                       sounds.playClick();
                     }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${
-                      idx === currentLevelIndex
+                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${idx === currentLevelIndex
                         ? 'bg-[#6b8e5a] text-[#f4ecd8] shadow'
                         : 'text-[#a8b89a] hover:bg-[#2d4a2b] hover:text-[#f4ecd8]'
-                    }`}
+                      }`}
                   >
                     <span>Lvl {lvl.id}: {lvl.name}</span>
                     {idx === currentLevelIndex && <CheckCircle2 className="w-3.5 h-3.5 text-[#f4ecd8]" />}
@@ -412,41 +501,49 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   type="button"
                   onClick={() => {
+                    if (isGuest) return;
                     onChangeGameMode('casual');
                     sounds.playClick();
                   }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    gameMode === 'casual'
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${gameMode === 'casual'
                       ? 'btn-river-stone'
                       : 'text-[#a8b89a] hover:text-[#f4ecd8]'
-                  }`}
+                    }`}
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>Casual</span>
                 </button>
-
                 <button
                   type="button"
                   onClick={handleTryHardToggle}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                    !isTryHardUnlocked
+                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!isTryHardUnlocked
                       ? 'text-[#a8b89a]/60 bg-[#1e3520]/40 border border-[#5c3d2e] cursor-pointer hover:border-[#f0c674]'
                       : gameMode === 'tryhard'
-                      ? 'btn-sunlight text-[#2b1a11]'
-                      : 'text-[#a8b89a] hover:text-[#f4ecd8] cursor-pointer'
-                  }`}
+                        ? 'btn-sunlight text-[#2b1a11]'
+                        : 'text-[#a8b89a] hover:text-[#f4ecd8] cursor-pointer'
+                    }`}
                   title={
-                    !isTryHardUnlocked
-                      ? `Locked: Complete Level 40 to unlock Try-Hard mode (${highestCompletedLevel}/40 completed)`
-                      : 'Try-Hard Mode: Requires 1★ + Mastery Challenge completed'
+                    isGuest
+                      ? 'Sign in to unlock this mode'
+                      : !isTryHardUnlocked
+                        ? `Locked: Complete Level 40 to unlock Try-Hard mode (${highestCompletedLevel}/40 completed)`
+                        : `Try-Hard Mode: Requires 1★ + Mastery Challenge completed`
                   }
                 >
-                  {!isTryHardUnlocked ? (
+                  {isGuest ? (
+                    // Guest: hide the label — show only a mystery placeholder
+                    <>
+                      <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
+                      <span className="tracking-widest opacity-70">???</span>
+                    </>
+                  ) : !isTryHardUnlocked ? (
+                    // Signed-in, still locked
                     <>
                       <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
                       <span>Try-Hard</span>
                     </>
                   ) : (
+                    // Signed-in, unlocked
                     <>
                       <Award className="w-3.5 h-3.5" />
                       <span>Try-Hard</span>
@@ -463,71 +560,111 @@ export const HomePage: React.FC<HomePageProps> = ({
               )}
             </div>
 
-            {/* Primary Action Button: Play Level */}
-            <button
-              data-tutorial-id="home-play-btn"
-              onClick={onStartJourney}
-              className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-3 text-left">
-                <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-                  <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
+            {/* Primary Action Button: Play Level (mode-aware) */}
+            {(() => {
+              const playTargetLevel =
+                !isGuest && typeof nextPlayableIndex === 'number' && nextPlayableIndex >= 0
+                  ? levels[nextPlayableIndex]
+                  : currentLevel;
+
+              const guestTrialsDone =
+                isGuest && (typeof nextPlayableIndex === 'number' && nextPlayableIndex < 0);
+
+              const kicker = isGuest
+                ? guestTrialsDone
+                  ? 'Demo Complete'
+                  : 'Trial Demo'
+                : `Level ${playTargetLevel.id} of ${levels.length}`;
+
+              const title = isGuest
+                ? guestTrialsDone
+                  ? 'Sign In to Continue the Journey'
+                  : playTargetLevel.name
+                : playTargetLevel.name;
+
+              const handleClick = () => {
+                // Both paths call onStartJourney — the parent decides
+                // whether to launch a level or open the auth modal.
+                onStartJourney();
+              };
+
+              return (
+                <button
+                  data-tutorial-id="home-play-btn"
+                  onClick={handleClick}
+                  className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer"
+                >
+                  <div className="flex items-center gap-3 text-left">
+                    <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                      {guestTrialsDone ? (
+                        <LogIn className="w-4 h-4 text-[#f4ecd8]" />
+                      ) : (
+                        <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
+                        {kicker}
+                      </span>
+                      <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
+                        {title}
+                      </span>
+                    </div>
+                  </div>
+
+                  <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
+                </button>
+              );
+            })()}
+
+            {/* Memories (Visual Novel Story Lore) Button — hidden for guests */}
+            {!isGuest && (
+              <button
+                onClick={onNavigateMemories}
+                data-tutorial-id="home-memories-btn"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] text-xs font-bold transition-all cursor-pointer shadow"
+              >
+                <div className="flex items-center gap-2 font-rounded">
+                  <BookOpen className="w-4 h-4 text-[#7a9b8e]" />
+                  <span>Memories & Island Relics</span>
                 </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
-                    Level {currentLevel.id} of {levels.length}
-                  </span>
-                  <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
-                    {currentLevel.name}
-                  </span>
+                <ChevronRight className="w-4 h-4 text-[#a8b89a]" />
+              </button>
+            )}
+
+            {/* Level Editor (Admin Tool) Launcher Button — hidden for guests */}
+            {!isGuest && (
+              <button
+                onClick={() => {
+                  sounds.playClick();
+                  if (!isAdminUnlocked) {
+                    onOpenAdminAuth?.('Level Editor');
+                  } else {
+                    onOpenLevelEditor();
+                  }
+                }}
+                data-tutorial-id="home-editor-btn"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f0c674] hover:border-[#f0c674] text-xs font-bold transition-all cursor-pointer shadow-lg"
+              >
+                <div className="flex items-center gap-2 font-rounded">
+                  <Hammer className="w-4 h-4 text-[#f0c674]" />
+                  <span>Map Level Editor 🛠️</span>
                 </div>
-              </div>
-
-              <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
-            </button>
-
-            {/* Memories (Visual Novel Story Lore) Button */}
-            <button
-              onClick={onNavigateMemories}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] text-xs font-bold transition-all cursor-pointer shadow"
-            >
-              <div className="flex items-center gap-2 font-rounded">
-                <BookOpen className="w-4 h-4 text-[#7a9b8e]" />
-                <span>Memories & Island Relics</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-[#a8b89a]" />
-            </button>
-
-            {/* Level Editor (Admin Tool) Launcher Button */}
-            <button
-              onClick={() => {
-                sounds.playClick();
-                if (!isAdminUnlocked) {
-                  onOpenAdminAuth?.('Level Editor');
-                } else {
-                  onOpenLevelEditor();
-                }
-              }}
-              className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f0c674] hover:border-[#f0c674] text-xs font-bold transition-all cursor-pointer shadow-lg"
-            >
-              <div className="flex items-center gap-2 font-rounded">
-                <Hammer className="w-4 h-4 text-[#f0c674]" />
-                <span>Map Level Editor 🛠️</span>
-              </div>
-              {!isAdminUnlocked ? (
-                <span className="text-[10px] font-bold bg-[#1e3520] border border-[#6b8e5a] text-[#f0c674] px-2 py-0.5 rounded-lg flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-[#f0c674]" /> Lock
-                </span>
-              ) : (
-                <ChevronRight className="w-4 h-4 text-[#f0c674]" />
-              )}
-            </button>
+                {!isAdminUnlocked ? (
+                  <span className="text-[10px] font-bold bg-[#1e3520] border border-[#6b8e5a] text-[#f0c674] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-[#f0c674]" /> Lock
+                  </span>
+                ) : (
+                  <ChevronRight className="w-4 h-4 text-[#f0c674]" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Bottom Floating Building Mode Controller: Inspect & Upgrade Resort Constructions */}
-      {!isZenMode && (
+      {/* Bottom Floating Building Mode Controller — hidden for guests */}
+      {!isGuest && !isZenMode && (
         <footer className="relative z-10 w-full p-2.5 sm:p-4 max-w-7xl mx-auto pointer-events-none flex flex-col items-center gap-2 animate-in fade-in duration-150">
           {/* Toggle Collapse Bar */}
           <div className="pointer-events-auto">
@@ -554,18 +691,17 @@ export const HomePage: React.FC<HomePageProps> = ({
                       <h3 className="text-sm sm:text-base font-bold text-[#f4ecd8] font-rounded">
                         {selectedItem.name}
                       </h3>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${
-                        selectedItem.currentLevel === 3
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border ${selectedItem.currentLevel === 3
                           ? 'bg-[#3a2519] border-[#f0c674] text-[#f0c674]'
                           : selectedItem.currentLevel > 0
-                          ? 'bg-[#1e3520] border-[#8fbc6f] text-[#8fbc6f]'
-                          : 'bg-[#2b1a11] border-[#5c3d2e] text-[#a8b89a]'
-                      }`}>
+                            ? 'bg-[#1e3520] border-[#8fbc6f] text-[#8fbc6f]'
+                            : 'bg-[#2b1a11] border-[#5c3d2e] text-[#a8b89a]'
+                        }`}>
                         {selectedItem.currentLevel === 0
                           ? 'Unbuilt Plot'
                           : selectedItem.currentLevel === 3
-                          ? '🌿 MAX LEVEL 3'
-                          : `Level ${selectedItem.currentLevel} / 3`}
+                            ? '🌿 MAX LEVEL 3'
+                            : `Level ${selectedItem.currentLevel} / 3`}
                       </span>
                     </div>
                     <p className="text-[11px] text-[#a8b89a] font-medium mt-0.5 line-clamp-1">
@@ -588,11 +724,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                     <button
                       onClick={() => onUpgradeConstruction(selectedItem.id)}
                       disabled={!canAfford}
-                      className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer ${
-                        canAfford
+                      className={`w-full sm:w-auto px-5 py-2.5 rounded-xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-xl cursor-pointer ${canAfford
                           ? 'btn-river-stone text-[#f4ecd8]'
                           : 'bg-[#2b1a11] text-[#a8b89a]/50 border border-[#5c3d2e] cursor-not-allowed'
-                      }`}
+                        }`}
                     >
                       <Leaf className={`w-4 h-4 ${canAfford ? 'text-[#8fbc6f]' : 'text-[#a8b89a]/50'}`} />
                       <span>
@@ -622,13 +757,12 @@ export const HomePage: React.FC<HomePageProps> = ({
                         setSelectedId(item.id);
                         sounds.playClick();
                       }}
-                      className={`relative p-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
-                        isSelected
+                      className={`relative p-2 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${isSelected
                           ? 'bg-[#6b8e5a]/30 border-[#f0c674] shadow-md scale-105'
                           : isBuilt
-                          ? 'bg-[#1e3520] border-[#5c3d2e] hover:border-[#8fbc6f]'
-                          : 'bg-[#2b1a11]/60 border-[#3a2519] opacity-60 hover:opacity-100'
-                      }`}
+                            ? 'bg-[#1e3520] border-[#5c3d2e] hover:border-[#8fbc6f]'
+                            : 'bg-[#2b1a11]/60 border-[#3a2519] opacity-60 hover:opacity-100'
+                        }`}
                       title={`${item.name} (${item.currentLevel === 0 ? 'Unbuilt' : `Lv ${item.currentLevel}/3`})`}
                     >
                       <span className="text-xl sm:text-2xl">{item.icon}</span>
@@ -638,13 +772,12 @@ export const HomePage: React.FC<HomePageProps> = ({
 
                       {/* Level Tag */}
                       <span
-                        className={`text-[9px] px-1.5 rounded-md font-bold ${
-                          isMax
+                        className={`text-[9px] px-1.5 rounded-md font-bold ${isMax
                             ? 'bg-[#f0c674] text-[#2b1a11]'
                             : isBuilt
-                            ? 'bg-[#6b8e5a] text-[#f4ecd8]'
-                            : 'bg-[#2b1a11] text-[#a8b89a]'
-                        }`}
+                              ? 'bg-[#6b8e5a] text-[#f4ecd8]'
+                              : 'bg-[#2b1a11] text-[#a8b89a]'
+                          }`}
                       >
                         {item.currentLevel}/3
                       </span>

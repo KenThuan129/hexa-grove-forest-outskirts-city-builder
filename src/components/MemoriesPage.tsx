@@ -38,6 +38,7 @@ interface MemoriesPageProps {
   /** Optional: called when the studio finishes a preview and wants to
    *  show the VN player. */
   onRequestHubReturn?: () => void;
+  onChapterOpen?: (chapterId: number) => void;
 }
 
 export const MemoriesPage: React.FC<MemoriesPageProps> = ({
@@ -51,6 +52,7 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
   onNavigateJourney,
   onRequestAdminAuth,
   onRequestHubReturn,
+  onChapterOpen,
 }) => {
   const [selectedPictureForBypass, setSelectedPictureForBypass] = useState<MemoryPicture | null>(null);
   const [activeStoryChapter, setActiveStoryChapter] = useState<VNChapter | null>(null);
@@ -238,7 +240,11 @@ export const MemoriesPage: React.FC<MemoriesPageProps> = ({
                   <div className="pt-2 border-t border-[#4a2b1a] flex items-center justify-between">
                     {isUnlocked ? (
                       <button
-                        onClick={() => setActiveStoryChapter(chapter)}
+                        onClick={() => {
+                          console.log('[MemoriesPage] Opening chapter:', chapter.id);
+                          setActiveStoryChapter(chapter);
+                          onChapterOpen?.(chapter.id);
+                        }}
                         className="w-full py-2 px-3 rounded-2xl bg-gradient-to-r from-amber-600 via-orange-600 to-amber-700 hover:from-amber-500 hover:to-orange-500 text-white font-black text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer hover:scale-[1.02]"
                       >
                         <BookOpen className="w-4 h-4" />

@@ -2,6 +2,7 @@
 
 @layer base {
   :root {
+    /* ── Existing cozy forest vars ──────────────────────── */
     --forest-deep: #1e3520;
     --forest-green: #2d4a2b;
     --moss-green: #6b8e5a;
@@ -14,30 +15,74 @@
     --sunlight-warm: #f0c674;
     --muted-sage: #a8b89a;
     --misty-blue: #7a9b8e;
+
+    /* ── Safe area insets (notch / Dynamic Island) ──────── */
+    --sat: env(safe-area-inset-top, 0px);
+    --sab: env(safe-area-inset-bottom, 0px);
+    --sal: env(safe-area-inset-left, 0px);
+    --sar: env(safe-area-inset-right, 0px);
+
+    /* ── Dynamic viewport height (mobile chrome) ────────── */
+    --app-height: 100vh;
+  }
+
+  @supports (height: 100dvh) {
+    :root {
+      --app-height: 100dvh;
+    }
+  }
+
+  html, body {
+    width: 100%;
+    height: var(--app-height);
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
     font-family: 'Nunito', 'Quicksand', sans-serif;
     background-color: #1e3520;
     color: #f4ecd8;
-    overflow-x: hidden;
     user-select: none;
+    -webkit-user-select: none;
+    /* Prevent iOS Safari rubber-band scrolling outside the app */
+    position: fixed;
+    inset: 0;
   }
 
+  #root {
+    width: 100%;
+    height: var(--app-height);
+    overflow: hidden;
+  }
+
+  /* ── Prevent double-tap zoom on iOS Safari ─────────────── */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* ── Native momentum scroll for sheet content ──────────── */
+  .overscroll-contain {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Hide scrollbars on horizontal scroll rails ────────── */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* ── Typography rules ─────────────────────────────────── */
   h1, h2, h3, h4, h5, h6 {
     font-family: 'Fredoka', 'Quicksand', sans-serif;
   }
-
-  .font-handwritten {
-    font-family: 'Caveat', cursive;
-  }
-
-  .font-rounded {
-    font-family: 'Fredoka', 'Quicksand', sans-serif;
-  }
+  .font-handwritten { font-family: 'Caveat', cursive; }
+  .font-rounded { font-family: 'Fredoka', 'Quicksand', sans-serif; }
 }
 
-/* Cozy Nature Animations */
+/* ═══════════════════════════════════════════════════════════
+   Cozy Nature Animations
+   ═══════════════════════════════════════════════════════════ */
+
 @keyframes sway {
   0%, 100% { transform: rotate(-1deg) translateY(0px); }
   50% { transform: rotate(1deg) translateY(-2px); }
@@ -96,11 +141,14 @@
   animation: firefly-glow 4s ease-in-out infinite;
 }
 
-/* Organic Nature Style Classes */
+/* ═══════════════════════════════════════════════════════════
+   Organic Nature Style Classes
+   ═══════════════════════════════════════════════════════════ */
+
 .wood-panel {
   background: linear-gradient(145deg, #3a2519 0%, #2b1a11 60%, #1f120a 100%);
   border: 2px solid #5c3d2e;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 1px rgba(240, 198, 116, 0.2),
     inset 0 -2px 4px rgba(0, 0, 0, 0.5),
     0 8px 24px -4px rgba(15, 26, 16, 0.6);
@@ -111,7 +159,7 @@
 .wood-panel-light {
   background: linear-gradient(145deg, #5c3d2e 0%, #472d21 100%);
   border: 2px solid #8fbc6f;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(244, 236, 216, 0.25),
     0 6px 20px rgba(10, 20, 11, 0.5);
   border-radius: 18px;
@@ -121,7 +169,7 @@
   background: linear-gradient(135deg, #f4ecd8 0%, #e8dcc0 100%);
   color: #2b1a11;
   border: 2px solid #c4b496;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 3px rgba(255, 255, 255, 0.6),
     0 6px 18px rgba(15, 26, 16, 0.4);
   border-radius: 18px;
@@ -131,7 +179,7 @@
   background: linear-gradient(180deg, #6b4533 0%, #472d21 100%);
   color: #f4ecd8;
   border: 2px solid #8c5a43;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 1px rgba(240, 198, 116, 0.3),
     0 4px 12px rgba(0, 0, 0, 0.4);
   border-radius: 16px;
@@ -141,7 +189,7 @@
 .btn-wooden-sign:hover {
   transform: translateY(-2px) rotate(0.5deg) scale(1.02);
   border-color: #f0c674;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.4),
     0 0 16px rgba(240, 198, 116, 0.35),
     0 6px 16px rgba(0, 0, 0, 0.45);
@@ -155,7 +203,7 @@
   background: linear-gradient(180deg, #6b8e5a 0%, #435e38 100%);
   color: #f4ecd8;
   border: 2px solid #8fbc6f;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(244, 236, 216, 0.3),
     0 4px 12px rgba(15, 26, 16, 0.4);
   border-radius: 16px;
@@ -166,7 +214,7 @@
   transform: translateY(-2px) rotate(-0.5deg) scale(1.02);
   border-color: #f0c674;
   background: linear-gradient(180deg, #7aa368 0%, #4e6d42 100%);
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.5),
     0 0 16px rgba(143, 188, 111, 0.4),
     0 6px 16px rgba(15, 26, 16, 0.5);
@@ -180,7 +228,7 @@
   background: linear-gradient(180deg, #f0c674 0%, #d49b38 100%);
   color: #2b1a11;
   border: 2px solid #fce8ad;
-  box-shadow: 
+  box-shadow:
     inset 0 1px 2px rgba(255, 255, 255, 0.6),
     0 4px 14px rgba(232, 176, 75, 0.4);
   border-radius: 16px;
@@ -190,7 +238,7 @@
 
 .btn-sunlight:hover {
   transform: translateY(-2px) scale(1.03);
-  box-shadow: 
+  box-shadow:
     inset 0 1px 3px rgba(255, 255, 255, 0.8),
     0 0 20px rgba(240, 198, 116, 0.6),
     0 6px 18px rgba(0, 0, 0, 0.3);
@@ -200,7 +248,10 @@
   transform: translateY(1px) scale(0.97);
 }
 
-/* Gentle Forest Scrollbar */
+/* ═══════════════════════════════════════════════════════════
+   Gentle Forest Scrollbar
+   ═══════════════════════════════════════════════════════════ */
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
