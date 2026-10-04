@@ -56,8 +56,7 @@ export const JourneyPauseSheet: React.FC<JourneyPauseSheetProps> = ({
           label="Restart Level"
           onTap={() => {
             sounds.playClick();
-            onRestart();
-            onClose();
+            onRestart();;
           }}
         />
 
@@ -79,8 +78,8 @@ export const JourneyPauseSheet: React.FC<JourneyPauseSheetProps> = ({
           danger
           onTap={() => {
             sounds.playWarning();
+            // onExitToHome already closes the sheet internally
             onExitToHome();
-            onClose();
           }}
         />
       </div>

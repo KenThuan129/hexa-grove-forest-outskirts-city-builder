@@ -99,6 +99,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authPrompt, setAuthPrompt] = useState<string | undefined>(undefined);
   const [authMode, setAuthMode] = useState<'guest' | 'idle'>('guest');
+
+  const [threeSceneKey, setThreeSceneKey] = useState(0);
   const isGuest = !user;
 
   const [guestTrialIndex, setGuestTrialIndex] = useState<number>(() => getGuestTrialIndex());
@@ -378,6 +380,44 @@ export default function App() {
 
     sounds.playVictory();
   }, [pendingGraphicsReload, activePage]);
+
+    // ─────────────────────────────────────────────────────────────
+  // Mobile: apply graphics settings immediately, no reload modal.
+  // Performance Mode + Target FPS apply live (ThreeScene reads them
+  // each frame). Low-Power Mode + Texture Quality trigger a silent
+  // re-init of the WebGL context via a key bump on ThreeScene.
+  // ─────────────────────────────────────────────────────────────
+  const handleApplyGraphicsNow = useCallback(
+    (
+      newMode: 'low' | 'high',
+      newFps: 60 | 30 | 24,
+      newTexQuality?: 'high' | 'low'
+    ) => {
+      const targetTex = newTexQuality ?? textureQuality;
+
+      // Immediate state updates — ThreeScene reads performanceMode /
+      // targetFps live, so no re-mount needed for those two.
+      setPerformanceMode(newMode);
+      setTargetFps(newFps);
+      setTextureQuality(targetTex);
+
+      try {
+        localStorage.setItem('hexa_perf_mode', newMode);
+        localStorage.setItem('hexa_target_fps', newFps.toString());
+        localStorage.setItem('hexa_texture_quality', targetTex);
+      } catch { }
+
+      // Trigger a silent WebGL context re-init only when needed
+      // (DPR / texture quality change). Bumping a key re-mounts
+      // ThreeScene with new renderer params — no visible modal.
+      if (newMode !== performanceMode || targetTex !== textureQuality) {
+        setThreeSceneKey((k) => k + 1);
+      }
+
+      sounds.playClick();
+    },
+    [performanceMode, textureQuality]
+  );
 
   // Listen for TAB key to toggle Developer Device Debugger HUD
   useEffect(() => {
@@ -1214,9 +1254,15 @@ export default function App() {
   }, []);
 
   const handleJourneyExitToHome = React.useCallback(() => {
-    setIsJourneyPaused(false);
-    navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub');
-  }, []);
+  // Force-close pause state (no toggle) and exit cleanly.
+  setIsJourneyPaused(false);
+  navigateWithTransition(
+    'home',
+    'Returning to Island Sanctuary',
+    'Archipelago Resort & Building Hub',
+    true // force — bypass the "already on this page" check
+  );
+}, []);
 
   // Calculate Base Raw Score (before mastery bonus)
   const rawScore = useMemo(() => {
@@ -2857,6 +2903,7 @@ export default function App() {
             targetFps={targetFps}
             isLowPowerMode={isLowPowerMode}
             textureQuality={textureQuality}
+            threeSceneKey={threeSceneKey}
             onUpdateRendererInfo={setRendererInfo}
             isPaused={isJourneyPaused}
             onPauseToggle={handleJourneyPauseToggle}
@@ -3505,6 +3552,8 @@ export default function App() {
         syncStatus={saveStatus}
         lastSyncedAt={lastSyncedAt}
         syncError={saveError}
+        userEmail={user?.email ?? null}
+        onSignOut={signOut}
         onForceSync={forceSync}
         onWipeCloudSave={() => setIsWipeCloudConfirmOpen(true)}
         soundEnabled={soundEnabled}
@@ -3535,6 +3584,7 @@ export default function App() {
           } catch { }
         }}
         onRequestGraphicsReload={handleRequestGraphicsReload}
+        onApplyGraphicsNow={handleApplyGraphicsNow}
         onOpenDevDebugger={() => {
           if (!isAdminUnlocked) {
             setAdminAuthFeature('Developer Debugger');

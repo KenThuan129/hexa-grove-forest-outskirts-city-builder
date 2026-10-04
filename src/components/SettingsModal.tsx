@@ -2,6 +2,8 @@ import React from 'react';
 import { Volume2, VolumeX, RotateCcw, X, HelpCircle, Sliders, CheckCircle2, Award, Zap, Lock, Sparkles, Compass, Lightbulb, Trophy, Hammer, ShieldCheck, Cloud, RefreshCw, AlertCircle } from 'lucide-react';
 import { GameMode, PlayMode } from '../types/game';
 import { sounds } from '../utils/audio';
+import { MobileSettingsModal } from './mobile/settings/MobileSettingsModal';
+import { useLayout } from '../context/LayoutContext';
 import { useAuth } from '../context/AuthContext';
 
 interface SettingsModalProps {
@@ -19,8 +21,10 @@ interface SettingsModalProps {
   syncStatus?: 'idle' | 'syncing' | 'synced' | 'error' | 'signed-out';
   lastSyncedAt?: number | null;
   syncError?: string | null;
+  userEmail?: string | null;
   onForceSync?: () => void;
   onWipeCloudSave?: () => void;
+  onSignOut?: () => void;
   onChangeGameMode?: (mode: GameMode) => void;
   onChangePlayMode?: (mode: PlayMode) => void;
   onTogglePerformanceMode?: (mode: 'low' | 'high') => void;
@@ -28,6 +32,12 @@ interface SettingsModalProps {
   onToggleLowPowerMode?: (enabled: boolean) => void;
   onToggleTextureQuality?: (quality: 'high' | 'low') => void;
   onRequestGraphicsReload?: (
+    newMode: 'low' | 'high',
+    newFps: 60 | 30 | 24,
+    newTextureQuality?: 'high' | 'low'
+  ) => void;
+  /** Mobile: apply graphics immediately without reload modal. */
+  onApplyGraphicsNow?: (
     newMode: 'low' | 'high',
     newFps: 60 | 30 | 24,
     newTextureQuality?: 'high' | 'low'
@@ -57,8 +67,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   syncStatus = 'signed-out',
   lastSyncedAt = null,
   syncError = null,
+  userEmail = null,
   onForceSync,
   onWipeCloudSave,
+  onSignOut,
   onChangeGameMode,
   onChangePlayMode,
   onTogglePerformanceMode,
@@ -66,6 +78,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onToggleLowPowerMode,
   onToggleTextureQuality,
   onRequestGraphicsReload,
+  onApplyGraphicsNow,
   onOpenDevDebugger,
   onOpenLevelEditor,
   onOpenAdminAuth,
@@ -75,7 +88,50 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   onRequestAuth,
   onClose,
 }) => {
+  // Layout hook must be called before any early return.
+  const layout = useLayout();
+
   if (!isOpen) return null;
+
+  // ─────────────────────────────────────────────────────────────
+  // Mobile: hypercasual nested navigation (menu → sub-screens)
+  // ─────────────────────────────────────────────────────────────
+  if (layout.useMobileLayout) {
+    return (
+      <MobileSettingsModal
+        isOpen={isOpen}
+        onClose={onClose}
+        soundEnabled={soundEnabled}
+        onToggleSound={onToggleSound}
+        playMode={playMode}
+        onChangePlayMode={onChangePlayMode ?? (() => {})}
+        isAdminUnlocked={isAdminUnlocked}
+        onRequestAdminAuth={onOpenAdminAuth}
+        gameMode={gameMode}
+        onChangeGameMode={onChangeGameMode ?? (() => {})}
+        highestCompletedLevel={highestCompletedLevel}
+        performanceMode={performanceMode}
+        targetFps={targetFps}
+        isLowPowerMode={isLowPowerMode}
+        textureQuality={textureQuality}
+        onApplyGraphicsNow={onApplyGraphicsNow ?? (() => {})}
+        onToggleLowPowerMode={onToggleLowPowerMode ?? (() => {})}
+        syncStatus={syncStatus}
+        lastSyncedAt={lastSyncedAt}
+        syncError={syncError}
+        userEmail={userEmail}
+        isGuest={isGuest}
+        onForceSync={onForceSync ?? (() => {})}
+        onWipeCloudSave={onWipeCloudSave ?? (() => {})}
+        onSignOut={onSignOut ?? (() => {})}
+        onRequestAuth={onRequestAuth}
+        onPlayIntro={onPlayIntro}
+        onResetTutorial={onResetTutorial}
+        onOpenLevelEditor={onOpenLevelEditor ?? (() => {})}
+        onOpenDevDebugger={onOpenDevDebugger ?? (() => {})}
+      />
+    );
+  }
 
   const isTryHardUnlocked = highestCompletedLevel >= 40;
 
@@ -92,8 +148,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onChangeGameMode?.('tryhard');
     sounds.playClick();
   };
-
-
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#1e3520]/80 backdrop-blur-md animate-in fade-in duration-200 select-none font-sans">

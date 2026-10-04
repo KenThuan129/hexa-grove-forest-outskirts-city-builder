@@ -50,6 +50,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
         targetFps,
         isLowPowerMode,
         textureQuality,
+        threeSceneKey,
         onUpdateRendererInfo,
         isPaused,
         onPauseToggle,
@@ -107,6 +108,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                 {/* Center: board */}
                 <div className="relative flex-1 min-w-0">
                     <ThreeScene
+                        key={threeSceneKey}
                         unlockedCells={unlockedCells}
                         placedTiles={placedTiles}
                         activeDragPiece={activeDragPiece || selectedPiece}

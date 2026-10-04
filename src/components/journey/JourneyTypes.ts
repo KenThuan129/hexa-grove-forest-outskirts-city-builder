@@ -56,6 +56,7 @@ export interface JourneySharedProps {
   targetFps: 60 | 30 | 24;
   isLowPowerMode: boolean;
   textureQuality: 'high' | 'low';
+  threeSceneKey?: number;
   onUpdateRendererInfo?: (info: RendererInfo) => void;
 
     // ── Phase completion ──────────────────────────────────────
