@@ -23,6 +23,8 @@ import {
   deleteCustomVNChapter,
   allocateCustomChapterId,
 } from '../../utils/vnStorage';
+import { VNSceneGraph } from './VNSceneGraph';
+import { VNLineEditor } from './VNLineEditor';
 import { sounds } from '../../utils/audio';
 
 interface VNStudioModalProps {
@@ -43,6 +45,7 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
 
   // ── Draft state — the chapter currently open for editing ────
   const [draft, setDraft] = useState<VNChapter | null>(null);
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null);
 
   // ── Toast ───────────────────────────────────────────────────
   const [toast, setToast] = useState<string | null>(null);
@@ -58,12 +61,12 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
     const loaded = loadCustomVNChapters();
     setCustomChapters(loaded);
 
-    // Default to the first built-in chapter if nothing is selected.
     if (selectedChapterId === null && VN_CHAPTERS.length > 0) {
       setSelectedChapterId(VN_CHAPTERS[0].id);
-      setDraft(JSON.parse(JSON.stringify(VN_CHAPTERS[0])));
+      const first = JSON.parse(JSON.stringify(VN_CHAPTERS[0])) as VNChapter;
+      setDraft(first);
+      setSelectedSceneId(first.scenes[0]?.id ?? null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // ── Merge built-in and custom chapters for the list ─────────
@@ -82,8 +85,9 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
       const chapter = allChapters.find((c) => c.id === id);
       if (!chapter) return;
       setSelectedChapterId(id);
-      // Deep clone so edits don't mutate the source array.
-      setDraft(JSON.parse(JSON.stringify(chapter)));
+      const cloned = JSON.parse(JSON.stringify(chapter)) as VNChapter;
+      setDraft(cloned);
+      setSelectedSceneId(cloned.scenes[0]?.id ?? null);
       sounds.playClick();
     },
     [allChapters]
@@ -161,6 +165,75 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
     sounds.playWarning();
     showToast(`Deleted custom chapter.`);
   }, [draft, customChapters, showToast]);
+
+  const pushDraft = useCallback((updater: (draft: VNChapter) => void) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const next = JSON.parse(JSON.stringify(prev)) as VNChapter;
+      updater(next);
+      // Auto-save to localStorage on every change.
+      try {
+        upsertCustomVNChapter(next);
+        setCustomChapters(loadCustomVNChapters());
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
+  const handleCreateScene = useCallback(() => {
+    if (!draft) return;
+    const newSceneId = `scene-${Date.now()}`;
+    pushDraft((d) => {
+      d.scenes.push({
+        id: newSceneId,
+        title: `Scene ${d.scenes.length + 1}`,
+        background: { mood: 'dream_forest', vignette: true },
+        lines: [
+          {
+            id: `line-${Date.now()}`,
+            speakerId: 'narration',
+            text: 'Begin writing here…',
+          },
+        ],
+      });
+    });
+    setSelectedSceneId(newSceneId);
+    showToast(`Added new scene.`);
+  }, [draft, pushDraft, showToast]);
+
+  const handleDeleteScene = useCallback(
+    (sceneId: string) => {
+      if (!draft) return;
+      if (draft.scenes.length <= 1) {
+        sounds.playWarning();
+        showToast('A chapter must have at least one scene.');
+        return;
+      }
+      if (!window.confirm('Delete this scene? Any choices or jumps pointing here will be cleared.')) {
+        return;
+      }
+      pushDraft((d) => {
+        d.scenes = d.scenes.filter((s) => s.id !== sceneId);
+        // Clean up all references to the deleted scene.
+        d.scenes.forEach((s) => {
+          if (s.nextSceneId === sceneId) s.nextSceneId = undefined;
+          s.lines.forEach((l) => {
+            if (l.nextSceneId === sceneId) l.nextSceneId = undefined;
+            if (l.choice) {
+              l.choice.options.forEach((o) => {
+                if (o.nextSceneId === sceneId) o.nextSceneId = undefined;
+              });
+            }
+          });
+        });
+      });
+      setSelectedSceneId(null);
+      showToast(`Scene deleted.`);
+    },
+    [draft, pushDraft, showToast]
+  );
 
   // ── Export current draft as JSON ────────────────────────────
   const handleExport = useCallback(() => {
@@ -290,11 +363,10 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
                   <button
                     key={c.id}
                     onClick={() => handleSelectChapter(c.id)}
-                    className={`w-full text-left px-3 py-2.5 mb-1 rounded-xl transition-all flex items-start gap-2.5 ${
-                      isSelected
+                    className={`w-full text-left px-3 py-2.5 mb-1 rounded-xl transition-all flex items-start gap-2.5 ${isSelected
                         ? 'bg-cyan-500/15 border border-cyan-500/50 text-white'
                         : 'border border-transparent hover:bg-slate-900 text-slate-300'
-                    }`}
+                      }`}
                   >
                     <span className="text-xl leading-none mt-0.5 shrink-0">{c.sketchIcon}</span>
                     <div className="min-w-0 flex-1">
@@ -345,34 +417,29 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
                 </div>
 
                 {/* Placeholder canvas */}
+                <div className="flex-1 min-h-0">
+                  <VNSceneGraph
+                    chapter={draft}
+                    selectedSceneId={selectedSceneId}
+                    onSelectScene={(id) => setSelectedSceneId(id || null)}
+                    onChange={pushDraft}
+                    onCreateScene={handleCreateScene}
+                    onDeleteScene={handleDeleteScene}
+                  />
+                </div>
+
+                {/* ── Line Editor (bottom panel) ─────────────── */}
                 <div
-                  className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8"
-                  style={{
-                    backgroundImage:
-                      'radial-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px)',
-                    backgroundSize: '24px 24px',
-                  }}
+                  className="border-t border-slate-800 bg-slate-950/70"
+                  style={{ height: '36%', minHeight: 220 }}
                 >
-                  <div className="w-16 h-16 rounded-2xl bg-slate-900 border border-slate-700 flex items-center justify-center">
-                    <Layers className="w-7 h-7 text-cyan-400" />
-                  </div>
-                  <div className="max-w-md">
-                    <h3 className="text-sm font-black text-white mb-1">
-                      Scene Graph Editor — Coming Next Session
-                    </h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      This canvas will host the branching scene graph. You'll drag scenes
-                      around, connect them with choices, and edit dialogue inline.
-                      Timeline view for interventions arrives in the session after.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-600 mt-2">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Storage layer ready</span>
-                    <span className="text-slate-700">·</span>
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                    <span>Chapter migration ready</span>
-                  </div>
+                  <VNLineEditor
+                    chapter={draft}
+                    scene={
+                      draft.scenes.find((s) => s.id === selectedSceneId) ?? null
+                    }
+                    onChange={pushDraft}
+                  />
                 </div>
               </>
             ) : (
@@ -459,6 +526,20 @@ export const VNStudioModal: React.FC<VNStudioModalProps> = ({
                       and chapters are saved to local storage.
                     </span>
                   </div>
+                  {selectedSceneId && (
+                    <div className="pt-4 mt-1 border-t border-slate-800">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block mb-2">
+                        Selected Scene
+                      </span>
+                      <div className="text-[11px] font-mono text-cyan-300 mb-1">
+                        {selectedSceneId}
+                      </div>
+                      <div className="text-[10.5px] text-slate-500">
+                        Edit its lines in the panel below. Drag the port on the
+                        node's right edge to another node to set the scene's next jump.
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             ) : (
