@@ -16,6 +16,13 @@ export interface JourneySharedProps {
   // ── Play mode ─────────────────────────────────────────────
   playMode: PlayMode;
 
+  // ── Level context ────────────────────────────────────────
+  levelId: number;
+
+  // ── Tutorial ─────────────────────────────────────────────
+  mobileTutorialSeenGroups: string[];
+  onMarkTutorialSeen: (group: string) => void;
+
   coins: number;
   onBuyBooster: (booster: BoosterItem) => void;
 

@@ -453,6 +453,8 @@ export default function App() {
   const [latestChapterExplore, setLatestChapterExplore] = useState<number>(0);
   const [latestMemories, setLatestMemories] = useState<number>(0);
 
+  const [mobileTutorialSeenGroups, setMobileTutorialSeenGroups] = useState<string[]>([]);
+
   // Persist gameMode and highestCompletedLevel
   useEffect(() => {
     try {
@@ -586,6 +588,15 @@ export default function App() {
     } catch { }
   }, [hasGoldenTicket]);
 
+  useEffect(() => {
+    try {
+      const blob = readLocalBlob();
+      if (blob?.mobileTutorialSeenGroups) {
+        setMobileTutorialSeenGroups(blob.mobileTutorialSeenGroups);
+      }
+    } catch { }
+  }, []);
+
   // Reset transient booster buffs upon level/phase change
   useEffect(() => {
     setActiveParBonus(0);
@@ -612,7 +623,7 @@ export default function App() {
       if (m.chosenBypass) chosenBypassMap[m.id] = m.chosenBypass;
     });
 
-    return buildSaveBlob({
+        return buildSaveBlob({
       highestCompletedLevel,
       coins,
       leaves,
@@ -626,6 +637,7 @@ export default function App() {
       latestMemories,
       chosenBypass: chosenBypassMap as any,
       memories,
+      mobileTutorialSeenGroups,
     });
   }, [
     highestCompletedLevel,
@@ -640,6 +652,7 @@ export default function App() {
     latestChapterExplore,
     latestMemories,
     memories,
+    mobileTutorialSeenGroups, 
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -2425,6 +2438,13 @@ export default function App() {
     sounds.enabled = next;
   };
 
+  const handleMarkTutorialSeen = useCallback((group: string) => {
+    setMobileTutorialSeenGroups((prev) => {
+      if (prev.includes(group)) return prev;
+      return [...prev, group];
+    });
+  }, []);
+
   // ─────────────────────────────────────────────────────────────
   // Cloud Save — apply a remote blob to React state
   // ─────────────────────────────────────────────────────────────
@@ -2440,6 +2460,7 @@ export default function App() {
     setGameMode(blob.gameMode);
     setLatestChapterExplore(blob.latestChapterExplore);
     setLatestMemories(blob.latestMemories);
+    setMobileTutorialSeenGroups(blob.mobileTutorialSeenGroups ?? []);
 
     if (Array.isArray(blob.memories) && blob.memories.length > 0) {
       setMemories(blob.memories);
@@ -2875,6 +2896,9 @@ export default function App() {
             playMode={playMode}
             coins={coins}
             onBuyBooster={handleBuyBooster}
+            levelId={currentLevel.id}
+            mobileTutorialSeenGroups={mobileTutorialSeenGroups}
+            onMarkTutorialSeen={handleMarkTutorialSeen}
             lightbulbsUsed={lightbulbsUsed}
             lightbulbBudget={lightbulbBudget}
             placedCount={inBoundsPlacedCount}

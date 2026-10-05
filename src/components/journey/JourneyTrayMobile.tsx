@@ -39,6 +39,7 @@ const FILTER_DOT: Record<ColorFilter, string> = {
 interface TileCardProps {
   piece: HexPiece;
   isSelected: boolean;
+  isFirst?: boolean;
   orientation: 'horizontal' | 'vertical';
   onSelect: (piece: HexPiece) => void;
   onStartDrag: (piece: HexPiece, clientX: number, clientY: number) => void;
@@ -48,6 +49,7 @@ const TileCard: React.FC<TileCardProps> = ({
   piece,
   isSelected,
   orientation,
+  isFirst,
   onSelect,
   onStartDrag,
 }) => {
@@ -70,15 +72,28 @@ const TileCard: React.FC<TileCardProps> = ({
 
   return (
     <div
+      data-tutorial-id={isFirst ? 'mobile-tray-first-tile' : undefined}
       onPointerDown={(e) => {
         if (isOutOfStock) return;
         dragStateRef.current = { x: e.clientX, y: e.clientY, dragged: false };
-        (e.target as Element).setPointerCapture?.(e.pointerId);
+        // DO NOT setPointerCapture here — let parent scroll first.
+        // We'll capture only after drag threshold is exceeded.
       }}
       onPointerMove={(e) => {
         const s = dragStateRef.current;
         if (!s) return;
-        if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 12) {
+        const dx = e.clientX - s.x;
+        const dy = e.clientY - s.y;
+
+        // If horizontal movement dominates → treat as scroll, cancel drag
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) {
+          dragStateRef.current = null;
+          return;
+        }
+
+        // If vertical upward movement exceeds threshold → start drag
+        if (dy < -12) {
+          (e.target as Element).setPointerCapture?.(e.pointerId);
           s.dragged = true;
           dragStateRef.current = null;
           onStartDrag(piece, e.clientX, e.clientY);
@@ -95,7 +110,7 @@ const TileCard: React.FC<TileCardProps> = ({
       onPointerCancel={() => {
         dragStateRef.current = null;
       }}
-      className={`relative shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-1 select-none touch-none ${
+      className={`relative shrink-0 rounded-2xl border-2 flex flex-col items-center justify-between p-1 select-none touch-pan-x ${
         size
       } transition-all ${
         isOutOfStock
@@ -222,7 +237,7 @@ export const JourneyTrayMobile: React.FC<JourneyTrayMobileProps> = ({
     >
       {/* Filter chips — only in horizontal mode */}
       {!isVertical && (
-        <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 overflow-x-auto no-scrollbar touch-pan-x">
           {FILTER_ORDER.map((id) => {
             const count = counts[id];
             if (id !== 'all' && count === 0) return null;
@@ -259,14 +274,15 @@ export const JourneyTrayMobile: React.FC<JourneyTrayMobileProps> = ({
       <div
         className={`flex gap-2 ${
           isVertical
-            ? 'flex-col items-center overflow-y-auto flex-1 px-1'
-            : 'items-stretch overflow-x-auto px-3 py-1 no-scrollbar'
+            ? 'flex-col items-center overflow-y-auto flex-1 px-1 touch-pan-y'
+            : 'items-stretch overflow-x-auto px-3 py-1 no-scrollbar touch-pan-x'
         }`}
       >
-        {filteredPieces.map((piece) => (
+        {filteredPieces.map((piece, idx) => (
           <TileCard
             key={piece.id}
             piece={piece}
+            isFirst={idx === 0}
             isSelected={selectedPiece?.id === piece.id}
             orientation={orientation}
             onSelect={(p) => {

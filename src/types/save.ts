@@ -4,7 +4,7 @@ import type { BoosterId, ConstructionId } from './economy';
 import type { BypassablePenaltyType, GameMode, MemoryPicture, PlayMode } from './game';
 
 /** Bump this whenever the blob shape changes in a breaking way. */
-export const CURRENT_SAVE_SCHEMA_VERSION = 1;
+export const CURRENT_SAVE_SCHEMA_VERSION = 2;
 
 /**
  * The single source of truth for everything that syncs to the cloud.
@@ -38,4 +38,8 @@ export interface CloudSaveBlob {
 
   /** Full memory array so title/lore/unlockBypass survive cross-device. */
   memories: MemoryPicture[];
+
+  // ── Mobile tutorial ──────────────────────────────────────────
+  /** Tutorial groups the player has completed or skipped. */
+  mobileTutorialSeenGroups: string[];
 }

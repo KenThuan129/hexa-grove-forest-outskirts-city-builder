@@ -271,3 +271,7 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #6b8e5a;
 }
+
+.overflow-x-auto, .overflow-y-auto, .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}

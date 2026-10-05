@@ -64,6 +64,7 @@ export const JourneyTopBar: React.FC<JourneyTopBarProps> = ({
 
       {/* Center-left: lightbulb / quota pill */}
       <div
+        data-tutorial-id="journey-lightbulb-pill"
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 shadow-md shrink-0 ${
           primaryDisplay.over
             ? 'bg-rose-950/90 border-rose-500/60 text-rose-200'

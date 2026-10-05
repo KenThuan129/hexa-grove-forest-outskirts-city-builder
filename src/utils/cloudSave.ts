@@ -25,6 +25,7 @@ export interface AppSaveSnapshot {
   latestMemories: number;
   chosenBypass: CloudSaveBlob['chosenBypass'];
   memories: CloudSaveBlob['memories'];
+  mobileTutorialSeenGroups: string[];
 }
 
 export function buildSaveBlob(snapshot: AppSaveSnapshot): CloudSaveBlob {
@@ -140,6 +141,7 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     latestMemories: 0,
     chosenBypass: {},
     memories: [],
+    mobileTutorialSeenGroups: [],
   };
 
   if (!raw || typeof raw !== 'object') return fallback;
@@ -160,6 +162,9 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     latestMemories: typeof raw.latestMemories === 'number' ? raw.latestMemories : 0,
     chosenBypass: raw.chosenBypass && typeof raw.chosenBypass === 'object' ? raw.chosenBypass : {},
     memories: Array.isArray(raw.memories) ? raw.memories : [],
+    mobileTutorialSeenGroups: Array.isArray(raw.mobileTutorialSeenGroups)
+      ? raw.mobileTutorialSeenGroups
+      : [],
   };
 }
 

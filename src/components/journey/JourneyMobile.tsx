@@ -11,6 +11,8 @@ import { useLayout } from '../../context/LayoutContext';
 
 import { MobileShopSheet } from '../mobile/MobileShopSheet';
 
+import { MobileJourneyTutorial } from './MobileJourneyTutorial';
+
 // ── Props are identical to JourneyMobileLandscape — parent passes everything ──
 import type { JourneySharedProps } from './JourneyTypes';
 import { sounds } from '@/src/utils/audio';
@@ -28,6 +30,9 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
 
     const {
         playMode,
+        levelId,                              // ← ADD
+        mobileTutorialSeenGroups,             // ← ADD
+        onMarkTutorialSeen,
         lightbulbsUsed,
         lightbulbBudget,
         placedCount,
@@ -138,6 +143,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                     {/* Primary slot: Cancel (holding) OR Complete */}
                     {hasSelectedPiece ? (
                         <button
+                            data-tutorial-id="mobile-cancel-btn"
                             onClick={() => {
                                 sounds.playPickup();
                                 onCancelSelected();
@@ -149,6 +155,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                         </button>
                     ) : canCompletePhase ? (
                         <button
+                            data-tutorial-id="mobile-complete-btn"
                             onClick={() => {
                                 sounds.playVictory();
                                 onCompletePhase();
@@ -168,6 +175,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                     {/* Secondary slot: Rotate Cluster OR Spin Turntable */}
                     {hasSelectedPiece && selectedPieceIsCluster ? (
                         <button
+                            data-tutorial-id="mobile-rotate-btn"
                             onClick={() => {
                                 sounds.playRotate();
                                 onRotateCluster();
@@ -179,6 +187,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                         </button>
                     ) : !hasSelectedPiece && hasRotationZone ? (
                         <button
+                            data-tutorial-id="mobile-spin-btn"
                             onClick={() => {
                                 sounds.playRotate();
                                 onRotateTurntable();
@@ -226,6 +235,12 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                 onExitToHome={onExitToHome}
             />
 
+            <MobileJourneyTutorial
+                levelId={levelId}
+                seenGroups={mobileTutorialSeenGroups}
+                onComplete={onMarkTutorialSeen}
+            />
+
             <MobileShopSheet
                 isOpen={isShopSheetOpen}
                 onClose={() => setIsShopSheetOpen(false)}
@@ -234,6 +249,8 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                 boosterInventory={boosterInventory}
                 onBuyBooster={onBuyBooster}
             />
+
+
         </div>
     );
 };
