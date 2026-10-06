@@ -275,3 +275,12 @@
 .overflow-x-auto, .overflow-y-auto, .overflow-auto {
   -webkit-overflow-scrolling: touch;
 }
+
+@keyframes ghost-pulse {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50%      { transform: translateY(-4px) scale(1.06); }
+}
+@keyframes ghost-ripple {
+  0%   { transform: scale(0.5); opacity: 0.9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}

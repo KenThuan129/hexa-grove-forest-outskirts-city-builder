@@ -38,6 +38,10 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
         onRotateTurntable,
         mobileTutorialSeenGroups,
         onMarkTutorialSeen,
+        rotationsPerformed,
+        hasPlacedRoad,
+        hasPlacedBridge,
+        roadRequirements,
         unlockedCells,
         placedTiles,
         dragPointerPos,
@@ -72,6 +76,13 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
     } = props;
 
     const [isShopSheetOpen, setIsShopSheetOpen] = useState(false);
+
+    const [roadTooltip, setRoadTooltip] = useState<{
+        roadKey: string;
+        adjacent: number;
+        required: number;
+        satisfied: boolean;
+    } | null>(null);
 
     const hasAnyPenalty =
         penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood >
@@ -131,6 +142,22 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                         isLowPowerMode={isLowPowerMode}
                         textureQuality={textureQuality}
                         onUpdateRendererInfo={onUpdateRendererInfo}
+                        onLongPressHex={(coord) => {
+                            const stack = placedTiles.get(`${coord.q},${coord.r}`);
+                            const isPrePlacedRoad = stack?.some((t) =>
+                                t.clusterId?.startsWith('PREPLACED') && t.type === 'road'
+                            );
+                            if (!isPrePlacedRoad || !roadRequirements) return;
+
+                            const req = roadRequirements.find((r: any) =>
+                                r.roadCoords?.some((c: any) => c.q === coord.q && c.r === coord.r)
+                            );
+                            if (req) {
+                                setRoadTooltip(req);
+                                sounds.playZoneComplete();
+                                setTimeout(() => setRoadTooltip(null), 3200);
+                            }
+                        }}
                         hudInsetLeftPx={72}
                         hudInsetRightPx={56}
                         layoutMode="mobile"
@@ -233,6 +260,11 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                 levelId={levelId}
                 seenGroups={mobileTutorialSeenGroups}
                 onComplete={onMarkTutorialSeen}
+                hasSelectedPiece={hasSelectedPiece}
+                placedCount={placedCount}
+                hasPlacedRoad={hasPlacedRoad}
+                hasPlacedBridge={hasPlacedBridge}
+                rotationsPerformed={rotationsPerformed}
             />
 
             <MobileShopSheet

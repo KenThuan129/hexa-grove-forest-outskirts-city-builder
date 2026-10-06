@@ -744,7 +744,13 @@ export default function App() {
       return { satisfied: true, perRoad: [] as { roadKey: string; adjacent: number; required: number; satisfied: boolean }[] };
     }
 
-    const perRoad: { roadKey: string; adjacent: number; required: number; satisfied: boolean }[] = [];
+    const perRoad: {
+      roadKey: string;
+      adjacent: number;
+      required: number;
+      satisfied: boolean;
+      roadCoords: HexCoord[];
+    }[] = [];
     let allSatisfied = true;
 
     for (const req of currentPhase.roadRequirements) {
@@ -785,6 +791,7 @@ export default function App() {
         adjacent: houseCount,
         required: req.minHousesAdjacent,
         satisfied,
+        roadCoords: req.roadCoords,
       });
       if (!satisfied) allSatisfied = false;
     }
@@ -1601,6 +1608,9 @@ export default function App() {
     });
     return count;
   }, [placedTiles]);
+
+  const hasPlacedRoad = roadHexCount > 0;
+  const hasPlacedBridge = bridgeHexCount > 0;
 
   const meetsLevelMechanicRequirement = (() => {
     // Original Level 16 / 23 gating
@@ -2899,6 +2909,10 @@ export default function App() {
             levelId={currentLevel.id}
             mobileTutorialSeenGroups={mobileTutorialSeenGroups}
             onMarkTutorialSeen={handleMarkTutorialSeen}
+            rotationsPerformed={rotationsPerformed}
+            hasPlacedRoad={hasPlacedRoad}
+            hasPlacedBridge={hasPlacedBridge}
+            roadRequirements={roadRequirementProgress.perRoad}
             lightbulbsUsed={lightbulbsUsed}
             lightbulbBudget={lightbulbBudget}
             placedCount={inBoundsPlacedCount}
@@ -2907,7 +2921,7 @@ export default function App() {
             boosterInventory={boosters}
             highestCompletedLevel={highestCompletedLevel}
             onActivateBooster={handleActivateBooster}
-              onOpenShop={() => setIsShopModalOpen(true)}
+            onOpenShop={() => setIsShopModalOpen(true)}
             availablePieces={currentLevel.availablePieces}
             selectedPiece={selectedPiece}
             activeDragPiece={activeDragPiece}

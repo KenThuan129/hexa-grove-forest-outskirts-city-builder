@@ -23,6 +23,13 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
 
     const [isShopSheetOpen, setIsShopSheetOpen] = useState(false);
 
+    const [roadTooltip, setRoadTooltip] = React.useState<{
+        roadKey: string;
+        adjacent: number;
+        required: number;
+        satisfied: boolean;
+    } | null>(null);
+
     // Landscape mobile → different layout
     if (layout.orientation === 'landscape') {
         return <JourneyMobileLandscape {...props} />;
@@ -30,9 +37,13 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
 
     const {
         playMode,
-        levelId,                              // ← ADD
-        mobileTutorialSeenGroups,             // ← ADD
+        levelId,
+        roadRequirements,
+        mobileTutorialSeenGroups,
         onMarkTutorialSeen,
+        rotationsPerformed,
+        hasPlacedRoad,
+        hasPlacedBridge,
         lightbulbsUsed,
         lightbulbBudget,
         placedCount,
@@ -126,6 +137,26 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                     onTileDroppedOnBoard={onTileDroppedOnBoard}
                     onRightClickBoard={onRightClickBoard}
                     onRotateZone={onRotateZone}
+                    onLongPressHex={(coord) => {
+                        // Check if coord is a pre-placed road
+                        const stack = placedTiles.get(`${coord.q},${coord.r}`);
+                        const isPrePlacedRoad = stack?.some((t) =>
+                            t.clusterId?.startsWith('PREPLACED') && t.type === 'road'
+                        );
+                        if (!isPrePlacedRoad || !roadRequirements) return;
+
+                        // Find which requirement this road belongs to
+                        const req = roadRequirements.find((r) =>
+                            r.roadKey && (r as any).roadCoords?.some(
+                                (c: any) => c.q === coord.q && c.r === coord.r
+                            )
+                        );
+                        if (req) {
+                            setRoadTooltip(req);
+                            sounds.playZoneComplete();
+                            setTimeout(() => setRoadTooltip(null), 3200);
+                        }
+                    }}
                     isExpansionAnimating={isExpansionAnimating}
                     performanceMode={performanceMode}
                     targetFps={targetFps}
@@ -239,7 +270,41 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                 levelId={levelId}
                 seenGroups={mobileTutorialSeenGroups}
                 onComplete={onMarkTutorialSeen}
+                hasSelectedPiece={hasSelectedPiece}
+                placedCount={placedCount}
+                hasPlacedRoad={hasPlacedRoad}
+                hasPlacedBridge={hasPlacedBridge}
+                rotationsPerformed={rotationsPerformed}
             />
+
+            {roadTooltip && (
+                <div className="fixed left-1/2 -translate-x-1/2 bottom-32 z-[60] pointer-events-none animate-in fade-in duration-150">
+                    <div className={`px-4 py-2.5 rounded-2xl border-2 backdrop-blur-md shadow-2xl ${roadTooltip.satisfied
+                            ? 'bg-emerald-950/90 border-emerald-500/70'
+                            : 'bg-slate-950/90 border-amber-500/70'
+                        }`}>
+                        <div className="text-[10px] font-mono font-black uppercase tracking-widest mb-1">
+                            <span className={roadTooltip.satisfied ? 'text-emerald-300' : 'text-amber-300'}>
+                                Transit Charter
+                            </span>
+                        </div>
+                        <div className="text-xs font-bold text-white capitalize mb-1">
+                            {roadTooltip.roadKey.replace(/-/g, ' ')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-24 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                                <div
+                                    className={`h-full rounded-full ${roadTooltip.satisfied ? 'bg-emerald-400' : 'bg-amber-400'}`}
+                                    style={{ width: `${Math.min(100, (roadTooltip.adjacent / roadTooltip.required) * 100)}%` }}
+                                />
+                            </div>
+                            <span className="text-[11px] text-white font-mono font-bold">
+                                {roadTooltip.adjacent}/{roadTooltip.required}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <MobileShopSheet
                 isOpen={isShopSheetOpen}

@@ -661,48 +661,8 @@ export const LEVELS: LevelConfig[] = [
           },
         ],
       },
-      {
-        phaseNumber: 2,
-        title: 'Phase 2: Expanded Frontier',
-        objective: 'Expand through the newly cleared western terraces to complete the settlement.',
-        targetTilesCount: 9,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 2, r: 0 },
-          { q: 0, r: 1 },
-          { q: 0, r: 2 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 1, r: 1 },
-          { q: -1, r: 2 },
-          { q: -2, r: 1 },
-          { q: -2, r: 0 },
-          { q: 2, r: -1 },
-          { q: 0, r: -2 },
-        ],
-        coloredZones: [
-          {
-            name: 'Sunlit Meadow',
-            color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
-          },
-          {
-            name: 'Verdant Grove',
-            color: 'emerald',
-            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }],
-          },
-          {
-            name: 'Western Terraces',
-            color: 'emerald',
-            coords: [{ q: -1, r: 2 }, { q: -2, r: 1 }],
-          },
-        ],
-      },
     ],
-    availablePieces: getPieces(['p-house-gray', 'p-house-amber', 'p-trees-emerald', 'p-road-single', 'p-road-duo', 'p-bridge-single']),
+    availablePieces: getPieces(['p-house-amber', 'p-trees-emerald', 'p-road-single', 'p-road-duo', 'p-bridge-single']),
     targetScore: { star1: 400, star2: 700, star3: 1000 },
     lightbulbBudget: 8,
   },
@@ -743,7 +703,7 @@ export const LEVELS: LevelConfig[] = [
             color: 'emerald',
             coords: [
               { q: -1, r: -1 },
-              { q: -2, r: 1 },
+              { q: -1, r: 0 },
             ],
             bossZoneType: 'traits',
           },
@@ -869,150 +829,8 @@ export const LEVELS: LevelConfig[] = [
         }
       ]
     },
-    {
-      phaseNumber: 2,
-      title: "Phase 2: Forest Expansion",
-      objective: "Expand through the newly cleared emerald glades.",
-      targetTilesCount: 8,
-      unlockedCoords: [
-        {
-          q: 0,
-          r: 0
-        },
-        {
-          q: 1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: 1
-        },
-        {
-          q: 1,
-          r: -1
-        },
-        {
-          q: 2,
-          r: 0
-        },
-        {
-          q: 2,
-          r: -1
-        },
-        {
-          q: 0,
-          r: 2
-        },
-        {
-          q: -1,
-          r: 2
-        },
-        {
-          q: -2,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -2
-        },
-        {
-          q: -1,
-          r: -1
-        },
-        {
-          q: -2,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 1
-        },
-        {
-          q: -1,
-          r: 0
-        },
-        {
-          q: 0,
-          r: -1
-        }
-      ],
-      coloredZones: [
-        {
-          name: "Amber Hearth",
-          color: "amber",
-          coords: [
-            {
-              q: 1,
-              r: 0
-            },
-            {
-              q: 1,
-              r: -1
-            },
-            {
-              q: 0,
-              r: -2
-            },
-            {
-              q: -1,
-              r: -1
-            },
-            {
-              q: -1,
-              r: 0
-            },
-            {
-              q: 0,
-              r: -1
-            }
-          ]
-        },
-        {
-          name: "Emerald Glade",
-          color: "emerald",
-          coords: [
-            {
-              q: 0,
-              r: 2
-            },
-            {
-              q: -1,
-              r: 2
-            },
-            {
-              q: -2,
-              r: 1
-            },
-            {
-              q: -1,
-              r: 1
-            }
-          ]
-        }
-      ],
-      fogCoords: [],
-      riverCoords: [],
-      rotationZones: []
-    }
   ],
   availablePieces: [
-    {
-      id: "p-house-gray",
-      type: "house",
-      color: "neutral",
-      name: "Timber Cottage",
-      description: "Single pioneer dwelling with stone base & slate roof.",
-      bonusesDescription: "Single cell. Safe on any gray clearing.",
-      clusterType: "single",
-      clusterShape: [
-        {
-          q: 0,
-          r: 0,
-          type: "house"
-        }
-      ],
-      lightbulbCost: 1
-    },
     {
       id: "p-duo-amber",
       type: "mixed",
@@ -2849,6 +2667,9 @@ export const LEVELS: LevelConfig[] = [
             coords: [{ q: -1, r: 0 }, { q: -2, r: 1 }],
           },
         ],
+        initialPlacedTiles: [
+          { pieceId: 'p-house-amber', q: 0, r: 1 },
+        ],
         rotationZones: [
           {
             id: 'zone-11-core',
@@ -2860,8 +2681,8 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-sapphire', 'p-trees-emerald']),
-    targetScore: { star1: 2200, star2: 3200, star3: 4200 },
-    lightbulbBudget: 7,
+    targetScore: { star1: 2200, star2: 2800, star3: 3250 },
+    lightbulbBudget: 15,
   },
 
   // --------------------------------------------------------------------------
@@ -2914,8 +2735,8 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-triad-emerald', 'p-duo-gray']),
-    targetScore: { star1: 2400, star2: 3500, star3: 4600 },
-    lightbulbBudget: 8,
+    targetScore: { star1: 1200, star2: 2200, star3: 2600 },
+    lightbulbBudget: 20,
   },
 
   // --------------------------------------------------------------------------
@@ -2982,7 +2803,7 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-sapphire',
       'p-duo-amber',
     ]),
-    targetScore: { star1: 2600, star2: 3800, star3: 5000 },
+    targetScore: { star1: 2600, star2: 2700, star3: 3400 },
     isBossLevel: false,
     masteryChallenge: {
       id: 'mc-custom-13',
@@ -3080,6 +2901,12 @@ export const LEVELS: LevelConfig[] = [
             coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
           },
         ],
+        initialPlacedTiles: [
+          { pieceId: 'p-house-sapphire', q: 1, r: -1 },
+          { pieceId: 'p-house-gray', q: 0, r: -1 },
+          { pieceId: 'p-house-gray', q: 0, r: 0 },
+          { pieceId: 'p-house-gray', q: -1, r: 0 },
+        ],
         rotationZones: [
           {
             id: 'zone-15-glacial',
@@ -3091,8 +2918,8 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-emerald', 'p-triad-emerald']),
-    targetScore: { star1: 2800, star2: 4000, star3: 5200 },
-    lightbulbBudget: 8,
+    targetScore: { star1: 2800, star2: 4000, star3: 4300 },
+    lightbulbBudget: 12,
   },
 
   // --------------------------------------------------------------------------
@@ -3213,8 +3040,8 @@ export const LEVELS: LevelConfig[] = [
         ],
       },
     ],
-    availablePieces: getPieces(['p-house-gray', 'p-blossom-multi', 'p-duo-emerald', 'p-duo-sapphire']),
-    targetScore: { star1: 3200, star2: 4600, star3: 6000 },
+    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-house-amber', 'p-blossom-multi', 'p-duo-emerald', 'p-duo-sapphire']),
+    targetScore: { star1: 3200, star2: 3500, star3: 4100 },
     lightbulbBudget: 8,
   },
 
@@ -3277,8 +3104,8 @@ export const LEVELS: LevelConfig[] = [
       },
     ],
     availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-duo-ruby', 'p-triad-emerald']),
-    targetScore: { star1: 3400, star2: 4800, star3: 6300 },
-    lightbulbBudget: 9,
+    targetScore: { star1: 3400, star2: 3600, star3: 4000 },
+    lightbulbBudget: 25,
   },
 
   // --------------------------------------------------------------------------
@@ -3351,7 +3178,7 @@ export const LEVELS: LevelConfig[] = [
       'p-quad-gray',
     ]),
     targetScore: { star1: 3800, star2: 5400, star3: 7000 },
-    lightbulbBudget: 11,
+    lightbulbBudget: 17,
   },
 
   // --------------------------------------------------------------------------

@@ -22,6 +22,18 @@ export interface JourneySharedProps {
   // ── Tutorial ─────────────────────────────────────────────
   mobileTutorialSeenGroups: string[];
   onMarkTutorialSeen: (group: string) => void;
+  /** Tutorial advance tracking. */
+  rotationsPerformed: number;
+  hasPlacedRoad: boolean;
+  hasPlacedBridge: boolean;
+
+  /** Mobile: long-press on a pre-placed road → show requirement progress. */
+  roadRequirements?: {
+    roadKey: string;
+    adjacent: number;
+    required: number;
+    satisfied: boolean;
+  }[];
 
   coins: number;
   onBuyBooster: (booster: BoosterItem) => void;
