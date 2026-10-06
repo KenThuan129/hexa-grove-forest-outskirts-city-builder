@@ -3177,8 +3177,8 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-ruby',
       'p-quad-gray',
     ]),
-    targetScore: { star1: 3800, star2: 5400, star3: 7000 },
-    lightbulbBudget: 17,
+    targetScore: { star1: 3800, star2: 5400, star3: 6400 },
+    lightbulbBudget: 20,
   },
 
   // --------------------------------------------------------------------------
@@ -3203,7 +3203,6 @@ export const LEVELS: LevelConfig[] = [
         title: 'Phase 1: Metropolitan Core',
         objective: 'Build the grand central blossom plaza around the rushing riverside crossing.',
         targetTilesCount: 8,
-        riverCoords: [{ q: 0, r: -1 }, { q: 1, r: -2 }],
         unlockedCoords: [
           { q: 0, r: 0 },
           { q: 1, r: 0 },
@@ -3390,28 +3389,74 @@ export const LEVELS: LevelConfig[] = [
     },
     phases: [
       {
-        phaseNumber: 1,
-        title: 'Phase 1: Mistveil Camp',
-        objective: 'Establish base camp and forecast phase 2 using the eastern Fog Hexes.',
-        targetTilesCount: 7,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 0, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Sunlit Clearing',
-            color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 1, r: -1 }],
-          },
-        ],
-        fogCoords: [{ q: 2, r: 0 }, { q: 2, r: -1 }, { q: 1, r: 1 }],
-      },
+      "phaseNumber": 1,
+      "title": "Phase 1: Mistveil Camp",
+      "objective": "Establish base camp and forecast phase 2 using the eastern Fog Hexes.",
+      "targetTilesCount": 7,
+      "unlockedCoords": [
+        {
+          "q": 1,
+          "r": -1
+        },
+        {
+          "q": -1,
+          "r": 1
+        },
+        {
+          "q": -1,
+          "r": -1
+        },
+        {
+          "q": 1,
+          "r": 1
+        }
+      ],
+      "coloredZones": [
+        {
+          "name": "Sunlit Clearing",
+          "color": "amber",
+          "coords": [
+            {
+              "q": 1,
+              "r": -1
+            },
+            {
+              "q": -1,
+              "r": 1
+            },
+            {
+              "q": -1,
+              "r": -1
+            },
+            {
+              "q": 1,
+              "r": 1
+            }
+          ]
+        }
+      ],
+      "fogCoords": [
+        {
+          "q": 0,
+          "r": -1
+        },
+        {
+          "q": -1,
+          "r": 0
+        },
+        {
+          "q": 0,
+          "r": 1
+        },
+        {
+          "q": 1,
+          "r": 0
+        }
+      ],
+      "riverCoords": [],
+      "rotationZones": []
+    },
+
       {
         phaseNumber: 2,
         title: 'Phase 2: Fog Dissipation',
@@ -3445,8 +3490,9 @@ export const LEVELS: LevelConfig[] = [
         ],
       },
     ],
-    availablePieces: getPieces(['p-house-gray', 'p-duo-gray', 'p-house-amber', 'p-duo-amber', 'p-duo-emerald', 'p-road-triad-line', 'p-road-triad-curve', 'p-bridge-duo']),
+    availablePieces: getPieces(['p-house-amber', 'p-duo-amber', 'p-duo-emerald']),
     targetScore: { star1: 1000, star2: 3200, star3: 4500 },
+    lightbulbBudget: 12,
   },
 
   // --------------------------------------------------------------------------
@@ -3480,6 +3526,7 @@ export const LEVELS: LevelConfig[] = [
           { q: 1, r: 0 },
           { q: 2, r: -1 },
           { q: 2, r: 0 },
+          { q: 0, r: 1 }
         ],
         coloredZones: [
           {
@@ -3493,7 +3540,7 @@ export const LEVELS: LevelConfig[] = [
             coords: [{ q: 2, r: -1 }, { q: 2, r: 0 }],
           },
         ],
-        riverCoords: [{ q: 0, r: -1 }, { q: 0, r: 0 }, { q: 0, r: 1 }],
+        riverCoords: [{ q: 0, r: -1 }, { q: 0, r: 0 }, ],
       },
     ],
     availablePieces: getPieces([
@@ -3502,16 +3549,9 @@ export const LEVELS: LevelConfig[] = [
       'p-duo-sapphire',
       'p-quad-sapphire',
       'p-triad-amber',
-      'p-bridge-single',
-      'p-bridge-duo',
-      'p-bridge-triad-line',
-      'p-bridge-quad-line',
-      'p-road-duo',
-      'p-road-triad-line',
-      'p-causeway-duo',
-      'p-causeway-triad',
     ]),
     targetScore: { star1: 1000, star2: 3400, star3: 4800 },
+    lightbulbBudget: 45,
   },
 
   // --------------------------------------------------------------------------
@@ -3542,11 +3582,13 @@ export const LEVELS: LevelConfig[] = [
         ],
         unlockedCoords: [
           { q: -1, r: 0 },
+          { q: 0, r: 0 },
           { q: -1, r: 1 },
           { q: -2, r: 1 },
           { q: 1, r: 0 },
           { q: 2, r: 0 },
           { q: 1, r: -1 },
+          { q: 0, r: -1 },
         ],
         coloredZones: [
           {
@@ -3559,9 +3601,7 @@ export const LEVELS: LevelConfig[] = [
           },
         ],
         riverCoords: [
-          { q: 0, r: 0 },
           { q: 0, r: 1 },
-          { q: 0, r: -1 },
         ],
         fogCoords: [
           { q: -2, r: 2 },
@@ -3695,7 +3735,7 @@ export const LEVELS: LevelConfig[] = [
     description:
       'Engage Rival Tycoon Sterling Vance in a high-stakes Revenue Showdown! Inspect colored zones without picking up pieces to boost Popularity, Ambience, and Bonus Slots, then dominate the market revenue!',
     isBossLevel: true,
-    lightbulbBudget: 60,
+    lightbulbBudget: 75,
     bossName: 'Tycoon Sterling Vance',
     bossPopularity: 180,
     bossAmbience: 170,

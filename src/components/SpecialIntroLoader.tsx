@@ -92,24 +92,8 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
       {/* Top Header: Brand Wordmark & Skip Affordance */}
       <div className="relative z-10 w-full max-w-4xl flex items-center justify-between animate-in fade-in slide-in-from-top-4 duration-700">
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-amber-300 shadow-lg shadow-amber-500/20">
-            <Compass className="w-4 h-4 animate-spin [animation-duration:12s]" />
-          </div>
-          <div>
-            <span className="text-xs uppercase tracking-widest text-amber-400 font-mono font-bold block">
-              Archipelago Chronicles
-            </span>
-            <span className="text-[11px] text-slate-400 font-medium">Island Settlement Odyssey</span>
-          </div>
+          
         </div>
-
-        <button
-          onClick={handleSkip}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/80 text-xs font-bold text-slate-300 hover:text-white transition-all cursor-pointer shadow-lg hover:border-slate-500"
-        >
-          <span>Enter</span>
-          <ChevronRight className="w-3.5 h-3.5" />
-        </button>
       </div>
 
       {/* Center Stage: Animated Hex Sacred Seal + THE PICKUP LINE */}
@@ -161,17 +145,10 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
 
         {/* The Exact Special Pickup Line Requested by the User */}
         <div className="relative space-y-3 animate-in fade-in zoom-in-95 duration-1000">
-          <p className="text-xs uppercase tracking-[0.3em] font-mono text-amber-400/90 font-bold">
-            The Awakening Calling
-          </p>
 
           <h1 className="text-2xl sm:text-4xl md:text-5xl font-black font-serif tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-100 to-amber-300 drop-shadow-[0_4px_16px_rgba(245,158,11,0.35)] leading-tight">
-            &ldquo;Rejoyce, a journey up for the youth&rdquo;
+            Hexamania
           </h1>
-
-          <p className="text-xs sm:text-sm text-slate-300 max-w-lg mx-auto font-medium leading-relaxed pt-1">
-            Where stone by stone and realm by realm, young architects claim the untamed horizon.
-          </p>
         </div>
       </div>
 
@@ -192,7 +169,7 @@ export const SpecialIntroLoader: React.FC<SpecialIntroLoaderProps> = ({
         </div>
 
         <p className="text-[10px] text-slate-500 font-mono tracking-wider pt-1">
-          Archipelago Cartography System · Ready to Explore
+          {progress == 100 ? 'Ready to Explore': 'Setting up...'}
         </p>
       </div>
     </div>

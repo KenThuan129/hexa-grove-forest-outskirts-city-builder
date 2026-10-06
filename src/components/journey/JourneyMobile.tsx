@@ -197,8 +197,8 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                             <span className="text-lg leading-none">✓</span>
                             <span className="font-rounded text-xs">
                                 {isLastPhase
-                                    ? 'Complete Level'
-                                    : `Expand to Phase ${phaseIndex + 2}`}
+                                    ? 'Complete'
+                                    : `Expand`}
                             </span>
                         </button>
                     ) : null}

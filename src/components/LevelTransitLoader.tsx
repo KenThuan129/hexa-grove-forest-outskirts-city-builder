@@ -138,10 +138,10 @@ export const LevelTransitLoader: React.FC<LevelTransitLoaderProps> = ({
         )}
 
         {/* Pro Tip Box */}
-        <div className="mt-3.5 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300 leading-snug max-w-xs text-left">
+        {/* <div className="mt-3.5 p-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] text-slate-300 leading-snug max-w-xs text-left">
           <span className="text-amber-400 font-bold block mb-0.5">Architect Tip:</span>
           {tip}
-        </div>
+        </div> */}
 
         {/* Snappy Progress Track */}
         <div className="w-full h-1.5 bg-slate-950 rounded-full border border-slate-800 overflow-hidden mt-4">
