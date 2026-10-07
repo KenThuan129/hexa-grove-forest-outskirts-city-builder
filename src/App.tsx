@@ -381,7 +381,7 @@ export default function App() {
     sounds.playVictory();
   }, [pendingGraphicsReload, activePage]);
 
-    // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Mobile: apply graphics settings immediately, no reload modal.
   // Performance Mode + Target FPS apply live (ThreeScene reads them
   // each frame). Low-Power Mode + Texture Quality trigger a silent
@@ -623,7 +623,7 @@ export default function App() {
       if (m.chosenBypass) chosenBypassMap[m.id] = m.chosenBypass;
     });
 
-        return buildSaveBlob({
+    return buildSaveBlob({
       highestCompletedLevel,
       coins,
       leaves,
@@ -652,7 +652,7 @@ export default function App() {
     latestChapterExplore,
     latestMemories,
     memories,
-    mobileTutorialSeenGroups, 
+    mobileTutorialSeenGroups,
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -1274,15 +1274,15 @@ export default function App() {
   }, []);
 
   const handleJourneyExitToHome = React.useCallback(() => {
-  // Force-close pause state (no toggle) and exit cleanly.
-  setIsJourneyPaused(false);
-  navigateWithTransition(
-    'home',
-    'Returning to Island Sanctuary',
-    'Archipelago Resort & Building Hub',
-    true // force — bypass the "already on this page" check
-  );
-}, []);
+    // Force-close pause state (no toggle) and exit cleanly.
+    setIsJourneyPaused(false);
+    navigateWithTransition(
+      'home',
+      'Returning to Island Sanctuary',
+      'Archipelago Resort & Building Hub',
+      true // force — bypass the "already on this page" check
+    );
+  }, []);
 
   // Calculate Base Raw Score (before mastery bonus)
   const rawScore = useMemo(() => {
@@ -2913,6 +2913,22 @@ export default function App() {
             hasPlacedRoad={hasPlacedRoad}
             hasPlacedBridge={hasPlacedBridge}
             roadRequirements={roadRequirementProgress.perRoad}
+            coloredZones={currentPhase?.coloredZones}
+            isBossLevel={Boolean(currentLevel.isBossLevel)}
+            bossName={currentLevel.bossName}
+            bossPopularity={
+              (currentLevel.bossPopularity || 180) +
+              (currentLevel.levelType === 'traffic_attack'
+                ? roadRequirementProgress.perRoad.filter(r => !r.satisfied).length * 25
+                : 0)
+            }
+            bossAmbience={
+              (currentLevel.bossAmbience || 170) +
+              (currentLevel.levelType === 'traffic_attack'
+                ? roadRequirementProgress.perRoad.filter(r => !r.satisfied).length * 20
+                : 0)
+            }
+            bossBattleStats={bossBattleStats}
             lightbulbsUsed={lightbulbsUsed}
             lightbulbBudget={lightbulbBudget}
             placedCount={inBoundsPlacedCount}

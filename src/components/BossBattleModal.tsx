@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { BossBattleStats } from '../types/game';
 import { sounds } from '../utils/audio';
+import { useLayout } from '../context/LayoutContext';
 
 interface BossBattleModalProps {
   isOpen: boolean;
@@ -139,6 +140,16 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
   // Rounds remaining where Executive Order doubles the boss's drain on player vitals
   const [bossPressureRoundsLeft, setBossPressureRoundsLeft] = useState(0);
 
+  // ── Stable refs for countdown auto-return ──────────────────────
+  const onVictoryRef = useRef(onVictory);
+  onVictoryRef.current = onVictory;
+  const onDefeatRef = useRef(onDefeat);
+  onDefeatRef.current = onDefeat;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  const [autoReturnCountdown, setAutoReturnCountdown] = useState<number | null>(null);
+
   // Initialize or Reset Battle
   useEffect(() => {
     if (isOpen) {
@@ -187,6 +198,34 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
       setBossPressureRoundsLeft(0);
     }
   }, [isOpen, bossName, bossPopularity, bossAmbience, playerStats]);
+
+  // ── Auto-return countdown on victory/defeat ────────────────────
+  useEffect(() => {
+    if (battleState !== 'victory' && battleState !== 'defeat') {
+      setAutoReturnCountdown(null);
+      return;
+    }
+
+    setAutoReturnCountdown(4);
+
+    const interval = setInterval(() => {
+      setAutoReturnCountdown((prev) => {
+        if (prev === null || prev <= 1) {
+          clearInterval(interval);
+          if (battleState === 'victory') {
+            onVictoryRef.current();
+          } else {
+            onDefeatRef.current();
+          }
+          onCloseRef.current();
+          return null;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [battleState]);
 
   // Auto-scroll logs
   useEffect(() => {
@@ -647,13 +686,10 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
       round: nextRound,
       category: 'guest',
       title: `Quarterly Ticker · Round ${nextRound}`,
-      description: `Guests staying: You ${newPlayerGuests} vs Rival ${newBossGuests}. Revenue earned: +$${roundRevenue.toLocaleString()}.${
-        bossAmbDrain > 0 || bossPopDrain > 0 ? ` Luxury pressure eroded Rival ratings (-${bossPopDrain + bossAmbDrain} pts).` : ''
-      }${
-        bossPressureRoundsLeft > 0 ? ` ⚠️ Executive Order pressure active (${bossPressureRoundsLeft} rounds left).` : ''
-      }${
-        playerPopDrain > 0 || playerAmbDrain > 0 ? ` Rival counter-pressure eroded your ratings (-${playerPopDrain + playerAmbDrain} pts).` : ''
-      }${paceDescription}`,
+      description: `Guests staying: You ${newPlayerGuests} vs Rival ${newBossGuests}. Revenue earned: +$${roundRevenue.toLocaleString()}.${bossAmbDrain > 0 || bossPopDrain > 0 ? ` Luxury pressure eroded Rival ratings (-${bossPopDrain + bossAmbDrain} pts).` : ''
+        }${bossPressureRoundsLeft > 0 ? ` ⚠️ Executive Order pressure active (${bossPressureRoundsLeft} rounds left).` : ''
+        }${playerPopDrain > 0 || playerAmbDrain > 0 ? ` Rival counter-pressure eroded your ratings (-${playerPopDrain + playerAmbDrain} pts).` : ''
+        }${paceDescription}`,
       revenueDelta: roundRevenue,
       guestDelta: clampedGuestDelta,
     };
@@ -723,7 +759,414 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
     setCurrentBonusMilestone(null);
   };
 
+  const layout = useLayout();
+  const isMobile = layout.useMobileLayout;
+
   if (!isOpen) return null;
+
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 bg-black/85 backdrop-blur-md select-none">
+        <div className="relative w-full max-w-md bg-gradient-to-b from-[#1c120c] via-[#241710] to-[#120b07] rounded-3xl border-2 border-[#e6b15c]/60 shadow-[0_0_50px_rgba(230,177,92,0.25)] flex flex-col overflow-hidden">
+          {/* Header */}
+          <div className="px-4 py-3 bg-gradient-to-r from-[#2c1a0e] via-[#3a2213] to-[#2c1a0e] border-b border-[#e6b15c]/40 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-300 flex items-center justify-center">
+                <Briefcase className="w-4 h-4 text-slate-950" />
+              </div>
+              <div>
+                <div className="text-[9px] text-amber-400 font-mono font-black uppercase tracking-widest">
+                  BUSINESS SHOWDOWN
+                </div>
+                <h2 className="text-xs font-black text-[#f4ecd8] truncate max-w-[180px]">
+                  vs. {bossName}
+                </h2>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-xl bg-black/40 hover:bg-black/70 text-[#f4ecd8]/80 hover:text-white transition-all cursor-pointer border border-amber-500/20"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Progress bar */}
+          <div className="px-4 py-2 bg-[#140d08] border-b border-[#5c3d2e] shrink-0">
+            <div className="flex items-center justify-between text-[10px] font-mono font-bold mb-1">
+              <span className="text-amber-400">Battle Progress</span>
+              <span className="text-slate-300">{battleProgress}%</span>
+            </div>
+            <div className="relative w-full h-2.5 bg-black/60 rounded-full border border-amber-900/60 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-amber-600 via-amber-400 to-emerald-400 rounded-full transition-all duration-300"
+                style={{ width: `${battleProgress}%` }}
+              />
+            </div>
+          </div>
+
+          {/* Cards area */}
+          <div className="p-4 flex flex-col gap-3">
+            {/* Player card */}
+            <div className="relative p-3 rounded-2xl bg-gradient-to-b from-[#1e3520] to-[#122214] border-2 border-emerald-500/60 shadow-lg">
+              {playerFloatText && (
+                <div className={`absolute -top-2 right-3 text-[11px] font-black animate-bounce ${playerFloatText.color}`}>
+                  {playerFloatText.text}
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🏰</span>
+                  <span className="text-[10px] font-mono font-black text-emerald-400 uppercase tracking-wider">
+                    YOUR RESORT
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-amber-300 font-mono text-xs font-bold">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{playerGuests}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-amber-300 font-mono font-bold flex items-center gap-1">
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> POP
+                  </span>
+                  <span className="text-sm font-black text-white font-mono">{playerPop}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-cyan-300 font-mono font-bold flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-cyan-400" /> AMB
+                  </span>
+                  <span className="text-sm font-black text-white font-mono">{playerAmb}</span>
+                </div>
+              </div>
+
+              {activePaceEffect && (
+                <div className="mt-2 px-2 py-1 rounded-lg bg-indigo-950/70 border border-indigo-500/50 text-[9px] font-bold text-indigo-300">
+                  ⚡ {activePaceEffect === 'off_peak' ? 'Off-Peak' : 'Rush Hour'} active
+                </div>
+              )}
+            </div>
+
+            {/* Rival card */}
+            <div className="relative p-3 rounded-2xl bg-gradient-to-b from-[#3a1812] to-[#200c08] border-2 border-rose-500/60 shadow-lg">
+              {bossFloatText && (
+                <div className={`absolute -top-2 right-3 text-[11px] font-black animate-bounce ${bossFloatText.color}`}>
+                  {bossFloatText.text}
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🎩</span>
+                  <span className="text-[10px] font-mono font-black text-rose-400 uppercase tracking-wider truncate max-w-[140px]">
+                    {bossName.toUpperCase()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-rose-300 font-mono text-xs font-bold">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>{bossGuests}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-amber-300 font-mono font-bold flex items-center gap-1">
+                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" /> POP
+                  </span>
+                  <span className="text-sm font-black text-white font-mono">{bossPop}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-cyan-300 font-mono font-bold flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-cyan-400" /> AMB
+                  </span>
+                  <span className="text-sm font-black text-white font-mono">{bossAmb}</span>
+                </div>
+              </div>
+
+              {bossPressureRoundsLeft > 0 && (
+                <div className="mt-2 px-2 py-1 rounded-lg bg-rose-950/80 border border-rose-500/60 text-[9px] font-bold text-rose-300 animate-pulse">
+                  ⚡ Executive Order Active · {bossPressureRoundsLeft}r
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Controls */}
+          <div className="px-4 pb-4 flex items-center gap-2 shrink-0">
+            {battleState === 'running' ? (
+              <button
+                onClick={() => setBattleState('paused')}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-gradient-to-b from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black shadow-lg active:translate-y-[1px] transition-all cursor-pointer"
+              >
+                <Pause className="w-4 h-4" />
+                <span>Pause</span>
+              </button>
+            ) : battleState === 'ready' || battleState === 'paused' ? (
+              <button
+                onClick={() => setBattleState('running')}
+                className="flex-1 flex items-center justify-center gap-1.5 py-3 rounded-2xl bg-gradient-to-b from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 text-xs font-black shadow-lg active:translate-y-[1px] transition-all cursor-pointer animate-pulse"
+              >
+                <Play className="w-4 h-4" />
+                <span>{battleState === 'ready' ? 'Start Battle' : 'Resume'}</span>
+              </button>
+            ) : null}
+
+            <button
+              onClick={() => setSpeedMultiplier(speedMultiplier === 4 ? 1 : 4)}
+              className={`px-4 py-3 rounded-2xl font-black text-xs shadow-lg active:translate-y-[1px] transition-all cursor-pointer ${speedMultiplier === 4
+                ? 'bg-gradient-to-b from-cyan-500 to-blue-600 text-white'
+                : 'bg-[#2b1a11] border-2 border-[#5c3d2e] text-amber-300'
+                }`}
+            >
+              <Zap className="w-4 h-4 inline" />
+              <span className="ml-1 font-mono">{speedMultiplier}x</span>
+            </button>
+          </div>
+
+          {/* Milestone overlay */}
+          {battleState === 'bonus_modal' && (
+            <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col">
+              {/* Header — fixed */}
+              <div className="shrink-0 px-4 pt-4 pb-3 text-center border-b border-amber-500/30">
+                <div className="text-[10px] font-mono font-black text-amber-400 uppercase tracking-widest mb-1">
+                  Milestone {currentBonusMilestone}% Reached
+                </div>
+                <h3 className="text-base font-black text-white">Choose Your Benefits</h3>
+                <p className="text-[10px] text-slate-300 mt-0.5">
+                  Swipe to browse · Tap to select
+                </p>
+              </div>
+
+              {/* Scrollable body */}
+              <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 flex flex-col gap-3">
+                {/* ── Primary Benefit carousel ── */}
+                <div>
+                  <div className="text-[9.5px] font-mono font-black text-amber-300 uppercase tracking-widest mb-2">
+                    Primary Benefit
+                  </div>
+                  <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3 no-scrollbar">
+                    {currentBonusPool
+                      .filter(o => o.category !== 'pace')
+                      .map(opt => {
+                        const isSelected = selectedPrimaryOption?.id === opt.id;
+                        return (
+                          <button
+                            key={opt.id}
+                            onClick={() => {
+                              setSelectedPrimaryOption(prev => prev?.id === opt.id ? null : opt);
+                              sounds.playPlace(true);
+                            }}
+                            className={`snap-center shrink-0 w-[78vw] max-w-[300px] p-3 rounded-2xl border-2 text-left flex flex-col gap-2 transition-all active:scale-[0.98] ${isSelected
+                              ? 'border-amber-400 bg-amber-950/90 shadow-[0_0_18px_rgba(251,191,36,0.45)]'
+                              : `${opt.colorClass} hover:border-white/60`
+                              }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <span className="text-3xl shrink-0">{opt.icon}</span>
+                              {isSelected && (
+                                <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center shrink-0">
+                                  <Check className="w-3 h-3 text-slate-950 stroke-[3]" />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <div className="text-[9px] font-mono font-black uppercase tracking-wider text-amber-300">
+                                {opt.subtitle}
+                              </div>
+                              <div className="text-sm font-black text-white mt-0.5">
+                                {opt.name}
+                              </div>
+                            </div>
+                            <div className="text-[10.5px] text-slate-300 leading-snug line-clamp-2">
+                              {opt.description}
+                            </div>
+                            <div className="mt-auto pt-1.5 border-t border-white/10 text-[10px] font-mono font-bold text-amber-300">
+                              {opt.badge}
+                            </div>
+                          </button>
+                        );
+                      })}
+                  </div>
+                </div>
+
+                {/* ── Pace Definder carousel ── */}
+                <div>
+                  <div className="text-[9.5px] font-mono font-black text-indigo-300 uppercase tracking-widest mb-2">
+                    Pace Definder (Optional)
+                  </div>
+                  {currentBonusPool.filter(o => o.category === 'pace').length > 0 ? (
+                    <div className="flex gap-2.5 overflow-x-auto snap-x snap-mandatory pb-2 -mx-3 px-3 no-scrollbar">
+                      {currentBonusPool
+                        .filter(o => o.category === 'pace')
+                        .map(opt => {
+                          const isSelected = selectedPaceOption?.id === opt.id;
+                          return (
+                            <button
+                              key={opt.id}
+                              onClick={() => {
+                                setSelectedPaceOption(prev => prev?.id === opt.id ? null : opt);
+                                sounds.playPlace(true);
+                              }}
+                              className={`snap-center shrink-0 w-[78vw] max-w-[300px] p-3 rounded-2xl border-2 text-left flex flex-col gap-2 transition-all active:scale-[0.98] ${isSelected
+                                ? 'border-indigo-400 bg-indigo-950/90 shadow-[0_0_18px_rgba(99,102,241,0.45)]'
+                                : `${opt.colorClass} hover:border-white/60`
+                                }`}
+                            >
+                              <div className="flex items-start justify-between">
+                                <span className="text-3xl shrink-0">{opt.icon}</span>
+                                {isSelected && (
+                                  <div className="w-5 h-5 rounded-full bg-indigo-400 flex items-center justify-center shrink-0">
+                                    <Check className="w-3 h-3 text-slate-950 stroke-[3]" />
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <div className="text-[9px] font-mono font-black uppercase tracking-wider text-indigo-300">
+                                  {opt.subtitle}
+                                </div>
+                                <div className="text-sm font-black text-white mt-0.5">
+                                  {opt.name}
+                                </div>
+                              </div>
+                              <div className="text-[10.5px] text-slate-300 leading-snug line-clamp-2">
+                                {opt.description}
+                              </div>
+                              <div className="mt-auto pt-1.5 border-t border-white/10 text-[10px] font-mono font-bold text-indigo-300">
+                                {opt.badge}
+                              </div>
+                            </button>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-slate-500 italic text-center py-3">
+                      No Pace options available this milestone
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer — fixed confirm button */}
+              <div className="shrink-0 px-3 py-3 border-t border-amber-500/30 bg-black/60">
+                <div className="text-[10px] font-mono text-slate-300 mb-2 flex items-center gap-1.5 flex-wrap">
+                  <span>Selected:</span>
+                  <span className="font-bold text-amber-300">
+                    {[selectedPrimaryOption?.name, selectedPaceOption?.name].filter(Boolean).join(' + ') || 'None'}
+                  </span>
+                  {selectedPrimaryOption && selectedPaceOption && (
+                    <span className="text-[9px] text-emerald-400 font-bold">
+                      · Synergy ✓
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={handleConfirmBonus}
+                  disabled={!selectedPrimaryOption && !selectedPaceOption}
+                  className={`w-full py-3 rounded-2xl text-xs font-black shadow-lg active:translate-y-[1px] transition-all ${selectedPrimaryOption || selectedPaceOption
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 cursor-pointer'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                >
+                  <CheckCircle2 className="w-4 h-4 inline mr-1" />
+                  Confirm & Resume
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Victory overlay */}
+          {battleState === 'victory' && (
+            <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-gradient-to-b from-[#1e3520] via-[#162718] to-[#0c160e] border-2 border-emerald-400 rounded-3xl p-5 flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-3xl bg-gradient-to-tr from-amber-400 to-emerald-400 flex items-center justify-center text-slate-950 shadow-2xl animate-bounce">
+                  <Trophy className="w-8 h-8" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono font-black text-amber-300 uppercase tracking-widest">
+                    COMMERCIAL HEGEMONY
+                  </div>
+                  <h3 className="text-xl font-black text-white mt-1">Victory!</h3>
+                  <p className="text-[11px] text-emerald-200/90 mt-1">
+                    {bossPop <= 0 || bossAmb <= 0
+                      ? `${bossName}'s commercial standing collapsed to 0.`
+                      : `You captured the entire market with ${playerGuests} guests!`}
+                  </p>
+                </div>
+                <div className="w-full grid grid-cols-2 gap-2 text-[10px] font-mono bg-black/50 p-2.5 rounded-2xl border border-emerald-500/30">
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-slate-400">Revenue</span>
+                    <span className="text-xs font-black text-amber-300">${playerRevenue.toLocaleString()}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-[9px] text-slate-400">Guests</span>
+                    <span className="text-xs font-black text-emerald-400">{playerGuests}</span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    onVictory();
+                    onClose();
+                  }}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-400 to-amber-400 text-slate-950 font-black text-sm shadow-xl active:translate-y-[1px] transition-all cursor-pointer"
+                >
+                  Claim Victory & Advance
+                  {autoReturnCountdown !== null && (
+                    <span className="ml-1.5 text-[10px] bg-slate-950/30 px-1.5 py-0.5 rounded-full">
+                      {autoReturnCountdown}s
+                    </span>
+                  )}
+                </button>
+
+                <div className="text-[9.5px] text-emerald-300/70 font-serif italic">
+                  Auto-advancing in {autoReturnCountdown ?? 4}s…
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Defeat overlay */}
+          {battleState === 'defeat' && (
+            <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="w-full max-w-sm bg-gradient-to-b from-[#3a1510] via-[#240c09] to-[#120504] border-2 border-rose-500 rounded-3xl p-5 flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-3xl bg-rose-600 flex items-center justify-center text-white shadow-2xl">
+                  <X className="w-8 h-8" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-mono font-black text-rose-400 uppercase tracking-widest">
+                    MARKET OVERWHELMED
+                  </div>
+                  <h3 className="text-xl font-black text-white mt-1">Defeat</h3>
+                  <p className="text-[11px] text-rose-200/90 mt-1">
+                    {bossName} captured market dominance.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    onDefeat();
+                    onClose();
+                  }}
+                  className="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-rose-600 text-white font-black text-xs shadow-xl active:translate-y-[1px] transition-all cursor-pointer"
+                >
+                  Return to Board
+                  {autoReturnCountdown !== null && (
+                    <span className="ml-1.5 text-[10px] bg-slate-950/40 px-1.5 py-0.5 rounded-full">
+                      {autoReturnCountdown}s
+                    </span>
+                  )}
+                </button>
+
+                <div className="text-[9.5px] text-rose-300/70 font-serif italic">
+                  Auto-returning in {autoReturnCountdown ?? 4}s…
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md animate-fade-in select-none">
@@ -776,8 +1219,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
             <div className="absolute top-1/2 -translate-y-1/2 left-[25%] -translate-x-1/2 flex flex-col items-center">
               <div
                 className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${triggeredMilestones[25]
-                    ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
-                    : 'bg-amber-900 border-amber-400 text-amber-200'
+                  ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                  : 'bg-amber-900 border-amber-400 text-amber-200'
                   }`}
                 title="Bonus Phase 1 (25%)"
               >
@@ -790,8 +1233,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
             <div className="absolute top-1/2 -translate-y-1/2 left-[55%] -translate-x-1/2 flex flex-col items-center">
               <div
                 className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${triggeredMilestones[55]
-                    ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
-                    : 'bg-amber-900 border-amber-400 text-amber-200'
+                  ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                  : 'bg-amber-900 border-amber-400 text-amber-200'
                   }`}
                 title="Bonus Phase 2 (55%)"
               >
@@ -804,8 +1247,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
             <div className="absolute top-1/2 -translate-y-1/2 left-[85%] -translate-x-1/2 flex flex-col items-center">
               <div
                 className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${triggeredMilestones[85]
-                    ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
-                    : 'bg-amber-900 border-amber-400 text-amber-200'
+                  ? 'bg-emerald-500 border-white text-slate-950 shadow-[0_0_8px_rgba(16,185,129,0.8)]'
+                  : 'bg-amber-900 border-amber-400 text-amber-200'
                   }`}
                 title="Bonus Phase 3 (85%)"
               >
@@ -1069,8 +1512,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
                     key={s}
                     onClick={() => setSpeedMultiplier(s as 1 | 2 | 4)}
                     className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${speedMultiplier === s
-                        ? 'bg-amber-400 text-slate-950 shadow'
-                        : 'text-slate-400 hover:text-white'
+                      ? 'bg-amber-400 text-slate-950 shadow'
+                      : 'text-slate-400 hover:text-white'
                       }`}
                   >
                     {s}x
@@ -1119,10 +1562,10 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
                 <div
                   key={log.id}
                   className={`p-2.5 rounded-xl border text-[11px] leading-relaxed transition-all ${log.category === 'bonus'
-                      ? 'bg-amber-950/80 border-amber-400/70 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
-                      : log.category === 'system'
-                        ? 'bg-indigo-950/60 border-indigo-500/40 text-indigo-200'
-                        : 'bg-[#18110b] border-amber-900/40 text-[#f4ecd8]/90'
+                    ? 'bg-amber-950/80 border-amber-400/70 text-amber-100 shadow-[0_0_12px_rgba(245,158,11,0.2)]'
+                    : log.category === 'system'
+                      ? 'bg-indigo-950/60 border-indigo-500/40 text-indigo-200'
+                      : 'bg-[#18110b] border-amber-900/40 text-[#f4ecd8]/90'
                     }`}
                 >
                   <div className="flex items-center justify-between font-bold mb-0.5">
@@ -1185,8 +1628,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
                         sounds.playPlace(true);
                       }}
                       className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-2 select-none ${isSelected
-                          ? 'border-amber-400 bg-amber-950/90 shadow-[0_0_15px_rgba(251,191,36,0.3)] ring-2 ring-amber-400/80'
-                          : `${opt.colorClass} hover:border-white/60`
+                        ? 'border-amber-400 bg-amber-950/90 shadow-[0_0_15px_rgba(251,191,36,0.3)] ring-2 ring-amber-400/80'
+                        : `${opt.colorClass} hover:border-white/60`
                         }`}
                     >
                       <div className="flex items-start justify-between">
@@ -1201,8 +1644,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
                         </div>
                         <div
                           className={`w-5 h-5 rounded-full border flex items-center justify-center transition-all ${isSelected
-                              ? 'bg-amber-400 border-white text-slate-950'
-                              : 'border-slate-500 bg-black/40'
+                            ? 'bg-amber-400 border-white text-slate-950'
+                            : 'border-slate-500 bg-black/40'
                             }`}
                         >
                           {isSelected && <Check className="w-3.5 h-3.5 stroke-[3]" />}
@@ -1240,8 +1683,8 @@ export const BossBattleModal: React.FC<BossBattleModalProps> = ({
                   onClick={handleConfirmBonus}
                   disabled={!selectedPrimaryOption && !selectedPaceOption}
                   className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 shadow-lg ${selectedPrimaryOption || selectedPaceOption
-                      ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 hover:from-amber-300 hover:to-amber-200'
-                      : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 hover:from-amber-300 hover:to-amber-200'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
                     }`}
                 >
                   <CheckCircle2 className="w-4 h-4" />

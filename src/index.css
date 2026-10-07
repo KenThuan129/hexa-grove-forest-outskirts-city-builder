@@ -284,3 +284,6 @@
   0%   { transform: scale(0.5); opacity: 0.9; }
   100% { transform: scale(2.4); opacity: 0; }
 }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

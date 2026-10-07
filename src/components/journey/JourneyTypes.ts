@@ -8,6 +8,8 @@ import type {
   PlacedTile,
   RotationZone,
   PlayMode,
+  BossBattleStats,
+  PhaseConfig,
 } from '../../types/game';
 import type { BoosterId, BoosterItem } from '../../types/economy';
 import type { RendererInfo } from '../ThreeScene';
@@ -27,6 +29,13 @@ export interface JourneySharedProps {
   hasPlacedRoad: boolean;
   hasPlacedBridge: boolean;
 
+  // ── Boss Battle ─────────────────────────────────────────
+  isBossLevel?: boolean;
+  bossName?: string;
+  bossPopularity?: number;
+  bossAmbience?: number;
+  bossBattleStats?: BossBattleStats;
+
   /** Mobile: long-press on a pre-placed road → show requirement progress. */
   roadRequirements?: {
     roadKey: string;
@@ -34,6 +43,9 @@ export interface JourneySharedProps {
     required: number;
     satisfied: boolean;
   }[];
+
+  /** Mobile: long-press on a colored zone hex (boss levels) → show zone info. */
+  coloredZones?: PhaseConfig['coloredZones'];
 
   coins: number;
   onBuyBooster: (booster: BoosterItem) => void;
