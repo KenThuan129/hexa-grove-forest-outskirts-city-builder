@@ -302,6 +302,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       </div>
 
       {/* Top Floating HUD — hidden during welcome. Shows partial in early stages. */}
+            {/* Top Floating HUD — hidden during welcome. Shows partial in early stages. */}
       {!isWelcomeStage && (
         <header className="relative z-10 w-full p-2.5 sm:p-4 flex items-center justify-between max-w-7xl mx-auto pointer-events-none">
           {/* Left: Cozy Resort Title & 3D Building Progress */}
@@ -324,22 +325,19 @@ export const HomePage: React.FC<HomePageProps> = ({
             </div>
           </div>
 
-          {/* Right: Currency Balances, Shop & System Modals — hidden during early stages */}
+          {/* Right: Currency Balances, Shop & System Modals */}
           <div className="pointer-events-auto flex items-center gap-2">
+            
             {/* Golden Ticket Badge Button — needs level 10 to unlock */}
             {!isGuest && isConstructionUnlocked && (
               hasGoldenTicket ? (
                 <button
                   onClick={() => {
                     sounds.playClick();
-                    if (!isAdminUnlocked) {
-                      onOpenAdminAuth?.('Golden Ticket');
-                    } else {
-                      onShowGoldenTicket();
-                    }
+                    if (!isAdminUnlocked) onOpenAdminAuth?.('Golden Ticket');
+                    else onShowGoldenTicket();
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight font-bold text-xs shadow-xl cursor-pointer"
-                  title="View Legendary Golden Ticket"
                 >
                   <Crown className="w-4 h-4 text-[#2b1a11]" />
                   <span className="hidden sm:inline">Golden Ticket 🌟</span>
@@ -348,14 +346,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   onClick={() => {
                     sounds.playClick();
-                    if (!isAdminUnlocked) {
-                      onOpenAdminAuth?.('Golden Ticket');
-                    } else {
-                      onShowGoldenTicket();
-                    }
+                    if (!isAdminUnlocked) onOpenAdminAuth?.('Golden Ticket');
+                    else onShowGoldenTicket();
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight text-[#2b1a11] font-bold text-xs shadow-xl cursor-pointer animate-pulse"
-                  title="All 10 constructions maxed! Click to claim your Golden Ticket!"
                 >
                   <Sparkles className="w-4 h-4 text-[#2b1a11]" />
                   <span>Claim Ticket! (10/10)</span>
@@ -364,14 +358,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <button
                   onClick={() => {
                     sounds.playClick();
-                    if (!isAdminUnlocked) {
-                      onOpenAdminAuth?.('Golden Ticket');
-                    } else {
-                      onShowGoldenTicket();
-                    }
+                    if (!isAdminUnlocked) onOpenAdminAuth?.('Golden Ticket');
+                    else onShowGoldenTicket();
                   }}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 wood-panel text-[#a8b89a] text-xs font-bold cursor-pointer hover:border-[#f0c674] hover:text-[#f0c674] transition-all shadow-lg"
-                  title={isAdminUnlocked ? `Golden Ticket Vault: Max out all 10 resort buildings (${totalMaxedCount}/10 maxed)` : 'Golden Ticket: Requires Admin Code'}
                 >
                   <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
                   <span className="hidden md:inline">Ticket</span>
@@ -380,49 +370,40 @@ export const HomePage: React.FC<HomePageProps> = ({
               )
             )}
 
-            {/* Cloud Save indicator — only in full HUD stages */}
-            {isFullHudUnlocked && (
-              <CloudSaveIndicator
-                status={cloudSaveStatus}
-                lastSyncedAt={lastSyncedAt}
-                error={cloudSaveError}
-                onRetry={onForceCloudSync}
-              />
-            )}
+            {/* ĐÃ BỎ ĐIỀU KIỆN isFullHudUnlocked Ở CÁC NÚT DƯỚI ĐÂY */}
+            
+            <CloudSaveIndicator
+              status={cloudSaveStatus}
+              lastSyncedAt={lastSyncedAt}
+              error={cloudSaveError}
+              onRetry={onForceCloudSync}
+            />
 
-            {/* Leaves Balance — visible in full HUD stages */}
-            {isFullHudUnlocked && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#1e3520]/90 border border-[#6b8e5a]/60 text-[#8fbc6f] font-bold text-xs shadow-lg"
-                title="Leaves: Obtained from Journey Chests. Spend to build and upgrade your resort!"
-              >
-                <Leaf className="w-4 h-4 text-[#8fbc6f]" />
-                <span className="font-mono">{leaves}</span>
-                <span className="text-[9.5px] text-[#a8b89a] hidden sm:inline">Leaves</span>
-              </div>
-            )}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#1e3520]/90 border border-[#6b8e5a]/60 text-[#8fbc6f] font-bold text-xs shadow-lg"
+              title="Leaves"
+            >
+              <Leaf className="w-4 h-4 text-[#8fbc6f]" />
+              <span className="font-mono">{leaves}</span>
+              <span className="text-[9.5px] text-[#a8b89a] hidden sm:inline">Leaves</span>
+            </div>
 
-            {/* Coins Balance — visible in full HUD stages */}
-            {isFullHudUnlocked && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#3a2519]/90 border border-[#f0c674]/50 text-[#f0c674] font-bold text-xs shadow-lg"
-                title="Coins: Obtained from completing levels and stars. Spend to buy tactical boosters in Emporium!"
-              >
-                <Coins className="w-4 h-4 text-[#f0c674]" />
-                <span className="font-mono">{coins}</span>
-                <span className="text-[9.5px] text-[#f4ecd8]/80 hidden sm:inline">Coins</span>
-              </div>
-            )}
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#3a2519]/90 border border-[#f0c674]/50 text-[#f0c674] font-bold text-xs shadow-lg"
+              title="Coins"
+            >
+              <Coins className="w-4 h-4 text-[#f0c674]" />
+              <span className="font-mono">{coins}</span>
+              <span className="text-[9.5px] text-[#f4ecd8]/80 hidden sm:inline">Coins</span>
+            </div>
 
-            {/* Shop / Emporium Button — hidden until full HUD */}
-            {!isGuest && isFullHudUnlocked && (
+            {!isGuest && (
               <button
                 onClick={onOpenShop}
                 className="relative flex items-center gap-1.5 px-3 py-1.5 btn-wooden-sign text-[#f4ecd8] font-bold text-xs shadow-lg transition-all cursor-pointer"
-                title="Open Emporium (Boosters & Journey Leaves Chests)"
               >
                 <ShoppingBag className="w-4 h-4 text-[#f0c674]" />
-                <span className="hidden sm:inline">Emporium</span>
+                <span className="hidden sm:inline">Shop</span>
                 {unclaimedChestsCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e8b04b] text-[#2b1a11] font-bold text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
                     {unclaimedChestsCount}
@@ -431,53 +412,43 @@ export const HomePage: React.FC<HomePageProps> = ({
               </button>
             )}
 
-            {/* Clean View / Zen Mode Toggle — hidden until full HUD */}
-            {isFullHudUnlocked && (
-              <button
-                onClick={() => {
-                  setIsZenMode(!isZenMode);
-                  sounds.playClick();
-                }}
-                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] transition-all cursor-pointer shadow-lg"
-                title={isZenMode ? "Show Island UI" : "Clean View: Hide UI to view Resort Island"}
-              >
-                {isZenMode ? <Eye className="w-4 h-4 text-[#8fbc6f]" /> : <EyeOff className="w-4 h-4 text-[#a8b89a]" />}
-              </button>
-            )}
+            <button
+              onClick={() => {
+                setIsZenMode(!isZenMode);
+                sounds.playClick();
+              }}
+              className="p-2 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] transition-all cursor-pointer shadow-lg"
+              title={isZenMode ? "Show Island UI" : "Clean View: Hide UI to view Resort Island"}
+            >
+              {isZenMode ? <Eye className="w-4 h-4 text-[#8fbc6f]" /> : <EyeOff className="w-4 h-4 text-[#a8b89a]" />}
+            </button>
 
-            {/* Rules — hidden until full HUD */}
-            {isFullHudUnlocked && (
-              <button
-                onClick={onOpenRules}
-                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#7a9b8e] transition-all cursor-pointer shadow-lg"
-                title="Game Rules & Guide"
-              >
-                <HelpCircle className="w-4 h-4 text-[#7a9b8e]" />
-              </button>
-            )}
+            <button
+              onClick={onOpenRules}
+              className="p-2 wood-panel text-[#f4ecd8] hover:border-[#7a9b8e] transition-all cursor-pointer shadow-lg"
+              title="Game Rules & Guide"
+            >
+              <HelpCircle className="w-4 h-4 text-[#7a9b8e]" />
+            </button>
 
-            {/* Special Intro Prologue — hidden until full HUD */}
-            {isFullHudUnlocked && onPlayIntro && (
+            {onPlayIntro && (
               <button
                 onClick={onPlayIntro}
                 className="p-2 wood-panel text-[#f0c674] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
-                title="Watch Animated Intro: 'Rejoyce, a journey up for the youth'"
+                title="Watch Animated Intro"
               >
                 <Sparkles className="w-4 h-4 text-[#f0c674]" />
               </button>
             )}
 
-            {/* Settings — hidden until full HUD */}
-            {isFullHudUnlocked && (
-              <button
-                onClick={onOpenSettings}
-                data-tutorial-id="home-rules-settings-bar"
-                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4 text-[#f0c674]" />
-              </button>
-            )}
+            <button
+              onClick={onOpenSettings}
+              data-tutorial-id="home-rules-settings-bar"
+              className="p-2 wood-panel text-[#f4ecd8] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
+              title="Settings"
+            >
+              <Settings className="w-4 h-4 text-[#f0c674]" />
+            </button>
           </div>
         </header>
       )}
