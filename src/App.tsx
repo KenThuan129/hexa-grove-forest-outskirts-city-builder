@@ -3293,7 +3293,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                     <span>Show UI [H]</span>
                   </button>
                 </div>
-              ) : !forceHideTopUI ? (
+              ) :  currentLevel.id >= 6 ? (
                 <div className="w-full flex justify-between items-start gap-2">
                   {/* Top Left: Home, Memories & Level Name ONLY */}
                   <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
