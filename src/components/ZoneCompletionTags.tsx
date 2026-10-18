@@ -1,7 +1,7 @@
 // src/components/ZoneCompletionTags.tsx
 
 import React, { useEffect, useState } from 'react';
-import { coordKey, hexToWorld } from '../utils/hexMath';
+import { coordKey } from '../utils/hexMath';
 import type { PhaseConfig, PlacedTile } from '../types/game';
 
 interface ZoneTagInfo {
@@ -12,7 +12,6 @@ interface ZoneTagInfo {
   matched: number;
   total: number;
   isComplete: boolean;
-  /** Screen-space position of the zone center */
   screenX: number;
   screenY: number;
 }
@@ -20,7 +19,6 @@ interface ZoneTagInfo {
 interface ZoneCompletionTagsProps {
   coloredZones: PhaseConfig['coloredZones'] | undefined;
   placedTiles: Map<string, PlacedTile[]>;
-  /** Only render when board is interactive (not on menus/modals) */
   isVisible: boolean;
 }
 
@@ -32,8 +30,6 @@ const COLOR_HEX: Record<string, string> = {
   neutral: '#94a3b8',
 };
 
-// Throttle interval — 100ms is smooth enough for camera pan while keeping
-// CPU cost negligible.
 const UPDATE_MS = 100;
 
 export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
@@ -66,20 +62,19 @@ export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
         const zone = coloredZones[i];
         if (zone.coords.length === 0) continue;
 
-        // ── 1. Occupancy (matching color on top of each cell) ─────
         let matched = 0;
         for (const c of zone.coords) {
           const stack = placedTiles.get(coordKey(c.q, c.r));
           if (stack && stack.length > 0) {
             const top = stack[stack.length - 1];
             if (top.type === 'bridge') continue;
-            if (top.color === zone.color) matched++;
+            // Neutral zone accepts any tile (fix D)
+            if (zone.color === 'neutral' || top.color === zone.color) matched++;
           }
         }
         const total = zone.coords.length;
         const isComplete = matched === total;
 
-        // ── 2. Center position (average axial → world → screen) ──
         let sumQ = 0;
         let sumR = 0;
         for (const c of zone.coords) {
@@ -89,7 +84,6 @@ export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
         const avgQ = sumQ / zone.coords.length;
         const avgR = sumR / zone.coords.length;
 
-        // Snap to nearest hex for stable positioning
         const qSnap = Math.round(avgQ);
         const rSnap = Math.round(avgR);
 
@@ -110,7 +104,6 @@ export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
       }
 
       setTags(prev => {
-        // Cheap equality check to avoid render storms
         if (prev.length === next.length) {
           let same = true;
           for (let i = 0; i < next.length; i++) {
@@ -154,21 +147,21 @@ export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
           }}
         >
           <div
-            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border-2 font-mono font-black text-[11px] whitespace-nowrap backdrop-blur-sm transition-all duration-300 ${
-              tag.isComplete
-                ? 'animate-pulse'
-                : ''
+            className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full border-2 font-mono font-black text-[11px] whitespace-nowrap backdrop-blur-md transition-all duration-300 ${
+              tag.isComplete ? 'animate-pulse' : ''
             }`}
             style={{
+              // Nền tối hẳn (hoặc trắng sữa mờ) để nổi bật chữ màu rực rỡ
               backgroundColor: tag.isComplete
-                ? `${tag.colorHex}33` // 20% alpha
+                ? 'rgba(15, 23, 42, 0.85)' // Tối đậm, không dùng alpha màu cell gây mờ
                 : 'rgba(15, 23, 42, 0.85)',
               borderColor: tag.colorHex,
+              // Chữ khi xong thì sáng rực đúng màu zone, chưa xong thì trắng
               color: tag.isComplete ? tag.colorHex : '#f1f5f9',
               boxShadow: tag.isComplete
-                ? `0 0 16px ${tag.colorHex}aa, 0 0 4px ${tag.colorHex}`
+                ? `0 0 20px ${tag.colorHex}, 0 0 8px ${tag.colorHex} inset` // Glow mạnh hơn
                 : `0 2px 8px rgba(0,0,0,0.6), 0 0 6px ${tag.colorHex}66`,
-              textShadow: tag.isComplete ? `0 0 8px ${tag.colorHex}` : '0 1px 2px rgba(0,0,0,0.9)',
+              textShadow: tag.isComplete ? `0 0 10px ${tag.colorHex}` : '0 1px 2px rgba(0,0,0,0.9)',
             }}
             title={tag.name}
           >
@@ -181,7 +174,7 @@ export const ZoneCompletionTags: React.FC<ZoneCompletionTagsProps> = ({
                 strokeWidth="1.5"
               />
             </svg>
-            <span className="tabular-nums">
+            <span className="tabular-nums font-bold">
               {tag.matched}/{tag.total}
             </span>
             {tag.isComplete && (

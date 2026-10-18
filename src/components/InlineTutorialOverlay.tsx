@@ -1,7 +1,7 @@
 // src/components/InlineTutorialOverlay.tsx
 
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Check, RotateCw, X as XIcon, ArrowRight, Undo2 } from 'lucide-react';
+import { Sparkles, Check, RotateCw, X as XIcon, ArrowRight, Undo2, AlertTriangle } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import type { PlacedTile, HexPiece } from '../types/game';
 import { coordKey } from '../utils/hexMath';
@@ -13,11 +13,10 @@ interface InlineTutorialOverlayProps {
   selectedPiece: HexPiece | null;
   rotationsPerformed: number;
   onComplete: () => void;
-  /** Fires when user acknowledges (dismisses) a step. Used to track 50% skip progress. */
   onStepSeen?: (tutorialId: string, stepIndex: number) => void;
 }
 
-type StepIcon = 'sparkle' | 'rotate' | 'undo' | 'check' | 'arrow';
+type StepIcon = 'sparkle' | 'rotate' | 'undo' | 'check' | 'arrow' | 'warning';
 
 type Step = {
   id: string;
@@ -25,11 +24,9 @@ type Step = {
   description: string;
   icon: StepIcon;
   position: 'center' | 'top' | 'bottom';
+  isInterrupt?: boolean; // Cho popup Warning
 };
 
-// ─────────────────────────────────────────────────────────────
-// Level 1 — steps based on phase and progress
-// ─────────────────────────────────────────────────────────────
 function resolveLevel1Steps(
   phaseIndex: number,
   placedTiles: Map<string, PlacedTile[]>,
@@ -58,7 +55,6 @@ function resolveLevel1Steps(
     }];
   }
 
-  // Phase 2: 4 colored cells + 1 neutral center (5 total)
   const amber = placedTiles.get(coordKey(1, 0))?.length ?? 0;
   const emerald = placedTiles.get(coordKey(0, 1))?.length ?? 0;
   const sapphire = placedTiles.get(coordKey(-1, 1))?.length ?? 0;
@@ -87,9 +83,6 @@ function resolveLevel1Steps(
   }];
 }
 
-// ─────────────────────────────────────────────────────────────
-// Level 2 — teaches drag, rotate, undo, size consideration
-// ─────────────────────────────────────────────────────────────
 function resolveLevel2Steps(
   phaseIndex: number,
   placedTiles: Map<string, PlacedTile[]>,
@@ -119,9 +112,27 @@ function resolveLevel2Steps(
     }];
   }
 
-  // Phase 2: vertical duo — must rotate 60° first
+  // Phase 2 (Interrupted check)
   const topCell = placedTiles.get(coordKey(0, 0))?.length ?? 0;
   const bottomCell = placedTiles.get(coordKey(0, 1))?.length ?? 0;
+
+  // NẾU user đặt Duo (mất 2 bulb) vào Phase 2 (Budget 3)
+  // Ta check xem tile đang đặt lên 2 ô đó có phải là Duo không (dựa vào placedTiles)
+  const isDuoPlaced = 
+    (placedTiles.get(coordKey(0, 0))?.[0]?.clusterShape?.length ?? 0) > 1 ||
+    (placedTiles.get(coordKey(0, 1))?.[0]?.clusterShape?.length ?? 0) > 1;
+
+  // Nếu phát hiện dùng Duo ở Phase 2 (và tutorial chưa dismiss cái warning này)
+  if (isDuoPlaced) {
+    return [{
+      id: 'lv2p2-interrupted',
+      title: 'Budget Interrupted!',
+      description: 'Bạn vừa dùng 2 Lightbulbs cho 1 khối Duo. Nhưng phase này cần 3 ô, hãy thu hồi (Undo) khối Duo và dùng 3 khối Single nhỏ thay thế để tối ưu!',
+      icon: 'warning',
+      position: 'center',
+      isInterrupt: true,
+    }];
+  }
 
   if (topCell > 0 && bottomCell > 0) return [];
 
@@ -148,10 +159,6 @@ function resolveLevel2Steps(
   return [];
 }
 
-// ─────────────────────────────────────────────────────────────
-// Component
-// ─────────────────────────────────────────────────────────────
-
 export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
   levelId,
   phaseIndex,
@@ -162,7 +169,6 @@ export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
 }) => {
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
-  // Reset dismissed steps when phase changes
   useEffect(() => {
     setDismissed(new Set());
   }, [levelId, phaseIndex]);
@@ -186,55 +192,63 @@ export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
       return next;
     });
 
-    // Report progress for skip gate.
-    // Tutorial id matches the IDs used in TutorialMenuModal.
     const tutorialId = levelId === 1 ? 'basic_placement' : 'rotate_budget';
-    // Progress = number of steps dismissed so far in this tutorial session.
-    // Caller (App) is responsible for taking MAX with previous value.
     onStepSeen?.(tutorialId, dismissed.size + 1);
   };
 
   const iconEl =
-    visibleStep.icon === 'rotate' ? (
-      <RotateCw className="w-4 h-4 text-amber-300" />
-    ) : visibleStep.icon === 'undo' ? (
-      <Undo2 className="w-4 h-4 text-rose-300" />
-    ) : visibleStep.icon === 'check' ? (
-      <Check className="w-4 h-4 text-emerald-300" />
-    ) : visibleStep.icon === 'arrow' ? (
-      <ArrowRight className="w-4 h-4 text-cyan-300" />
-    ) : (
-      <Sparkles className="w-4 h-4 text-amber-300" />
-    );
+    visibleStep.icon === 'rotate' ? <RotateCw className="w-4 h-4 text-amber-300" /> :
+    visibleStep.icon === 'undo' ? <Undo2 className="w-4 h-4 text-rose-300" /> :
+    visibleStep.icon === 'check' ? <Check className="w-4 h-4 text-emerald-300" /> :
+    visibleStep.icon === 'arrow' ? <ArrowRight className="w-4 h-4 text-cyan-300" /> :
+    visibleStep.icon === 'warning' ? <AlertTriangle className="w-5 h-5 text-rose-400" /> :
+    <Sparkles className="w-4 h-4 text-amber-300" />;
 
-  const positionClass =
-    visibleStep.position === 'bottom'
-      ? 'fixed bottom-40 left-1/2 -translate-x-1/2 z-40 pointer-events-auto'
+  // Nếu là popup Interrupted thì style khác biệt (to hơn, giữa màn hình)
+  const isInterrupt = visibleStep.isInterrupt;
+  const positionClass = isInterrupt 
+    ? 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-auto w-[90%] max-w-sm'
+    : visibleStep.position === 'bottom'
+      ? 'fixed bottom-40 left-1/2 -translate-x-1/2 z-40 pointer-events-auto max-w-sm'
       : visibleStep.position === 'top'
-        ? 'fixed top-24 left-1/2 -translate-x-1/2 z-40 pointer-events-auto'
-        : 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto';
+        ? 'fixed top-24 left-1/2 -translate-x-1/2 z-40 pointer-events-auto max-w-sm'
+        : 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-auto max-w-sm';
 
   return (
     <div className={positionClass}>
-      <div className="max-w-sm px-4 py-3 rounded-2xl bg-slate-950/95 backdrop-blur-xl border-2 border-amber-500/60 shadow-2xl flex flex-col gap-2 text-white animate-in fade-in slide-in-from-bottom-2 duration-200">
+      <div className={`px-4 py-3 rounded-2xl backdrop-blur-xl border-2 shadow-2xl flex flex-col gap-2 text-white animate-in zoom-in-95 duration-200 ${
+        isInterrupt 
+          ? 'bg-rose-950/95 border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.4)]' 
+          : 'bg-slate-950/95 border-amber-500/60'
+      }`}>
         <div className="flex items-start gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0">
+          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border ${
+            isInterrupt ? 'bg-rose-900 border-rose-700' : 'bg-slate-800 border-slate-700'
+          }`}>
             {iconEl}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs font-black text-amber-200 tracking-wide">
+            <div className={`text-sm font-black tracking-wide ${
+              isInterrupt ? 'text-rose-200' : 'text-amber-200'
+            }`}>
               {visibleStep.title}
             </div>
-            <div className="text-[11px] text-slate-300 mt-0.5 leading-snug">
+            <div className={`text-[11.5px] mt-1 leading-snug font-medium ${
+              isInterrupt ? 'text-rose-100' : 'text-slate-300'
+            }`}>
               {visibleStep.description}
             </div>
           </div>
         </div>
         <button
           onClick={handleDismiss}
-          className="self-end text-[10px] font-bold text-slate-400 hover:text-white px-2 py-1 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer"
+          className={`self-end text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${
+            isInterrupt
+              ? 'bg-rose-800 hover:bg-rose-700 text-white'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800'
+          }`}
         >
-          Got it →
+          {isInterrupt ? 'I Understand' : 'Got it →'}
         </button>
       </div>
     </div>
