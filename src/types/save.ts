@@ -4,7 +4,22 @@ import type { BoosterId, ConstructionId } from './economy';
 import type { BypassablePenaltyType, GameMode, MemoryPicture, PlayMode } from './game';
 
 /** Bump this whenever the blob shape changes in a breaking way. */
-export const CURRENT_SAVE_SCHEMA_VERSION = 2;
+export const CURRENT_SAVE_SCHEMA_VERSION = 3;
+
+/**
+ * Onboarding progression stages.
+ * - `welcome`: first login, only Play button visible, welcome overlay active.
+ * - `tutorial_lv1`: level 1 tutorial flow in progress.
+ * - `tutorial_lv2`: level 2 tutorial flow in progress.
+ * - `post_lv5`: after level 5, partial UI unlocked, Tutorial menu available.
+ * - `complete`: full UI.
+ */
+export type OnboardingStage =
+  | 'welcome'
+  | 'tutorial_lv1'
+  | 'tutorial_lv2'
+  | 'post_lv5'
+  | 'complete';
 
 /**
  * The single source of truth for everything that syncs to the cloud.
@@ -42,4 +57,13 @@ export interface CloudSaveBlob {
   // ── Mobile tutorial ──────────────────────────────────────────
   /** Tutorial groups the player has completed or skipped. */
   mobileTutorialSeenGroups: string[];
+
+  // ── Onboarding (schema v3) ───────────────────────────────────
+  /** Which stage of the tutorial funnel the player is currently in. */
+  onboardingStage: OnboardingStage;
+  /**
+   * Progress for replayable tutorials — key = tutorial id, value = highest
+   * step index reached (0-based). Used to gate "Skip" (must reach 50%).
+   */
+  seenTutorials: Record<string, number>;
 }

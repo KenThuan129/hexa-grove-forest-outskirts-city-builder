@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { LevelConfig, GameMode, PlayMode, AcePerkId } from '../types/game';
 import { ConstructionItem, ConstructionId, BoosterId } from '../types/economy';
+import type { OnboardingStage } from '../types/save';
 import { Resort3DScene } from './Resort3DScene';
 import { HomeShowcaseSpotlight } from './HomeShowcaseSpotlight';
 import {
@@ -28,6 +29,7 @@ import {
   Swords,
   Trophy,
   LogIn,
+  ArrowRight,
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import { CloudSaveIndicator } from './CloudSaveIndicator';
@@ -38,6 +40,7 @@ interface HomePageProps {
   levels: LevelConfig[];
   currentLevelIndex: number;
   isOpenShowcase?: boolean;
+  onboardingStage?: OnboardingStage;
   gameMode?: GameMode;
   playMode?: PlayMode;
   performanceMode?: 'low' | 'high';
@@ -81,6 +84,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   levels,
   currentLevelIndex,
   isOpenShowcase = false,
+  onboardingStage = 'complete',
   gameMode = 'casual',
   playMode = 'building',
   performanceMode = 'low',
@@ -116,7 +120,6 @@ export const HomePage: React.FC<HomePageProps> = ({
   onOpenShop,
   onShowGoldenTicket,
   onPlayIntro,
-
 }) => {
   const layout = useLayout();
 
@@ -182,6 +185,31 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const totalBuiltCount = constructions.filter(c => c.currentLevel > 0).length;
   const totalMaxedCount = constructions.filter(c => c.currentLevel === 3).length;
+
+  // ── Unlock gating ─────────────────────────────────────────────
+  // Many UI pieces are gated by onboarding stage AND progression.
+
+  // Welcome stage — hide everything except the Play button and 3D scene
+  const isWelcomeStage = onboardingStage === 'welcome';
+  // Tutorial stages (level 1 / 2) — still hide full UI, but user is
+  // in journey view, not home. If they somehow bounce back to home
+  // mid-tutorial, we keep it restricted.
+  const isTutorialStage =
+    onboardingStage === 'tutorial_lv1' || onboardingStage === 'tutorial_lv2';
+
+  // Tutorials seen at all (level 1 at minimum) — hides welcome overlay
+  const hasStartedJourney =
+    onboardingStage !== 'welcome' || highestCompletedLevel > 0 || guestTrialIndex > 0;
+
+  // Play Mode toggle (Building / Challenger) unlocks after Level 3 complete
+  const isPlayModeUnlocked = highestCompletedLevel >= 3;
+  // Casual / Try-Hard toggle unlocks after all 40 levels complete
+  const isChallengeModeUnlocked = highestCompletedLevel >= 40;
+  // Construction tray unlocks after Level 10 complete
+  const isConstructionUnlocked = highestCompletedLevel >= 10;
+  // Full HUD (currencies, shop, etc.) unlocks after Level 5 complete
+  const isFullHudUnlocked = highestCompletedLevel >= 5 || isTutorialStage;
+
   const isTryHardUnlocked = highestCompletedLevel >= 40;
 
   const handleTryHardToggle = () => {
@@ -200,11 +228,58 @@ export const HomePage: React.FC<HomePageProps> = ({
     sounds.playClick();
   };
 
+  // ── Welcome overlay (only when onboardingStage === 'welcome') ──
+  const WelcomeOverlay = () => {
+    if (!isWelcomeStage || isGuest) return null;
+
+    return (
+      <div className="fixed inset-0 z-[80] pointer-events-none flex items-center justify-center animate-in fade-in duration-500">
+        {/* Backdrop dim, gentle */}
+        <div className="absolute inset-0 bg-slate-950/70 backdrop-blur-[2px] pointer-events-auto" />
+
+        {/* Floating welcome card */}
+        <div className="relative z-10 pointer-events-auto max-w-md mx-4 p-6 rounded-3xl wood-panel border-2 border-[#f0c674]/60 shadow-[0_0_60px_rgba(240,198,116,0.35)] flex flex-col items-center gap-4 text-center animate-in zoom-in-95 duration-300">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#f0c674] to-[#d49b38] flex items-center justify-center shadow-xl">
+            <Sparkles className="w-7 h-7 text-[#2b1a11]" />
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-[10px] font-mono font-black uppercase tracking-[0.25em] text-[#f0c674]">
+              Welcome, Pioneer
+            </div>
+            <h2 className="text-xl font-black text-[#f4ecd8] font-rounded leading-tight">
+              The Dream Forest Awaits
+            </h2>
+            <p className="text-xs text-[#a8b89a] leading-relaxed pt-1">
+              Let's get you started on the journey. Click the glowing Play button to begin your first level.
+            </p>
+          </div>
+
+          <button
+            onClick={() => {
+              sounds.playVictory();
+              onStartJourney();
+            }}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 btn-sunlight text-[#2b1a11] font-black text-sm shadow-xl transition-all cursor-pointer hover:scale-[1.02]"
+          >
+            <Play className="w-4 h-4 fill-current" />
+            <span>Click Here to Start Your Journey</span>
+            <ArrowRight className="w-4 h-4" />
+          </button>
+
+          <div className="text-[9.5px] text-[#a8b89a]/70 font-serif italic">
+            You can replay this tutorial anytime from Settings.
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none text-slate-100 flex flex-col justify-between">
       {/* Home Showcase Spotlight Walkthrough (Triggered after Level 5 completion) */}
       <HomeShowcaseSpotlight
-        isOpen={isOpenShowcase}
+        isOpen={isOpenShowcase && !isWelcomeStage}
         currentLevelId={currentLevel.id}
         onClose={onCloseShowcase}
         onStartLevel={onStartJourney}
@@ -226,171 +301,186 @@ export const HomePage: React.FC<HomePageProps> = ({
         />
       </div>
 
-      {/* Top Floating HUD: Resort Title, Currency, Golden Ticket & Shop */}
-      <header className="relative z-10 w-full p-2.5 sm:p-4 flex items-center justify-between max-w-7xl mx-auto pointer-events-none">
-        {/* Left: Cozy Resort Title & 3D Building Progress */}
-        <div className="pointer-events-auto flex items-center gap-3 wood-panel px-4 py-2 rounded-2xl shadow-2xl hover:border-[#8fbc6f] transition-all">
-          <div className="w-9 h-9 rounded-xl bg-[#6b8e5a]/30 border border-[#8fbc6f]/50 flex items-center justify-center text-lg shadow-inner">
-            🌲
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xs sm:text-sm font-bold text-[#f4ecd8] tracking-wide font-rounded">
-                Archipelago Haven
-              </h1>
-              <span className="text-[9.5px] font-bold bg-[#1e3520] text-[#8fbc6f] px-2 py-0.5 rounded-lg border border-[#6b8e5a]/50">
-                Forest Sanctuary
-              </span>
+      {/* Top Floating HUD — hidden during welcome. Shows partial in early stages. */}
+      {!isWelcomeStage && (
+        <header className="relative z-10 w-full p-2.5 sm:p-4 flex items-center justify-between max-w-7xl mx-auto pointer-events-none">
+          {/* Left: Cozy Resort Title & 3D Building Progress */}
+          <div className="pointer-events-auto flex items-center gap-3 wood-panel px-4 py-2 rounded-2xl shadow-2xl hover:border-[#8fbc6f] transition-all">
+            <div className="w-9 h-9 rounded-xl bg-[#6b8e5a]/30 border border-[#8fbc6f]/50 flex items-center justify-center text-lg shadow-inner">
+              🌲
             </div>
-            <p className="text-[10.5px] text-[#a8b89a] font-medium">
-              {totalBuiltCount}/10 Built · <span className="text-[#f0c674] font-bold">{totalMaxedCount}/10 Maxed 🌿</span>
-            </p>
-          </div>
-        </div>
-
-        {/* Right: Currency Balances, Shop & System Modals */}
-        <div className="pointer-events-auto flex items-center gap-2">
-          {/* Golden Ticket Badge Button — hidden for guests */}
-          {!isGuest && (
-            hasGoldenTicket ? (
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  if (!isAdminUnlocked) {
-                    onOpenAdminAuth?.('Golden Ticket');
-                  } else {
-                    onShowGoldenTicket();
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight font-bold text-xs shadow-xl cursor-pointer"
-                title="View Legendary Golden Ticket"
-              >
-                <Crown className="w-4 h-4 text-[#2b1a11]" />
-                <span className="hidden sm:inline">Golden Ticket 🌟</span>
-              </button>
-            ) : totalMaxedCount === 10 ? (
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  if (!isAdminUnlocked) {
-                    onOpenAdminAuth?.('Golden Ticket');
-                  } else {
-                    onShowGoldenTicket();
-                  }
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight text-[#2b1a11] font-bold text-xs shadow-xl cursor-pointer animate-pulse"
-                title="All 10 constructions maxed! Click to claim your Golden Ticket!"
-              >
-                <Sparkles className="w-4 h-4 text-[#2b1a11]" />
-                <span>Claim Ticket! (10/10)</span>
-              </button>
-            ) : (
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  if (!isAdminUnlocked) {
-                    onOpenAdminAuth?.('Golden Ticket');
-                  } else {
-                    onShowGoldenTicket();
-                  }
-                }}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 wood-panel text-[#a8b89a] text-xs font-bold cursor-pointer hover:border-[#f0c674] hover:text-[#f0c674] transition-all shadow-lg"
-                title={isAdminUnlocked ? `Golden Ticket Vault: Max out all 10 resort buildings (${totalMaxedCount}/10 maxed)` : 'Golden Ticket: Requires Admin Code'}
-              >
-                <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
-                <span className="hidden md:inline">Ticket</span>
-                <span className="text-[#f0c674]">({totalMaxedCount}/10)</span>
-              </button>
-            )
-          )}
-
-          <CloudSaveIndicator
-            status={cloudSaveStatus}
-            lastSyncedAt={lastSyncedAt}
-            error={cloudSaveError}
-            onRetry={onForceCloudSync}
-          />
-
-          {/* Leaves Balance */}
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#1e3520]/90 border border-[#6b8e5a]/60 text-[#8fbc6f] font-bold text-xs shadow-lg"
-            title="Leaves: Obtained from Journey Chests. Spend to build and upgrade your resort!"
-          >
-            <Leaf className="w-4 h-4 text-[#8fbc6f]" />
-            <span className="font-mono">{leaves}</span>
-            <span className="text-[9.5px] text-[#a8b89a] hidden sm:inline">Leaves</span>
-          </div>
-
-          {/* Coins Balance */}
-          <div
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#3a2519]/90 border border-[#f0c674]/50 text-[#f0c674] font-bold text-xs shadow-lg"
-            title="Coins: Obtained from completing levels and stars. Spend to buy tactical boosters in Emporium!"
-          >
-            <Coins className="w-4 h-4 text-[#f0c674]" />
-            <span className="font-mono">{coins}</span>
-            <span className="text-[9.5px] text-[#f4ecd8]/80 hidden sm:inline">Coins</span>
-          </div>
-
-          {/* Shop / Emporium Button — hidden for guests */}
-          {!isGuest && (
-            <button
-              onClick={onOpenShop}
-              className="relative flex items-center gap-1.5 px-3 py-1.5 btn-wooden-sign text-[#f4ecd8] font-bold text-xs shadow-lg transition-all cursor-pointer"
-              title="Open Emporium (Boosters & Journey Leaves Chests)"
-            >
-              <ShoppingBag className="w-4 h-4 text-[#f0c674]" />
-              <span className="hidden sm:inline">Emporium</span>
-              {unclaimedChestsCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e8b04b] text-[#2b1a11] font-bold text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
-                  {unclaimedChestsCount}
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xs sm:text-sm font-bold text-[#f4ecd8] tracking-wide font-rounded">
+                  Archipelago Haven
+                </h1>
+                <span className="text-[9.5px] font-bold bg-[#1e3520] text-[#8fbc6f] px-2 py-0.5 rounded-lg border border-[#6b8e5a]/50">
+                  Forest Sanctuary
                 </span>
-              )}
-            </button>
-          )}
+              </div>
+              <p className="text-[10.5px] text-[#a8b89a] font-medium">
+                {totalBuiltCount}/10 Built · <span className="text-[#f0c674] font-bold">{totalMaxedCount}/10 Maxed 🌿</span>
+              </p>
+            </div>
+          </div>
 
-          {/* Clean View / Zen Mode Toggle */}
-          <button
-            onClick={() => {
-              setIsZenMode(!isZenMode);
-              sounds.playClick();
-            }}
-            className="p-2 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] transition-all cursor-pointer shadow-lg"
-            title={isZenMode ? "Show Island UI" : "Clean View: Hide UI to view Resort Island"}
-          >
-            {isZenMode ? <Eye className="w-4 h-4 text-[#8fbc6f]" /> : <EyeOff className="w-4 h-4 text-[#a8b89a]" />}
-          </button>
+          {/* Right: Currency Balances, Shop & System Modals — hidden during early stages */}
+          <div className="pointer-events-auto flex items-center gap-2">
+            {/* Golden Ticket Badge Button — needs level 10 to unlock */}
+            {!isGuest && isConstructionUnlocked && (
+              hasGoldenTicket ? (
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    if (!isAdminUnlocked) {
+                      onOpenAdminAuth?.('Golden Ticket');
+                    } else {
+                      onShowGoldenTicket();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight font-bold text-xs shadow-xl cursor-pointer"
+                  title="View Legendary Golden Ticket"
+                >
+                  <Crown className="w-4 h-4 text-[#2b1a11]" />
+                  <span className="hidden sm:inline">Golden Ticket 🌟</span>
+                </button>
+              ) : totalMaxedCount === 10 ? (
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    if (!isAdminUnlocked) {
+                      onOpenAdminAuth?.('Golden Ticket');
+                    } else {
+                      onShowGoldenTicket();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 btn-sunlight text-[#2b1a11] font-bold text-xs shadow-xl cursor-pointer animate-pulse"
+                  title="All 10 constructions maxed! Click to claim your Golden Ticket!"
+                >
+                  <Sparkles className="w-4 h-4 text-[#2b1a11]" />
+                  <span>Claim Ticket! (10/10)</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    sounds.playClick();
+                    if (!isAdminUnlocked) {
+                      onOpenAdminAuth?.('Golden Ticket');
+                    } else {
+                      onShowGoldenTicket();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 wood-panel text-[#a8b89a] text-xs font-bold cursor-pointer hover:border-[#f0c674] hover:text-[#f0c674] transition-all shadow-lg"
+                  title={isAdminUnlocked ? `Golden Ticket Vault: Max out all 10 resort buildings (${totalMaxedCount}/10 maxed)` : 'Golden Ticket: Requires Admin Code'}
+                >
+                  <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
+                  <span className="hidden md:inline">Ticket</span>
+                  <span className="text-[#f0c674]">({totalMaxedCount}/10)</span>
+                </button>
+              )
+            )}
 
-          {/* Rules */}
-          <button
-            onClick={onOpenRules}
-            className="p-2 wood-panel text-[#f4ecd8] hover:border-[#7a9b8e] transition-all cursor-pointer shadow-lg"
-            title="Game Rules & Guide"
-          >
-            <HelpCircle className="w-4 h-4 text-[#7a9b8e]" />
-          </button>
+            {/* Cloud Save indicator — only in full HUD stages */}
+            {isFullHudUnlocked && (
+              <CloudSaveIndicator
+                status={cloudSaveStatus}
+                lastSyncedAt={lastSyncedAt}
+                error={cloudSaveError}
+                onRetry={onForceCloudSync}
+              />
+            )}
 
-          {/* Special Intro Prologue */}
-          {onPlayIntro && (
-            <button
-              onClick={onPlayIntro}
-              className="p-2 wood-panel text-[#f0c674] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
-              title="Watch Animated Intro: 'Rejoyce, a journey up for the youth'"
-            >
-              <Sparkles className="w-4 h-4 text-[#f0c674]" />
-            </button>
-          )}
+            {/* Leaves Balance — visible in full HUD stages */}
+            {isFullHudUnlocked && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#1e3520]/90 border border-[#6b8e5a]/60 text-[#8fbc6f] font-bold text-xs shadow-lg"
+                title="Leaves: Obtained from Journey Chests. Spend to build and upgrade your resort!"
+              >
+                <Leaf className="w-4 h-4 text-[#8fbc6f]" />
+                <span className="font-mono">{leaves}</span>
+                <span className="text-[9.5px] text-[#a8b89a] hidden sm:inline">Leaves</span>
+              </div>
+            )}
 
-          {/* Settings */}
-          <button
-            onClick={onOpenSettings}
-            data-tutorial-id="home-rules-settings-bar"
-            className="p-2 wood-panel text-[#f4ecd8] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
-            title="Settings"
-          >
-            <Settings className="w-4 h-4 text-[#f0c674]" />
-          </button>
-        </div>
-      </header>
+            {/* Coins Balance — visible in full HUD stages */}
+            {isFullHudUnlocked && (
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-2xl bg-[#3a2519]/90 border border-[#f0c674]/50 text-[#f0c674] font-bold text-xs shadow-lg"
+                title="Coins: Obtained from completing levels and stars. Spend to buy tactical boosters in Emporium!"
+              >
+                <Coins className="w-4 h-4 text-[#f0c674]" />
+                <span className="font-mono">{coins}</span>
+                <span className="text-[9.5px] text-[#f4ecd8]/80 hidden sm:inline">Coins</span>
+              </div>
+            )}
+
+            {/* Shop / Emporium Button — hidden until full HUD */}
+            {!isGuest && isFullHudUnlocked && (
+              <button
+                onClick={onOpenShop}
+                className="relative flex items-center gap-1.5 px-3 py-1.5 btn-wooden-sign text-[#f4ecd8] font-bold text-xs shadow-lg transition-all cursor-pointer"
+                title="Open Emporium (Boosters & Journey Leaves Chests)"
+              >
+                <ShoppingBag className="w-4 h-4 text-[#f0c674]" />
+                <span className="hidden sm:inline">Emporium</span>
+                {unclaimedChestsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#e8b04b] text-[#2b1a11] font-bold text-[9px] rounded-full flex items-center justify-center animate-bounce shadow">
+                    {unclaimedChestsCount}
+                  </span>
+                )}
+              </button>
+            )}
+
+            {/* Clean View / Zen Mode Toggle — hidden until full HUD */}
+            {isFullHudUnlocked && (
+              <button
+                onClick={() => {
+                  setIsZenMode(!isZenMode);
+                  sounds.playClick();
+                }}
+                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] transition-all cursor-pointer shadow-lg"
+                title={isZenMode ? "Show Island UI" : "Clean View: Hide UI to view Resort Island"}
+              >
+                {isZenMode ? <Eye className="w-4 h-4 text-[#8fbc6f]" /> : <EyeOff className="w-4 h-4 text-[#a8b89a]" />}
+              </button>
+            )}
+
+            {/* Rules — hidden until full HUD */}
+            {isFullHudUnlocked && (
+              <button
+                onClick={onOpenRules}
+                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#7a9b8e] transition-all cursor-pointer shadow-lg"
+                title="Game Rules & Guide"
+              >
+                <HelpCircle className="w-4 h-4 text-[#7a9b8e]" />
+              </button>
+            )}
+
+            {/* Special Intro Prologue — hidden until full HUD */}
+            {isFullHudUnlocked && onPlayIntro && (
+              <button
+                onClick={onPlayIntro}
+                className="p-2 wood-panel text-[#f0c674] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
+                title="Watch Animated Intro: 'Rejoyce, a journey up for the youth'"
+              >
+                <Sparkles className="w-4 h-4 text-[#f0c674]" />
+              </button>
+            )}
+
+            {/* Settings — hidden until full HUD */}
+            {isFullHudUnlocked && (
+              <button
+                onClick={onOpenSettings}
+                data-tutorial-id="home-rules-settings-bar"
+                className="p-2 wood-panel text-[#f4ecd8] hover:border-[#f0c674] transition-all cursor-pointer shadow-lg"
+                title="Settings"
+              >
+                <Settings className="w-4 h-4 text-[#f0c674]" />
+              </button>
+            )}
+          </div>
+        </header>
+      )}
 
       {/* Floating Center-Left Action Card: Campaign Play, Game Mode, Memories */}
       {!isZenMode && (
@@ -399,272 +489,291 @@ export const HomePage: React.FC<HomePageProps> = ({
             {/* Corner Decorative Leaf */}
             <div className="absolute -top-2 -right-2 text-lg pointer-events-none">🍃</div>
 
-            {/* Primary Gameplay Mode Selector: Building Mode (Standard Journey) vs Challenger Mode */}
-            <div
-              data-tutorial-id="home-play-mode-toggle" 
-              className="flex flex-col gap-1.5 p-2 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
-              <span className="text-[10.5px] text-[#a8b89a] font-bold flex items-center gap-1 font-rounded">
-                <Sparkles className="w-3 h-3 text-[#f0c674]" />
-                <span>Primary Game Mode</span>
-              </span>
-              <div className="grid grid-cols-2 gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onChangePlayMode('building');
-                    sounds.playClick();
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'building'
-                      ? 'btn-sunlight border-[#f0c674]'
-                      : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
-                    }`}
-                >
-                  <div className="flex items-center gap-1 font-rounded">
-                    <Lightbulb className="w-3.5 h-3.5 fill-current" />
-                    <span>Building Mode</span>
-                  </div>
-                  <span className="text-[9px] font-medium opacity-85">Lightbulbs · 0 Stars · 1v1 Boss</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isGuest) return;
-                    sounds.playClick();
-                    if (!isAdminUnlocked) {
-                      onOpenAdminAuth?.('Challenger Mode');
-                    } else {
-                      onChangePlayMode('challenger');
-                    }
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'challenger'
-                      ? 'btn-river-stone border-[#8fbc6f]'
-                      : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
-                    }`}
-                >
-                  <div className="flex items-center gap-1 font-rounded">
-                    {!isGuest ? <Lock className="w-3.5 h-3.5 text-[#f0c674]" /> : <Trophy className="w-3.5 h-3.5 text-[#8fbc6f]" />}
-                    <span>{isGuest ? '???' : 'Challenger Mode'}</span>
-                  </div>
-                  <span className="text-[9px] font-medium opacity-85">
-                    {!isGuest ? '🔒 Requires Admin Code' : '??? · ??? · ???'}
-                  </span>
-                </button>
-              </div>
-            </div>
-
-            {/* Level Header & Selector */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs text-[#a8b89a] font-bold font-rounded">
-                <Compass className="w-3.5 h-3.5 text-[#f0c674]" />
-                <span>EXPEDITION CAMPAIGN</span>
-              </div>
-
-              {/* Select Level button — Admin only */}
-              {!isGuest && isAdminUnlocked && (
-                <button
-                  onClick={() => setIsLevelSelectorOpen(!isLevelSelectorOpen)}
-                  data-tutorial-id="home-level-selector-btn"
-                  className="text-[11px] font-bold text-[#8fbc6f] hover:text-[#f4ecd8] cursor-pointer flex items-center gap-1 bg-[#1e3520] px-2.5 py-1 rounded-lg border border-[#6b8e5a]/50"
-                >
-                  <span>Select Level</span>
-                  {isLevelSelectorOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
-              )}
-            </div>
-
-            {/* Level Switcher Dropdown — Admin only */}
-            {isAdminUnlocked && isLevelSelectorOpen && (
-              <div className="max-h-48 overflow-y-auto bg-[#1e3520] p-1.5 rounded-xl border border-[#6b8e5a]/50 space-y-1 shadow-inner">
-                {levels.map((lvl, idx) => (
-                  <button
-                    key={lvl.id}
-                    onClick={() => {
-                      onSelectLevel(idx);
-                      setIsLevelSelectorOpen(false);
-                      sounds.playClick();
-                    }}
-                    className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${idx === currentLevelIndex
-                        ? 'bg-[#6b8e5a] text-[#f4ecd8] shadow'
-                        : 'text-[#a8b89a] hover:bg-[#2d4a2b] hover:text-[#f4ecd8]'
-                      }`}
-                  >
-                    <span>Lvl {lvl.id}: {lvl.name}</span>
-                    {idx === currentLevelIndex && <CheckCircle2 className="w-3.5 h-3.5 text-[#f4ecd8]" />}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Game Mode Selector: Casual Mode vs Locked Try-Hard Mode */}
-            <div className="flex flex-col gap-1">
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (isGuest) return;
-                    onChangeGameMode('casual');
-                    sounds.playClick();
-                  }}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${gameMode === 'casual'
-                      ? 'btn-river-stone'
-                      : 'text-[#a8b89a] hover:text-[#f4ecd8]'
-                    }`}
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Casual</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleTryHardToggle}
-                  className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!isTryHardUnlocked
-                      ? 'text-[#a8b89a]/60 bg-[#1e3520]/40 border border-[#5c3d2e] cursor-pointer hover:border-[#f0c674]'
-                      : gameMode === 'tryhard'
-                        ? 'btn-sunlight text-[#2b1a11]'
-                        : 'text-[#a8b89a] hover:text-[#f4ecd8] cursor-pointer'
-                    }`}
-                  title={
-                    isGuest
-                      ? 'Sign in to unlock this mode'
-                      : !isTryHardUnlocked
-                        ? `Locked: Complete Level 40 to unlock Try-Hard mode (${highestCompletedLevel}/40 completed)`
-                        : `Try-Hard Mode: Requires 1★ + Mastery Challenge completed`
-                  }
-                >
-                  {isGuest ? (
-                    // Guest: hide the label — show only a mystery placeholder
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
-                      <span className="tracking-widest opacity-70">???</span>
-                    </>
-                  ) : !isTryHardUnlocked ? (
-                    // Signed-in, still locked
-                    <>
-                      <Lock className="w-3.5 h-3.5 text-[#f0c674]" />
-                      <span>Try-Hard</span>
-                    </>
-                  ) : (
-                    // Signed-in, unlocked
-                    <>
-                      <Award className="w-3.5 h-3.5" />
-                      <span>Try-Hard</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              {/* Mode Notice Toast when clicked while locked */}
-              {modeNotice && (
-                <div className="text-[10px] text-[#f0c674] font-bold bg-[#3a2519]/90 border border-[#f0c674]/50 p-1.5 rounded-xl text-center animate-in fade-in duration-150">
-                  {modeNotice}
+            {/* ── Welcome stage: only Play button, no other UI ── */}
+            {isWelcomeStage && !isGuest ? (
+              <div className="flex flex-col gap-3">
+                <div className="text-center py-1">
+                  <h2 className="text-sm font-black text-[#f4ecd8] font-rounded">
+                    Ready to Begin?
+                  </h2>
+                  <p className="text-[10.5px] text-[#a8b89a] mt-0.5">
+                    Your frontier awaits, Pioneer.
+                  </p>
                 </div>
-              )}
-            </div>
 
-            {/* Primary Action Button: Play Level (mode-aware) */}
-            {(() => {
-              const playTargetLevel =
-                !isGuest && typeof nextPlayableIndex === 'number' && nextPlayableIndex >= 0
-                  ? levels[nextPlayableIndex]
-                  : currentLevel;
-
-              const guestTrialsDone =
-                isGuest && (typeof nextPlayableIndex === 'number' && nextPlayableIndex < 0);
-
-              const kicker = isGuest
-                ? guestTrialsDone
-                  ? 'Demo Complete'
-                  : 'Trial Demo'
-                : `Level ${playTargetLevel.id} of ${levels.length}`;
-
-              const title = isGuest
-                ? guestTrialsDone
-                  ? 'Sign In to Continue the Journey'
-                  : playTargetLevel.name
-                : playTargetLevel.name;
-
-              const handleClick = () => {
-                // Both paths call onStartJourney — the parent decides
-                // whether to launch a level or open the auth modal.
-                onStartJourney();
-              };
-
-              return (
                 <button
                   data-tutorial-id="home-play-btn"
-                  onClick={handleClick}
-                  className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer"
+                  onClick={() => {
+                    sounds.playVictory();
+                    onStartJourney();
+                  }}
+                  className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer animate-pulse"
                 >
                   <div className="flex items-center gap-3 text-left">
                     <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-                      {guestTrialsDone ? (
-                        <LogIn className="w-4 h-4 text-[#f4ecd8]" />
-                      ) : (
-                        <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
-                      )}
+                      <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
                     </div>
                     <div>
                       <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
-                        {kicker}
+                        Begin Journey
                       </span>
                       <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
-                        {title}
+                        Start Your Journey
                       </span>
                     </div>
                   </div>
-
                   <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
                 </button>
-              );
-            })()}
-
-            {/* Memories (Visual Novel Story Lore) Button — hidden for guests */}
-            {!isGuest && (
-              <button
-                onClick={onNavigateMemories}
-                data-tutorial-id="home-memories-btn"
-                className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] text-xs font-bold transition-all cursor-pointer shadow"
-              >
-                <div className="flex items-center gap-2 font-rounded">
-                  <BookOpen className="w-4 h-4 text-[#7a9b8e]" />
-                  <span>Memories & Island Relics</span>
-                </div>
-                <ChevronRight className="w-4 h-4 text-[#a8b89a]" />
-              </button>
-            )}
-
-            {/* Level Editor (Admin Tool) Launcher Button — hidden for guests */}
-            {!isGuest && (
-              <button
-                onClick={() => {
-                  sounds.playClick();
-                  if (!isAdminUnlocked) {
-                    onOpenAdminAuth?.('Level Editor');
-                  } else {
-                    onOpenLevelEditor();
-                  }
-                }}
-                data-tutorial-id="home-editor-btn"
-                className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f0c674] hover:border-[#f0c674] text-xs font-bold transition-all cursor-pointer shadow-lg"
-              >
-                <div className="flex items-center gap-2 font-rounded">
-                  <Hammer className="w-4 h-4 text-[#f0c674]" />
-                  <span>Map Level Editor 🛠️</span>
-                </div>
-                {!isAdminUnlocked ? (
-                  <span className="text-[10px] font-bold bg-[#1e3520] border border-[#6b8e5a] text-[#f0c674] px-2 py-0.5 rounded-lg flex items-center gap-1">
-                    <Lock className="w-3 h-3 text-[#f0c674]" /> Lock
-                  </span>
-                ) : (
-                  <ChevronRight className="w-4 h-4 text-[#f0c674]" />
+              </div>
+            ) : (
+              <>
+                {/* Primary Gameplay Mode Selector — unlocked after Level 3 */}
+                {isPlayModeUnlocked && (
+                  <div
+                    data-tutorial-id="home-play-mode-toggle"
+                    className="flex flex-col gap-1.5 p-2 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40"
+                  >
+                    <span className="text-[10.5px] text-[#a8b89a] font-bold flex items-center gap-1 font-rounded">
+                      <Sparkles className="w-3 h-3 text-[#f0c674]" />
+                      <span>Primary Game Mode</span>
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onChangePlayMode('building');
+                          sounds.playClick();
+                        }}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'building'
+                          ? 'btn-sunlight border-[#f0c674]'
+                          : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
+                          }`}
+                      >
+                        <div className="flex items-center gap-1 font-rounded">
+                          <Lightbulb className="w-3.5 h-3.5 fill-current" />
+                          <span>Building Mode</span>
+                        </div>
+                        <span className="text-[9px] font-medium opacity-85">Lightbulbs · 0 Stars · 1v1 Boss</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isGuest) return;
+                          sounds.playClick();
+                          if (!isAdminUnlocked) {
+                            onOpenAdminAuth?.('Challenger Mode');
+                          } else {
+                            onChangePlayMode('challenger');
+                          }
+                        }}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'challenger'
+                          ? 'btn-river-stone border-[#8fbc6f]'
+                          : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
+                          }`}
+                      >
+                        <div className="flex items-center gap-1 font-rounded">
+                          {!isGuest ? <Lock className="w-3.5 h-3.5 text-[#f0c674]" /> : <Trophy className="w-3.5 h-3.5 text-[#8fbc6f]" />}
+                          <span>{isGuest ? '???' : 'Challenger Mode'}</span>
+                        </div>
+                        <span className="text-[9px] font-medium opacity-85">
+                          {!isGuest ? '🔒 Requires Admin Code' : '??? · ??? · ???'}
+                        </span>
+                      </button>
+                    </div>
+                  </div>
                 )}
-              </button>
+
+                {/* Level Header & Selector */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5 text-xs text-[#a8b89a] font-bold font-rounded">
+                    <Compass className="w-3.5 h-3.5 text-[#f0c674]" />
+                    <span>EXPEDITION CAMPAIGN</span>
+                  </div>
+
+                  {/* Select Level button — Admin only */}
+                  {!isGuest && isAdminUnlocked && (
+                    <button
+                      onClick={() => setIsLevelSelectorOpen(!isLevelSelectorOpen)}
+                      data-tutorial-id="home-level-selector-btn"
+                      className="text-[11px] font-bold text-[#8fbc6f] hover:text-[#f4ecd8] cursor-pointer flex items-center gap-1 bg-[#1e3520] px-2.5 py-1 rounded-lg border border-[#6b8e5a]/50"
+                    >
+                      <span>Select Level</span>
+                      {isLevelSelectorOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+                  )}
+                </div>
+
+                {/* Level Switcher Dropdown — Admin only */}
+                {isAdminUnlocked && isLevelSelectorOpen && (
+                  <div className="max-h-48 overflow-y-auto bg-[#1e3520] p-1.5 rounded-xl border border-[#6b8e5a]/50 space-y-1 shadow-inner">
+                    {levels.map((lvl, idx) => (
+                      <button
+                        key={lvl.id}
+                        onClick={() => {
+                          onSelectLevel(idx);
+                          setIsLevelSelectorOpen(false);
+                          sounds.playClick();
+                        }}
+                        className={`w-full text-left px-2.5 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center justify-between cursor-pointer ${idx === currentLevelIndex
+                          ? 'bg-[#6b8e5a] text-[#f4ecd8] shadow'
+                          : 'text-[#a8b89a] hover:bg-[#2d4a2b] hover:text-[#f4ecd8]'
+                          }`}
+                      >
+                        <span>Lvl {lvl.id}: {lvl.name}</span>
+                        {idx === currentLevelIndex && <CheckCircle2 className="w-3.5 h-3.5 text-[#f4ecd8]" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Game Mode Selector — unlocked after all 40 levels */}
+                {isChallengeModeUnlocked && (
+                  <div className="flex flex-col gap-1">
+                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isGuest) return;
+                          onChangeGameMode('casual');
+                          sounds.playClick();
+                        }}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${gameMode === 'casual'
+                          ? 'btn-river-stone'
+                          : 'text-[#a8b89a] hover:text-[#f4ecd8]'
+                          }`}
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Casual</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleTryHardToggle}
+                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!isTryHardUnlocked
+                          ? 'text-[#a8b89a]/60 bg-[#1e3520]/40 border border-[#5c3d2e] cursor-pointer hover:border-[#f0c674]'
+                          : gameMode === 'tryhard'
+                            ? 'btn-sunlight text-[#2b1a11]'
+                            : 'text-[#a8b89a] hover:text-[#f4ecd8] cursor-pointer'
+                          }`}
+                        title={
+                          isGuest
+                            ? 'Sign in to unlock this mode'
+                            : `Try-Hard Mode: Requires 1★ + Mastery Challenge completed`
+                        }
+                      >
+                        <Award className="w-3.5 h-3.5" />
+                        <span>Try-Hard</span>
+                      </button>
+                    </div>
+
+                                        {modeNotice && (
+                      <div className="text-[10px] text-[#f0c674] font-bold bg-[#3a2519]/90 border border-[#f0c674]/50 p-1.5 rounded-xl text-center animate-in fade-in duration-150">
+                        {modeNotice}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Primary Action Button: Play Level (mode-aware) */}
+                {(() => {
+                  const playTargetLevel =
+                    !isGuest && typeof nextPlayableIndex === 'number' && nextPlayableIndex >= 0
+                      ? levels[nextPlayableIndex]
+                      : currentLevel;
+
+                  const guestTrialsDone =
+                    isGuest && (typeof nextPlayableIndex === 'number' && nextPlayableIndex < 0);
+
+                  const kicker = isGuest
+                    ? guestTrialsDone
+                      ? 'Demo Complete'
+                      : 'Trial Demo'
+                    : `Level ${playTargetLevel.id} of ${levels.length}`;
+
+                  const title = isGuest
+                    ? guestTrialsDone
+                      ? 'Sign In to Continue the Journey'
+                      : playTargetLevel.name
+                    : playTargetLevel.name;
+
+                  return (
+                    <button
+                      data-tutorial-id="home-play-btn"
+                      onClick={onStartJourney}
+                      className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                          {guestTrialsDone ? (
+                            <LogIn className="w-4 h-4 text-[#f4ecd8]" />
+                          ) : (
+                            <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
+                          )}
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
+                            {kicker}
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
+                            {title}
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  );
+                })()}
+
+                {/* Memories (Visual Novel Story Lore) Button — hidden for guests */}
+                {!isGuest && (
+                  <button
+                    onClick={onNavigateMemories}
+                    data-tutorial-id="home-memories-btn"
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f4ecd8] hover:border-[#8fbc6f] text-xs font-bold transition-all cursor-pointer shadow"
+                  >
+                    <div className="flex items-center gap-2 font-rounded">
+                      <BookOpen className="w-4 h-4 text-[#7a9b8e]" />
+                      <span>Memories & Island Relics</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-[#a8b89a]" />
+                  </button>
+                )}
+
+                {/* Level Editor (Admin Tool) Launcher Button — hidden for guests */}
+                {!isGuest && (
+                  <button
+                    onClick={() => {
+                      sounds.playClick();
+                      if (!isAdminUnlocked) {
+                        onOpenAdminAuth?.('Level Editor');
+                      } else {
+                        onOpenLevelEditor();
+                      }
+                    }}
+                    data-tutorial-id="home-editor-btn"
+                    className="w-full flex items-center justify-between px-3.5 py-2.5 wood-panel text-[#f0c674] hover:border-[#f0c674] text-xs font-bold transition-all cursor-pointer shadow-lg"
+                  >
+                    <div className="flex items-center gap-2 font-rounded">
+                      <Hammer className="w-4 h-4 text-[#f0c674]" />
+                      <span>Map Level Editor 🛠️</span>
+                    </div>
+                    {!isAdminUnlocked ? (
+                      <span className="text-[10px] font-bold bg-[#1e3520] border border-[#6b8e5a] text-[#f0c674] px-2 py-0.5 rounded-lg flex items-center gap-1">
+                        <Lock className="w-3 h-3 text-[#f0c674]" /> Lock
+                      </span>
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-[#f0c674]" />
+                    )}
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
 
-      {/* Bottom Floating Building Mode Controller — hidden for guests */}
-      {!isGuest && !isZenMode && (
+      {/* Bottom Floating Building Mode Controller — only after Level 10, hidden for guests */}
+      {!isGuest && !isZenMode && isConstructionUnlocked && (
         <footer className="relative z-10 w-full p-2.5 sm:p-4 max-w-7xl mx-auto pointer-events-none flex flex-col items-center gap-2 animate-in fade-in duration-150">
           {/* Toggle Collapse Bar */}
           <div className="pointer-events-auto">
@@ -789,6 +898,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           )}
         </footer>
       )}
+
+      {/* Welcome overlay — only for signed-in user on first run */}
+      <WelcomeOverlay />
     </div>
   );
 };

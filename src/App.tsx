@@ -64,7 +64,12 @@ import {
   BossBattleStats,
 } from './types/game';
 import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors, HEX_DIRECTIONS } from './utils/hexMath';
+// Thêm vào import list hiện tại:
+import { ZoneCompletionTags } from './components/ZoneCompletionTags';
+import { InlineTutorialOverlay } from './components/InlineTutorialOverlay';
+import type { OnboardingStage } from './types/save';
 import { sounds } from './utils/audio';
+import { TutorialMenuModal } from './components/TutorialMenuModal';
 import {
   Sparkles,
   ArrowDownToLine,
@@ -91,6 +96,45 @@ import {
 export default function App() {
   // Page Navigation: 'home' | 'journey' | 'memories'
   const [activePage, setActivePage] = useState<'home' | 'journey' | 'memories'>('home');
+
+  // Onboarding stage — controls which UI elements are visible.
+  // Synced to cloud via CloudSaveBlob. Default 'welcome' for new players.
+  const [onboardingStage, setOnboardingStage] = useState<OnboardingStage>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_onboarding_stage');
+      if (saved === 'welcome' || saved === 'tutorial_lv1' || saved === 'tutorial_lv2' || saved === 'post_lv5' || saved === 'complete') {
+        return saved as OnboardingStage;
+      }
+    } catch { }
+    // First-ever run — start at welcome
+    return 'welcome';
+  });
+
+  // Per-tutorial step progress. Key = tutorial id, value = highest step reached.
+  const [seenTutorials, setSeenTutorials] = useState<Record<string, number>>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_seen_tutorials');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const [isTutorialMenuOpen, setIsTutorialMenuOpen] = useState(false);
+
+  // Persist onboarding stage to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('hexa_onboarding_stage', onboardingStage);
+    } catch { }
+  }, [onboardingStage]);
+
+  // Persist seen tutorials
+  useEffect(() => {
+    try {
+      localStorage.setItem('hexa_seen_tutorials', JSON.stringify(seenTutorials));
+    } catch { }
+  }, [seenTutorials]);
 
   // Layout descriptor — device class + orientation + viewport
   const layout = useLayout();
@@ -611,13 +655,11 @@ export default function App() {
   // Cloud Save Blob — the snapshot pushed to Supabase
   // ─────────────────────────────────────────────────────────────
   const saveState: CloudSaveBlob = useMemo(() => {
-    // Constructions → Record<ConstructionId, number>
     const constructionsMap: Record<string, number> = {};
     constructions.forEach(c => {
       constructionsMap[c.id] = c.currentLevel;
     });
 
-    // Memories → Record<pictureId, BypassablePenaltyType>
     const chosenBypassMap: Record<number, any> = {};
     memories.forEach(m => {
       if (m.chosenBypass) chosenBypassMap[m.id] = m.chosenBypass;
@@ -638,6 +680,9 @@ export default function App() {
       chosenBypass: chosenBypassMap as any,
       memories,
       mobileTutorialSeenGroups,
+      // ── NEW (schema v3) ──
+      onboardingStage,
+      seenTutorials,
     });
   }, [
     highestCompletedLevel,
@@ -653,6 +698,9 @@ export default function App() {
     latestMemories,
     memories,
     mobileTutorialSeenGroups,
+    // ── NEW ──
+    onboardingStage,
+    seenTutorials,
   ]);
 
   // ─────────────────────────────────────────────────────────────
@@ -931,6 +979,14 @@ export default function App() {
     setUnlockedCells(newCells);
   }, [allLevels]);
 
+  const handleInlineTutorialStepSeen = useCallback((tutorialId: string, stepIndex: number) => {
+  setSeenTutorials(prev => {
+    const current = prev[tutorialId] ?? 0;
+    if (stepIndex <= current) return prev;
+    return { ...prev, [tutorialId]: stepIndex };
+  });
+}, []);
+
   useEffect(() => {
     setPhaseIndex(0);
   }, [levelIndex]);
@@ -1174,6 +1230,7 @@ export default function App() {
   };
 
   // Colored Zones Completion check & counts
+  // Colored Zones Completion check & counts
   const { matchedZonesCount, totalZonesCount, coloredZonesCompleted } = useMemo(() => {
     if (!currentPhase) return { matchedZonesCount: 0, totalZonesCount: 0, coloredZonesCompleted: false };
     const total = currentPhase.coloredZones.length;
@@ -1189,6 +1246,11 @@ export default function App() {
         // Bridges and pre-placed roads never fulfill colored zones — they're infrastructure
         if (topTile.type === 'bridge') return false;
         if (topTile.clusterId?.startsWith('PREPLACED')) return false;
+
+        // ── Neutral zone fix (option D) ──
+        // Zone color 'neutral' accepts ANY tile. Used for tutorial
+        // objectives like "place any tile in the gray center".
+        if (zone.color === 'neutral') return true;
 
         return topTile.color === zone.color;
       });
@@ -1645,6 +1707,52 @@ export default function App() {
       : isLastPhase
         ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
         : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
+
+  // ─────────────────────────────────────────────────────────────
+  // Auto-advance phase when conditions are met.
+  // Does NOT apply to the final phase — that still requires user
+  // to click "Complete Level" so they see the celebration.
+  // ─────────────────────────────────────────────────────────────
+  const autoAdvanceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleCompletePhaseRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (
+      !canCompletePhase ||
+      isLastPhase ||
+      isExpansionAnimating ||
+      levelTransit ||
+      levelCelebration ||
+      activePage !== 'journey'
+    ) {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+      return;
+    }
+
+    autoAdvanceTimerRef.current = setTimeout(() => {
+      sounds.playZoneComplete();
+      handleCompletePhaseRef.current?.(); // ← FIX: use ref
+      autoAdvanceTimerRef.current = null;
+    }, 650);
+
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, [
+    canCompletePhase,
+    isLastPhase,
+    isExpansionAnimating,
+    levelTransit,
+    levelCelebration,
+    activePage,
+  ]);
 
   // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
   const score = useMemo(() => {
@@ -2362,18 +2470,49 @@ export default function App() {
     }
   };
 
+  handleCompletePhaseRef.current = handleCompletePhase;
+
   const handleCelebrationContinue = () => {
     const celebrationSnapshot = levelCelebration;
     setLevelCelebration(null);
 
-    // After Level 5 complete, return Home and showcase all elements of Home
+    // ── Onboarding: after Level 1 complete, advance to level 2 tutorial ──
+    if (celebrationSnapshot?.completedLevelId === 1 && onboardingStage === 'tutorial_lv1') {
+      setOnboardingStage('tutorial_lv2');
+      if (levelIndex + 1 < allLevels.length) {
+        triggerLevelTransit(levelIndex + 1);
+      }
+      return;
+    }
+
+    // ── Onboarding: after Level 2 complete, mark tutorial done ──
+    if (celebrationSnapshot?.completedLevelId === 2 && onboardingStage === 'tutorial_lv2') {
+      // From Level 2 we send player back to Home — no longer on 'tutorial' stage.
+      // Next levels (3, 4, 5) fall under the regular flow.
+      setOnboardingStage('complete');
+      navigateWithTransition(
+        'home',
+        'Tutorial Complete!',
+        'Welcome to your island sanctuary'
+      );
+      showToast('Tutorial complete! The full frontier is yours to explore.', 'success');
+      return;
+    }
+
+    // ── After Level 5 complete, return Home and showcase ──
     if (celebrationSnapshot?.completedLevelId === 5) {
-      setLevelIndex(5); // Level 6: The Great Stoneworks (introduces Cluster mechanics)
+      setLevelIndex(5);
       navigateWithTransition('home', 'Conquered Level 5! Returning Home', 'Frontier Hub Unlocked');
       setIsOpenHomeShowcase(true);
       sounds.playVictory();
       showToast('Level 5 Conquered! Welcome to the Frontier Hub.', 'success');
       return;
+    }
+
+    // ── After Level 10 complete, unlock Construction tray ──
+    if (celebrationSnapshot?.completedLevelId === 10) {
+      showToast('Level 10 conquered! Your island now offers full building tools.', 'success');
+      // Construction tray auto-unlocks based on highestCompletedLevel >= 10
     }
 
     if (levelIndex + 1 < allLevels.length) {
@@ -2472,11 +2611,18 @@ export default function App() {
     setLatestMemories(blob.latestMemories);
     setMobileTutorialSeenGroups(blob.mobileTutorialSeenGroups ?? []);
 
+    // ── NEW (schema v3) ──
+    if (blob.onboardingStage) {
+      setOnboardingStage(blob.onboardingStage);
+    }
+    if (blob.seenTutorials) {
+      setSeenTutorials(blob.seenTutorials);
+    }
+
     if (Array.isArray(blob.memories) && blob.memories.length > 0) {
       setMemories(blob.memories);
     }
 
-    // Rehydrate constructions from the map
     setConstructions(prev =>
       prev.map(item => ({
         ...item,
@@ -2558,6 +2704,27 @@ export default function App() {
     sounds.playVictory();
     showToast(`Claimed ${chest.title}: +${chest.leavesReward} Leaves & +${chest.coinsReward} Coins!`, 'success');
   };
+
+  // ─────────────────────────────────────────────────────────────
+// Tutorial replay — reset the target level and re-enter it.
+// The `seenTutorials[id]` already stores max step reached, so
+// the skip gate still respects prior progress.
+// ─────────────────────────────────────────────────────────────
+const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: number) => {
+  setIsTutorialMenuOpen(false);
+
+  const targetIdx = allLevels.findIndex(l => l.id === targetLevelId);
+  if (targetIdx >= 0) {
+    triggerLevelTransit(targetIdx);
+    navigateWithTransition(
+      'journey',
+      `Replaying Tutorial: Level ${targetLevelId}`,
+      allLevels[targetIdx]?.name || 'Tutorial'
+    );
+  } else {
+    showToast('Tutorial level not found.', 'warn');
+  }
+}, [allLevels, triggerLevelTransit]);
 
   // ─────────────────────────────────────────────────────────────
   // Cloud Save — wipe cloud row (dangerous)
@@ -2791,6 +2958,7 @@ export default function App() {
           levels={allLevels}
           currentLevelIndex={levelIndex}
           isOpenShowcase={isOpenHomeShowcase}
+          onboardingStage={onboardingStage}
           gameMode={gameMode}
           playMode={playMode}
           performanceMode={performanceMode}
@@ -2834,12 +3002,40 @@ export default function App() {
           onCloseShowcase={() => setIsOpenHomeShowcase(false)}
           onSelectLevel={idx => triggerLevelTransit(idx)}
           onStartJourney={() => {
-            // Guests who've finished all trials must sign in.
+            // Guest who finished all trials must sign in
             if (isGuest && isGuestTrialComplete()) {
               sounds.playWarning();
               setAuthPrompt('Sign in to unlock all 40 levels and continue your journey.');
               setAuthMode('guest');
               setIsAuthModalOpen(true);
+              return;
+            }
+
+            // ── Onboarding: transition from 'welcome' to 'tutorial_lv1' ──
+            if (onboardingStage === 'welcome') {
+              setOnboardingStage('tutorial_lv1');
+              // Jump to Level 1 explicitly (ignore nextPlayableIndex)
+              const lvl1Index = allLevels.findIndex(l => l.id === 1);
+              triggerLevelTransit(lvl1Index >= 0 ? lvl1Index : 0);
+              navigateWithTransition(
+                'journey',
+                'Beginning Your Journey',
+                'Level 1: Placing Your First Tile'
+              );
+              return;
+            }
+
+            // If in tutorial_lv1 / tutorial_lv2 stage, always go to the current tutorial level
+            if (onboardingStage === 'tutorial_lv1') {
+              const lvl1Index = allLevels.findIndex(l => l.id === 1);
+              triggerLevelTransit(lvl1Index >= 0 ? lvl1Index : 0);
+              navigateWithTransition('journey', 'Resuming Tutorial', 'Level 1: Placing Your First Tile');
+              return;
+            }
+            if (onboardingStage === 'tutorial_lv2') {
+              const lvl2Index = allLevels.findIndex(l => l.id === 2);
+              triggerLevelTransit(lvl2Index >= 0 ? lvl2Index : 1);
+              navigateWithTransition('journey', 'Resuming Tutorial', 'Level 2: Rotate & Budget');
               return;
             }
 
@@ -2914,6 +3110,7 @@ export default function App() {
             hasPlacedBridge={hasPlacedBridge}
             roadRequirements={roadRequirementProgress.perRoad}
             coloredZones={currentPhase?.coloredZones}
+            onInlineTutorialStepSeen={handleInlineTutorialStepSeen}
             isBossLevel={Boolean(currentLevel.isBossLevel)}
             bossName={currentLevel.bossName}
             bossPopularity={
@@ -3023,8 +3220,30 @@ export default function App() {
               />
             </div>
 
+            {/* Zone completion tags — visible during play (not during modals) */}
+            {!isCleanUiMode && !isJourneyPaused && !levelTransit && !levelCelebration && (
+              <ZoneCompletionTags
+                coloredZones={currentPhase?.coloredZones}
+                placedTiles={placedTiles}
+                isVisible={true}
+              />
+            )}
+
+            {/* Level 1 & 2 inline tutorial overlay */}
+            {!isCleanUiMode && !isJourneyPaused && (currentLevel.id === 1 || currentLevel.id === 2) && (
+              <InlineTutorialOverlay
+                levelId={currentLevel.id}
+                phaseIndex={phaseIndex}
+                placedTiles={placedTiles}
+                selectedPiece={selectedPiece}
+                rotationsPerformed={rotationsPerformed}
+                onComplete={() => { /* auto-advance handles phase transitions */ }}
+                onStepSeen={handleInlineTutorialStepSeen}
+              />
+            )}
+
             {/* Tutorial Spotlight Overlay for Levels 1, 2, 6, 9, 12, 15, 18, 20 */}
-            {[1, 2, 6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
+            {[6, 9, 12, 15, 18, 20].includes(currentLevel.id) && (
               <TutorialSpotlight
                 levelId={currentLevel.id}
                 currentPhaseIndex={phaseIndex}
@@ -3598,6 +3817,15 @@ export default function App() {
       <RulesModal
         isOpen={isRulesModalOpen}
         onClose={() => setIsRulesModalOpen(false)}
+        onOpenTutorialLibrary={() => setIsTutorialMenuOpen(true)}
+      />
+
+      <TutorialMenuModal
+        isOpen={isTutorialMenuOpen}
+        onClose={() => setIsTutorialMenuOpen(false)}
+        highestCompletedLevel={highestCompletedLevel}
+        seenTutorials={seenTutorials}
+        onReplayTutorial={handleReplayTutorial}
       />
 
       <SettingsModal

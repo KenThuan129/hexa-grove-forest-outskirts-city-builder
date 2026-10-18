@@ -5,19 +5,18 @@ import { Pause, Lightbulb, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { sounds } from '../../utils/audio';
 
 interface JourneyTopBarProps {
-  /** Whether the level is in Building Mode (lightbulb budget) or Challenger (par quota). */
   playMode: 'building' | 'challenger';
-  /** Building Mode: lightbulbs used / budget. */
   lightbulbsUsed?: number;
   lightbulbBudget?: number;
-  /** Challenger Mode: tiles placed / par target. */
   placedCount?: number;
   parCount?: number;
-  /** Penalty summary — only shows ✓ or ⚠️, no details. */
   hasAnyPenalty: boolean;
-  /** Penalty count when hasAnyPenalty is true. */
   penaltyCount?: number;
   onPause: () => void;
+  /** Hide lightbulb/quota pill (used during tutorial levels) */
+  hideLightbulbPill?: boolean;
+  /** Hide penalty status pill (used during tutorial levels) */
+  hidePenaltyPill?: boolean;
 }
 
 export const JourneyTopBar: React.FC<JourneyTopBarProps> = ({
@@ -29,10 +28,11 @@ export const JourneyTopBar: React.FC<JourneyTopBarProps> = ({
   hasAnyPenalty,
   penaltyCount = 0,
   onPause,
+  hideLightbulbPill = false,
+  hidePenaltyPill = false,
 }) => {
   const isBuilding = playMode === 'building';
 
-  // Building Mode: show lightbulb usage. Challenger: show quota.
   const primaryDisplay = isBuilding
     ? {
         icon: <Lightbulb className="w-4 h-4 text-[#f0c674] fill-current" />,
@@ -63,46 +63,50 @@ export const JourneyTopBar: React.FC<JourneyTopBarProps> = ({
       </button>
 
       {/* Center-left: lightbulb / quota pill */}
-      <div
-        data-tutorial-id="journey-lightbulb-pill"
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 shadow-md shrink-0 ${
-          primaryDisplay.over
-            ? 'bg-rose-950/90 border-rose-500/60 text-rose-200'
-            : 'bg-[#2b1a11] border-[#5c3d2e] text-[#f4ecd8]'
-        }`}
-      >
-        {primaryDisplay.icon}
-        <span className="font-mono font-black text-xs tabular-nums">
-          {primaryDisplay.text}
-        </span>
-      </div>
+      {!hideLightbulbPill && (
+        <div
+          data-tutorial-id="journey-lightbulb-pill"
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 shadow-md shrink-0 ${
+            primaryDisplay.over
+              ? 'bg-rose-950/90 border-rose-500/60 text-rose-200'
+              : 'bg-[#2b1a11] border-[#5c3d2e] text-[#f4ecd8]'
+          }`}
+        >
+          {primaryDisplay.icon}
+          <span className="font-mono font-black text-xs tabular-nums">
+            {primaryDisplay.text}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1" />
 
-      {/* Right: penalty status pill — icon only, no detail */}
-      <div
-        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 shadow-md shrink-0 ${
-          hasAnyPenalty
-            ? 'bg-rose-950/90 border-rose-500/60 text-rose-200'
-            : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
-        }`}
-      >
-        {hasAnyPenalty ? (
-          <>
-            <AlertTriangle className="w-3.5 h-3.5" />
-            <span className="font-mono font-black text-xs">
-              {penaltyCount > 0 ? penaltyCount : '!'}
-            </span>
-          </>
-        ) : (
-          <>
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span className="font-mono font-black text-[10px] uppercase tracking-wider">
-              Clean
-            </span>
-          </>
-        )}
-      </div>
+      {/* Right: penalty status pill */}
+      {!hidePenaltyPill && (
+        <div
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border-2 shadow-md shrink-0 ${
+            hasAnyPenalty
+              ? 'bg-rose-950/90 border-rose-500/60 text-rose-200'
+              : 'bg-emerald-950/90 border-emerald-500/50 text-emerald-200'
+          }`}
+        >
+          {hasAnyPenalty ? (
+            <>
+              <AlertTriangle className="w-3.5 h-3.5" />
+              <span className="font-mono font-black text-xs">
+                {penaltyCount > 0 ? penaltyCount : '!'}
+              </span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="font-mono font-black text-[10px] uppercase tracking-wider">
+                Clean
+              </span>
+            </>
+          )}
+        </div>
+      )}
     </header>
   );
 };

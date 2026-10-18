@@ -118,4 +118,6 @@ export interface JourneySharedProps {
   onStartDragPiece: (piece: HexPiece, clientX: number, clientY: number) => void;
   onEndDragPiece: () => void;
   onClearHover?: () => void;
+
+  onInlineTutorialStepSeen?: (tutorialId: string, stepIndex: number) => void;
 }

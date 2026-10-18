@@ -1,6 +1,6 @@
 // src/components/journey/JourneyMobileLandscape.tsx
 
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { ThreeScene } from '../ThreeScene';
 import { JourneyTopBar } from './JourneyTopBar';
 import { JourneyBoosterRow } from './JourneyBoosterRow';
@@ -9,7 +9,9 @@ import { JourneyTrayMobile } from './JourneyTrayMobile';
 import type { JourneySharedProps } from './JourneyTypes';
 import { MobileShopSheet } from '../mobile/MobileShopSheet';
 import { MobileJourneyTutorial } from './MobileJourneyTutorial';
-import { sounds } from '@/src/utils/audio';
+import { InlineTutorialOverlay } from '../InlineTutorialOverlay';
+import { ZoneCompletionTags } from '../ZoneCompletionTags';
+import { sounds } from '../../utils/audio';
 import { RotateCw, Swords } from 'lucide-react';
 import type { TileColor, BossZoneType } from '../../types/game';
 import { BossBattleModal } from '../BossBattleModal';
@@ -81,6 +83,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
         bossAmbience,
         bossBattleStats,
         coloredZones,
+        onInlineTutorialStepSeen
     } = props;
 
     const [isShopSheetOpen, setIsShopSheetOpen] = useState(false);
@@ -101,6 +104,12 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
         bossZoneType?: BossZoneType;
     } | null>(null);
 
+    // ── Tutorial level detection ──────────────────────────────────
+    const isTutorialLevel = levelId === 1 || levelId === 2;
+
+    const showLightbulbPill =
+        !isTutorialLevel || (levelId === 2 && phaseIndex === 1);
+
     const hasAnyPenalty =
         penalties.overuse + penalties.disconnect + penalties.overlap + penalties.offMap + penalties.falsehood >
         0;
@@ -119,6 +128,8 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                 hasAnyPenalty={hasAnyPenalty}
                 penaltyCount={penaltyCount}
                 onPause={onPauseToggle}
+                hideLightbulbPill={!showLightbulbPill}
+                hidePenaltyPill={isTutorialLevel}
             />
 
             {/* Three-column body: tray-left | board-center | boosters-right */}
@@ -160,7 +171,6 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                         textureQuality={textureQuality}
                         onUpdateRendererInfo={onUpdateRendererInfo}
                         onLongPressHex={(coord) => {
-                            // 1. Check pre-placed road trước (giữ nguyên hành vi cũ)
                             const stack = placedTiles.get(`${coord.q},${coord.r}`);
                             const isPrePlacedRoad = stack?.some((t) =>
                                 t.clusterId?.startsWith('PREPLACED') && t.type === 'road'
@@ -180,7 +190,6 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                                 }
                             }
 
-                            // 2. Nếu là boss level → check color zone
                             if (!isBossLevel || !coloredZones) return;
 
                             for (const zone of coloredZones) {
@@ -189,7 +198,6 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                                 );
                                 if (!inZone) continue;
 
-                                // Đếm số cell trong zone đã được tile màu khớp
                                 let occupied = 0;
                                 for (const c of zone.coords) {
                                     const s = placedTiles.get(`${c.q},${c.r}`);
@@ -211,12 +219,33 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                             }
                         }}
                         hudInsetLeftPx={72}
-                        hudInsetRightPx={56}
+                        hudInsetRightPx={isTutorialLevel ? 0 : 56}
                         layoutMode="mobile"
                     />
 
-                    {/* ── Complete Phase CTA — floating over the board ── */}
-                    {/* ── Floating CTA row — Rotate / Complete / Spin ── */}
+                    {/* Zone completion tags */}
+                    {!isPaused && (
+                        <ZoneCompletionTags
+                            coloredZones={coloredZones}
+                            placedTiles={placedTiles}
+                            isVisible={true}
+                        />
+                    )}
+
+                    {/* Inline tutorial overlay (Level 1 & 2) */}
+                    {!isPaused && isTutorialLevel && (
+                        <InlineTutorialOverlay
+                            levelId={levelId}
+                            phaseIndex={phaseIndex}
+                            placedTiles={placedTiles}
+                            selectedPiece={selectedPiece}
+                            rotationsPerformed={rotationsPerformed}
+                            onComplete={() => {}}
+                            onStepSeen={onInlineTutorialStepSeen}
+                        />
+                    )}
+
+                    {/* ── Floating CTA row ─────────────────────────── */}
                     <div className="absolute left-1/2 -translate-x-1/2 top-3 z-20 flex items-center gap-2">
                         {/* Primary slot */}
                         {hasSelectedPiece ? (
@@ -244,7 +273,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                                 <Swords className="w-3.5 h-3.5" />
                                 <span className="font-rounded text-[10px]">Showdown</span>
                             </button>
-                        ) : canCompletePhase ? (
+                        ) : canCompletePhase && !isTutorialLevel ? (
                             <button
                                 data-tutorial-id="mobile-complete-btn"
                                 onClick={() => {
@@ -256,9 +285,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                             >
                                 <span className="text-sm leading-none">✓</span>
                                 <span className="font-rounded text-[10px]">
-                                    {isLastPhase
-                                        ? 'Complete'
-                                        : `Phase ${phaseIndex + 2}`}
+                                    {isLastPhase ? 'Complete' : `Phase ${phaseIndex + 2}`}
                                 </span>
                             </button>
                         ) : null}
@@ -292,25 +319,27 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                     </div>
                 </div>
 
-                {/* Right: vertical boosters */}
-                <div
-                    className="shrink-0 h-full flex items-start justify-center py-3"
-                    style={{
-                        width: '56px',
-                        background:
-                            'linear-gradient(180deg, #5c3d2e 0%, #3a2519 20%, #2b1a11 60%, #1a0f07 100%)',
-                        borderLeft: '2px solid #8fbc6f',
-                        boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
-                    }}
-                >
-                    <JourneyBoosterRow
-                        boosterInventory={boosterInventory}
-                        highestCompletedLevel={highestCompletedLevel}
-                        onActivateBooster={onActivateBooster}
-                        onOpenShop={() => setIsShopSheetOpen(true)}
-                        orientation="vertical"
-                    />
-                </div>
+                {/* Right: vertical boosters — hidden during tutorial */}
+                {!isTutorialLevel && (
+                    <div
+                        className="shrink-0 h-full flex items-start justify-center py-3"
+                        style={{
+                            width: '56px',
+                            background:
+                                'linear-gradient(180deg, #5c3d2e 0%, #3a2519 20%, #2b1a11 60%, #1a0f07 100%)',
+                            borderLeft: '2px solid #8fbc6f',
+                            boxShadow: '-4px 0 20px rgba(0,0,0,0.5)',
+                        }}
+                    >
+                        <JourneyBoosterRow
+                            boosterInventory={boosterInventory}
+                            highestCompletedLevel={highestCompletedLevel}
+                            onActivateBooster={onActivateBooster}
+                            onOpenShop={() => setIsShopSheetOpen(true)}
+                            orientation="vertical"
+                        />
+                    </div>
+                )}
             </div>
 
             <JourneyPauseSheet
@@ -321,18 +350,21 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                 onExitToHome={onExitToHome}
             />
 
-            <MobileJourneyTutorial
-                levelId={levelId}
-                seenGroups={mobileTutorialSeenGroups}
-                onComplete={onMarkTutorialSeen}
-                hasSelectedPiece={hasSelectedPiece}
-                placedCount={placedCount}
-                hasPlacedRoad={hasPlacedRoad}
-                hasPlacedBridge={hasPlacedBridge}
-                rotationsPerformed={rotationsPerformed}
-            />
+            {/* Mobile tutorial — skip for levels 1 & 2 */}
+            {!isTutorialLevel && (
+                <MobileJourneyTutorial
+                    levelId={levelId}
+                    seenGroups={mobileTutorialSeenGroups}
+                    onComplete={onMarkTutorialSeen}
+                    hasSelectedPiece={hasSelectedPiece}
+                    placedCount={placedCount}
+                    hasPlacedRoad={hasPlacedRoad}
+                    hasPlacedBridge={hasPlacedBridge}
+                    rotationsPerformed={rotationsPerformed}
+                />
+            )}
 
-            {/* ── Road requirement tooltip (long-press on pre-placed road) ── */}
+            {/* ── Road requirement tooltip ── */}
             {roadTooltip && (
                 <div
                     className="fixed z-[60] pointer-events-none animate-in fade-in duration-150"
@@ -433,7 +465,6 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                             </span>
                         </div>
 
-                        {/* Benefit hint */}
                         <div className="mt-1.5 pt-1.5 border-t border-white/10 text-[10px] font-bold text-amber-200">
                             {zoneTooltip.color === 'amber' || zoneTooltip.color === 'ruby'
                                 ? '⭐ +35 Popularity'
