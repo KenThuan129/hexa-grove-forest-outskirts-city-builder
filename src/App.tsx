@@ -652,6 +652,17 @@ export default function App() {
   const currentPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
 
   // ─────────────────────────────────────────────────────────────
+  // Tutorial Level 1 Phase 1: Only show the Amber tile to avoid confusion
+  // ─────────────────────────────────────────────────────────────
+  const activeAvailablePieces = useMemo(() => {
+  if (currentLevel.id === 1 && phaseIndex === 0) {
+    // Only keep the amber tile in phase 1
+    return currentLevel.availablePieces.filter(p => p.color === 'amber');
+  }
+  return currentLevel.availablePieces;
+}, [currentLevel, phaseIndex]);
+
+  // ─────────────────────────────────────────────────────────────
   // Cloud Save Blob — the snapshot pushed to Supabase
   // ─────────────────────────────────────────────────────────────
   const saveState: CloudSaveBlob = useMemo(() => {
@@ -1007,7 +1018,7 @@ export default function App() {
       // 1. Regular initial placements (movable by player)
       if (ph.initialPlacedTiles) {
         ph.initialPlacedTiles.forEach((init, i) => {
-          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || activeAvailablePieces.find(p => p.id === init.pieceId);
           if (piece) {
             const key = coordKey(init.q, init.r);
             const placed: PlacedTile = {
@@ -1025,7 +1036,7 @@ export default function App() {
       // 2. Pre-placed roads (locked, immutable)
       if (ph.prePlacedRoads) {
         ph.prePlacedRoads.forEach((pre, i) => {
-          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || currentLevel.availablePieces.find(p => p.id === pre.pieceId);
+          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || activeAvailablePieces.find(p => p.id === pre.pieceId);
           if (piece) {
             const key = coordKey(pre.q, pre.r);
             const placed: PlacedTile = {
@@ -1051,7 +1062,7 @@ export default function App() {
     setPickedUpCoord(null);
     setActiveDragPiece(null);
     setLevelCelebration(null);
-    setAvailablePieces(currentLevel.availablePieces);
+    setAvailablePieces(activeAvailablePieces);
 
     // Note: we do NOT reset phaseIndex here — the effect now runs ON phase change too
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2028,7 +2039,7 @@ export default function App() {
 
   // Auto-demo build helper for tutorial demonstration
   const handleAutoDemoBuild = useCallback((coord: HexCoord, pieceId: string) => {
-    const piece = PIECE_PALETTE.find(p => p.id === pieceId) || currentLevel.availablePieces.find(p => p.id === pieceId);
+    const piece = PIECE_PALETTE.find(p => p.id === pieceId) || activeAvailablePieces.find(p => p.id === pieceId);
     if (piece) {
       handlePlaceTile(coord, piece);
     }
@@ -2539,7 +2550,7 @@ export default function App() {
     if (currentPhase) {
       if (currentPhase.initialPlacedTiles) {
         currentPhase.initialPlacedTiles.forEach((init, i) => {
-          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || currentLevel.availablePieces.find(p => p.id === init.pieceId);
+          const piece = PIECE_PALETTE.find(p => p.id === init.pieceId) || activeAvailablePieces.find(p => p.id === init.pieceId);
           if (piece) {
             const key = coordKey(init.q, init.r);
             const placed: PlacedTile = {
@@ -2555,7 +2566,7 @@ export default function App() {
       };
       if (currentPhase.prePlacedRoads) {
         currentPhase.prePlacedRoads.forEach((pre, i) => {
-          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || currentLevel.availablePieces.find(p => p.id === pre.pieceId);
+          const piece = PIECE_PALETTE.find(p => p.id === pre.pieceId) || activeAvailablePieces.find(p => p.id === pre.pieceId);
           if (piece) {
             const key = coordKey(pre.q, pre.r);
             const placed: PlacedTile = {
@@ -3135,7 +3146,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
             highestCompletedLevel={highestCompletedLevel}
             onActivateBooster={handleActivateBooster}
             onOpenShop={() => setIsShopModalOpen(true)}
-            availablePieces={currentLevel.availablePieces}
+            availablePieces={activeAvailablePieces}
             selectedPiece={selectedPiece}
             activeDragPiece={activeDragPiece}
             unlockedCells={unlockedCells}
@@ -3545,7 +3556,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                   onPointerEnter={() => setHoveredCoord(null)}
                 >
                   <TileTray
-                    availablePieces={currentLevel.availablePieces}
+                    availablePieces={activeAvailablePieces}
                     selectedPiece={selectedPiece}
                     activeDragPiece={activeDragPiece}
                     hasRotationZones={Boolean(currentPhase?.rotationZones && currentPhase.rotationZones.length > 0)}
