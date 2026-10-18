@@ -752,15 +752,12 @@ export const LEVELS: LevelConfig[] = [
       {
         phaseNumber: 2,
         title: 'Rotate, Undo, and Reconsider',
-        objective:
-          'The duo no longer fits horizontally. Rotate it 60°, place it, then if you want, undo and try single tiles instead.',
-        targetTilesCount: 2,
-        // Two emerald cells stacked vertically — the default horizontal
-        // duo will NOT fit. The player must rotate 60° once to match.
+        objective: 'The duo no longer fits. Rotate it, place it, then undo and try single tiles instead.',
+        targetTilesCount: 3, // 3 ô cần đặt
         unlockedCoords: [
           { q: 0, r: 0 },
-          { q: 0, r: 1 },   // ← vertical
-          { q: 1, r: 0 },   // buffer neutral
+          { q: 0, r: 1 },
+          { q: 0, r: 2 }, // 3 ô dọc
         ],
         coloredZones: [
           {
@@ -769,6 +766,7 @@ export const LEVELS: LevelConfig[] = [
             coords: [
               { q: 0, r: 0 },
               { q: 0, r: 1 },
+              { q: 0, r: 2 }, // 3 ô dọc
             ],
           },
         ],

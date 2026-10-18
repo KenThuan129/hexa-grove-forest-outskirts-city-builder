@@ -116,18 +116,24 @@ function resolveLevel2Steps(
   const topCell = placedTiles.get(coordKey(0, 0))?.length ?? 0;
   const bottomCell = placedTiles.get(coordKey(0, 1))?.length ?? 0;
 
-  // NẾU user đặt Duo (mất 2 bulb) vào Phase 2 (Budget 3)
-  // Ta check xem tile đang đặt lên 2 ô đó có phải là Duo không (dựa vào placedTiles)
-  const isDuoPlaced = 
-    (placedTiles.get(coordKey(0, 0))?.[0]?.clusterShape?.length ?? 0) > 1 ||
-    (placedTiles.get(coordKey(0, 1))?.[0]?.clusterShape?.length ?? 0) > 1;
+  // Tìm xem có tile nào trên board ở phase này là Duo không
+  let isDuoPlaced = false;
+  placedTiles.forEach((stack) => {
+    if (stack.length > 0) {
+      const top = stack[stack.length - 1];
+      // Nếu là khối Duo (clusterShape >= 2) hoặc lấy từ lightbulbCost = 2
+      if ((top.clusterShape?.length ?? 0) > 1 || top.lightbulbCost === 2) {
+        isDuoPlaced = true;
+      }
+    }
+  });
 
-  // Nếu phát hiện dùng Duo ở Phase 2 (và tutorial chưa dismiss cái warning này)
+  // Nếu phát hiện user đã đặt Duo ở Phase 2, hiện ngay popup Interrupted bắt Undo
   if (isDuoPlaced) {
     return [{
       id: 'lv2p2-interrupted',
       title: 'Budget Interrupted!',
-      description: 'Bạn vừa dùng 2 Lightbulbs cho 1 khối Duo. Nhưng phase này cần 3 ô, hãy thu hồi (Undo) khối Duo và dùng 3 khối Single nhỏ thay thế để tối ưu!',
+      description: 'Bạn vừa dùng khối Duo (2 Lightbulbs) cho phase này. Hãy thu hồi (Undo) khối Duo và dùng các khối Single nhỏ thay thế để tối ưu!',
       icon: 'warning',
       position: 'center',
       isInterrupt: true,
