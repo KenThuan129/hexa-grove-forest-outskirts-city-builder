@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [main]   # ← đổi thành 'master' nếu branch chính là master
+    branches: [master]   # ← đổi thành 'master' nếu branch chính là master
   workflow_dispatch:
 
 permissions:
