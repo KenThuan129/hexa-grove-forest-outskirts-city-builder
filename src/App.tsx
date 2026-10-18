@@ -1719,6 +1719,9 @@ export default function App() {
         ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
         : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
 
+  const isTutorialLevel = currentLevel.id === 1 || currentLevel.id === 2;
+  const forceHideTopUI = isTutorialLevel;
+
   // ─────────────────────────────────────────────────────────────
   // Auto-advance phase when conditions are met.
   // Does NOT apply to the final phase — that still requires user
@@ -3290,7 +3293,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                     <span>Show UI [H]</span>
                   </button>
                 </div>
-              ) : (
+              ) : !forceHideTopUI ? (
                 <div className="w-full flex justify-between items-start gap-2">
                   {/* Top Left: Home, Memories & Level Name ONLY */}
                   <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
@@ -3423,7 +3426,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                     </button>
                   </div>
                 </div>
-              )}
+              ): null}
 
               {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
               {!isCleanUiMode && (
