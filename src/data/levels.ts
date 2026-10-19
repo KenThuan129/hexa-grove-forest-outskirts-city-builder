@@ -2546,7 +2546,7 @@ export const LEVELS: LevelConfig[] = [
         ],
       }
     ],
-    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-quad-amber', 'p-duo-sapphire', 'p-triad-sapphire']),
+    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-quad-amber', 'p-house-sapphire', 'p-duo-sapphire', 'p-triad-sapphire']),
     targetScore: { star1: 1000, star2: 1800, star3: 2500 },
   },
 
