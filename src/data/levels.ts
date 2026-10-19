@@ -2474,12 +2474,12 @@ export const LEVELS: LevelConfig[] = [
         targetTilesCount: 15,
         unlockedCoords: [
           // Vành đai ngoài
-          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 },
+          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }, 
           { q: 0, r: 2 }, { q: 1, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 3 },
           // Đảo trong (sẽ được unlock)
           { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
-          // --- 3 Ô SAPPHIRE MỚI (Dời xuống dưới, tránh cầu) ---
-          { q: 2, r: 1 }, { q: 1, r: 2 }, { q: 2, r: 2 },
+          // Ô Sapphire thứ 3 (nằm ngay giữa 3 cây cầu)
+          { q: 0, r: 0 }, // Sẽ được merge với ô trên
         ],
         prePlacedRoads: [
           // 3 cây cầu nối vành đai với đảo trong (giữ nguyên)
@@ -2497,8 +2497,8 @@ export const LEVELS: LevelConfig[] = [
           {
             name: 'Sapphire Sanctum',
             color: 'sapphire',
-            // Dời 3 ô Sapphire xuống vùng đất trống
-            coords: [{ q: 1, r: 2 }, { q: 2, r: 1 }, { q: 2, r: 2 }],
+            // Đưa 3 ô Sapphire vào giữa các cây cầu
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }],
           }
         ],
       }
