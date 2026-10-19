@@ -2474,31 +2474,74 @@ export const LEVELS: LevelConfig[] = [
         targetTilesCount: 15,
         unlockedCoords: [
           // Vành đai ngoài
-          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }, 
+          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 },
           { q: 0, r: 2 }, { q: 1, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 3 },
           // Đảo trong (sẽ được unlock)
           { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
           // Ô Sapphire thứ 3 (nằm ngay giữa 3 cây cầu)
           { q: 0, r: 0 }, // Sẽ được merge với ô trên
         ],
-        prePlacedRoads: [
-          // 3 cây cầu nối vành đai với đảo trong (giữ nguyên)
-          { pieceId: 'p-bridge-single', q: 1, r: 0 },
-          { pieceId: 'p-bridge-single', q: 0, r: 1 },
-          { pieceId: 'p-bridge-single', q: -1, r: 1 },
-        ],
-        coloredZones: [
+        "prePlacedRoads": [
           {
-            name: 'Amber Repairs',
-            color: 'amber',
-            coords: [{ q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }],
-            zoneModifier: { type: 'unlock_pieces', value: 0 },
+            "pieceId": "p-bridge-single",
+            "q": 1,
+            "r": 0
           },
           {
-            name: 'Sapphire Sanctum',
-            color: 'sapphire',
-            // Đưa 3 ô Sapphire vào giữa các cây cầu
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }],
+            "pieceId": "p-bridge-single",
+            "q": 0,
+            "r": 1
+          },
+          {
+            "pieceId": "p-bridge-single",
+            "q": -1,
+            "r": 1
+          }
+        ],
+        "coloredZones": [
+          {
+            "name": "Amber Repairs",
+            "color": "amber",
+            "coords": [
+              {
+                "q": 2,
+                "r": 0
+              },
+              {
+                "q": 3,
+                "r": 0
+              },
+              {
+                "q": 1,
+                "r": 1
+              },
+              {
+                "q": 2,
+                "r": 1
+              }
+            ],
+            "zoneModifier": {
+              "type": "unlock_pieces",
+              "value": 0
+            }
+          },
+          {
+            "name": "Sapphire Sanctum",
+            "color": "sapphire",
+            "coords": [
+              {
+                "q": 0,
+                "r": 0
+              },
+              {
+                "q": 1,
+                "r": 2
+              },
+              {
+                "q": 0,
+                "r": 3
+              }
+            ]
           }
         ],
       }
