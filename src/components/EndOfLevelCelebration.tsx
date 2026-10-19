@@ -19,6 +19,7 @@ import {
   BookOpen,
   ChevronDown,
   ChevronUp,
+  Home,
 } from 'lucide-react';
 
 export interface LevelCelebrationData {
@@ -516,15 +517,16 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
               <span>Replay</span>
             </button>
 
-            {onViewMemories && (
-              <button
-                onClick={onViewMemories}
-                className="flex-1 py-2 px-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-amber-300 font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
-              >
-                <BookOpen className="w-3 h-3 text-amber-400" />
-                <span>Memories</span>
-              </button>
-            )}
+             <button
+              onClick={() => {
+                // Gọi thẳng onContinue (về Home)
+                onContinue();
+              }}
+              className="flex-1 py-2 px-2.5 rounded-xl bg-[#2b1a11]/80 hover:bg-[#3a2519] border border-[#5c3d2e] text-[#f0c674] font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
+            >
+              <Home className="w-3 h-3 text-[#f0c674]" />
+              <span>Home</span>
+            </button>
           </div>
         </div>
       </div>

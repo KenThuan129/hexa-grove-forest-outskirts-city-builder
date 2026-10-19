@@ -29,18 +29,15 @@ export const PenaltyTracker: React.FC<PenaltyTrackerProps> = ({
     penalties.falsehood;
 
   return (
-    <div className="bg-slate-900/95 backdrop-blur-xl border border-slate-700/80 shadow-2xl rounded-2xl p-3 flex flex-col gap-2 font-sans select-none">
+    <div className="wood-panel p-3.5 flex flex-col gap-2 border-2 border-[#5c3d2e] shadow-2xl font-rounded select-none">
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-2 mb-1">
+      <div className="flex items-center justify-between border-b border-[#5c3d2e] pb-2 mb-1">
         <div className="flex items-center gap-1.5">
-          <AlertTriangle className="w-4 h-4 text-slate-400" />
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-200">
+          <AlertTriangle className="w-4 h-4 text-[#f0c674]" />
+          <h3 className="text-xs font-bold uppercase tracking-wider text-[#f4ecd8]">
             Penalties
           </h3>
         </div>
-        <span className="text-[10px] font-mono text-slate-500 bg-slate-950 px-2 py-0.5 rounded-md border border-slate-800">
-          {isTryHard ? 'Try-Hard' : 'Casual'}
-        </span>
       </div>
 
       {/* Rows */}
@@ -54,13 +51,13 @@ export const PenaltyTracker: React.FC<PenaltyTrackerProps> = ({
           const remainingBypasses = Math.max(0, bypassCount - count);
 
           return (
-            <div key={conf.key} className="flex items-center justify-between text-xs h-8">
+            <div key={conf.key} className="flex items-center justify-between text-[11px] h-7">
               {/* Left: Icon & Label */}
               <div className="flex items-center gap-2 flex-1">
-                <div className={`w-5 h-5 rounded flex items-center justify-center ${count > 0 ? 'bg-rose-950/50 text-rose-400' : 'bg-slate-800/50 text-slate-500'}`}>
+                <div className={`w-5 h-5 rounded flex items-center justify-center ${count > 0 ? 'bg-rose-950/50 text-rose-400' : 'bg-[#1e3520] text-[#a8b89a]'}`}>
                   <Icon className="w-3.5 h-3.5" />
                 </div>
-                <span className={`font-bold ${count > 0 ? 'text-slate-200' : 'text-slate-400'}`}>
+                <span className={`font-bold ${count > 0 ? 'text-[#f4ecd8]' : 'text-[#a8b89a]'}`}>
                   {conf.label}
                 </span>
               </div>
@@ -78,9 +75,9 @@ export const PenaltyTracker: React.FC<PenaltyTrackerProps> = ({
                 {Array.from({ length: usedBypasses }).map((_, i) => (
                   <div
                     key={`used-${i}`}
-                    className="w-5 h-5 rounded-full bg-slate-200 border-2 border-white flex items-center justify-center shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-in zoom-in duration-200"
+                    className="w-5 h-5 rounded-full bg-[#f4ecd8] border-2 border-white flex items-center justify-center shadow-[0_0_8px_rgba(255,255,255,0.6)] animate-in zoom-in duration-200"
                   >
-                    <div className="w-2 h-2 bg-slate-900 rounded-full" />
+                    <div className="w-2 h-2 bg-[#2b1a11] rounded-full" />
                   </div>
                 ))}
 
@@ -88,16 +85,16 @@ export const PenaltyTracker: React.FC<PenaltyTrackerProps> = ({
                 {Array.from({ length: remainingBypasses }).map((_, i) => (
                   <div
                     key={`avail-${i}`}
-                    className="w-5 h-5 rounded-full bg-slate-950 border-2 border-slate-700 flex items-center justify-center"
+                    className="w-5 h-5 rounded-full bg-[#1e3520] border-2 border-[#6b8e5a] flex items-center justify-center"
                   />
                 ))}
 
                 {/* 4. Placeholder slots if total slots < 3 */}
                 {count === 0 && bypassCount === 0 && (
                   <>
-                    <div className="w-5 h-5 rounded-full bg-slate-950/50 border-2 border-slate-800" />
-                    <div className="w-5 h-5 rounded-full bg-slate-950/50 border-2 border-slate-800" />
-                    <div className="w-5 h-5 rounded-full bg-slate-950/50 border-2 border-slate-800" />
+                    <div className="w-5 h-5 rounded-full bg-[#1e3520] border-2 border-[#3a2519]" />
+                    <div className="w-5 h-5 rounded-full bg-[#1e3520] border-2 border-[#3a2519]" />
+                    <div className="w-5 h-5 rounded-full bg-[#1e3520] border-2 border-[#3a2519]" />
                   </>
                 )}
               </div>
@@ -107,19 +104,19 @@ export const PenaltyTracker: React.FC<PenaltyTrackerProps> = ({
       </div>
 
       {/* Footer: Total */}
-      <div className="mt-1 pt-2 border-t border-slate-800 flex items-center justify-between">
+      <div className="mt-1 pt-2 border-t border-[#5c3d2e] flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+          <span className="text-[9.5px] font-bold uppercase tracking-wider text-[#a8b89a]">
             Total Penalties
           </span>
-          <span className={`text-xs font-mono font-black px-2 py-0.5 rounded ${totalErrors > 0 ? 'bg-rose-950 text-rose-300' : 'bg-slate-800 text-slate-300'}`}>
+          <span className={`text-[11px] font-mono font-black px-2 py-0.5 rounded ${totalErrors > 0 ? 'bg-rose-950 text-rose-300' : 'bg-[#1e3520] text-[#8fbc6f]'}`}>
             {totalErrors}
           </span>
         </div>
         
         {isTryHard && (
-          <div className="flex items-center gap-1 text-[10px] font-mono font-bold text-slate-400">
-            <span className="text-amber-400">⚡</span>
+          <div className="flex items-center gap-1 text-[10px] font-mono font-bold">
+            <span className="text-[#f0c674]">⚡</span>
             <span className="text-rose-400">-{totalErrors * 100} Pts</span>
           </div>
         )}

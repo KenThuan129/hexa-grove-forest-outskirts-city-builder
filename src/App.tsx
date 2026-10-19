@@ -2756,6 +2756,14 @@ export default function App() {
       // Construction tray auto-unlocks based on highestCompletedLevel >= 10
     }
 
+    // 2. Auto về Home mỗi 5 Level
+    const completedLevel = celebrationSnapshot?.completedLevelId;
+    if (completedLevel && completedLevel % 5 === 0 && completedLevel < allLevels.length) {
+      navigateWithTransition('home', `Milestone Reached! Level ${completedLevel} Cleared`, 'Take a rest at your island sanctuary');
+      showToast(`Level ${completedLevel} conquered! Returning to Home.`, 'success');
+      return;
+    }
+
     if (levelIndex + 1 < allLevels.length) {
       triggerLevelTransit(levelIndex + 1);
     } else {
