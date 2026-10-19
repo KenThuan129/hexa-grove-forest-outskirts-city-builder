@@ -1159,8 +1159,13 @@ export default function App() {
   }, [levelIndex, phaseIndex, initializeGridForLevel]);
 
   // ─────────────────────────────────────────────────────────────
-  // LEVEL 13: Unlock Inner Sanctum khi hoàn thành Amber Repairs
+  // LEVEL 13: Unlock Inner Sanctum & thêm quân Sapphire
   // ─────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────
+  // LEVEL 13: Unlock Inner Sanctum & thêm quân Sapphire
+  // ─────────────────────────────────────────────────────────────
+  const [hasUnlockedL13, setHasUnlockedL13] = useState(false);
+
   useEffect(() => {
     if (currentLevel.id !== 13 || !currentPhase) return;
     
@@ -1172,28 +1177,53 @@ export default function App() {
       return stack && stack.length > 0 && stack[stack.length - 1].color === 'amber';
     });
 
-    if (isAmberComplete) {
+    if (isAmberComplete && !hasUnlockedL13) {
       setUnlockedCells(prev => {
-        let hasChanges = false;
         const next = new Map(prev);
-        
         next.forEach((cell, key) => {
-          // 4 ô của đảo trong
           if ((cell.q === 0 && cell.r === 0) || 
               (cell.q === 1 && cell.r === 0) || 
               (cell.q === 0 && cell.r === 1) || 
               (cell.q === -1 && cell.r === 1)) {
-            if (!cell.isUnlocked) {
-              next.set(key, { ...cell, isUnlocked: true });
-              hasChanges = true;
-            }
+            next.set(key, { ...cell, isUnlocked: true });
           }
         });
-        
-        return hasChanges ? next : prev; // Tránh re-render vô ích
+        return next;
       });
+
+      // Thêm quân Sapphire vào Tray
+      setAvailablePieces(prev => {
+        const newPieces: HexPiece[] = [
+          { 
+            id: 'p-duo-sapphire-unlocked', 
+            type: 'mixed', 
+            color: 'sapphire', 
+            name: 'Aqueduct Duo', 
+            description: 'Unlocked Duo.', 
+            clusterType: 'duo', 
+            clusterShape: [{q:0,r:0,type:'house'}, {q:1,r:0,type:'mixed'}], 
+            lightbulbCost: 2 
+          },
+          { 
+            id: 'p-triad-sapphire-unlocked', 
+            type: 'mixed', 
+            color: 'sapphire', 
+            name: 'Basin Triad', 
+            description: 'Unlocked Triad.', 
+            clusterType: 'triad', 
+            clusterShape: [{q:0,r:0,type:'house'}, {q:1,r:0,type:'mixed'}, {q:0,r:1,type:'house'}], 
+            lightbulbCost: 3 
+          },
+        ];
+        // Lọc trùng nếu đã có
+        const existingIds = new Set(prev.map(p => p.id));
+        return [...prev, ...newPieces.filter(p => !existingIds.has(p.id))];
+      });
+
+      setHasUnlockedL13(true);
+      showToast('⚡ Aqueducts Repaired! Sapphire pieces unlocked in Tray.', 'success');
     }
-  }, [currentLevel.id, currentPhase, placedTiles]);
+  }, [currentLevel.id, currentPhase, placedTiles, hasUnlockedL13]);
 
   // Reset or switch Level
   useEffect(() => {

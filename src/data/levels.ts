@@ -2308,13 +2308,13 @@ export const LEVELS: LevelConfig[] = [
         unlockedCoords: [
           // Đảo 1 (Top Left - Amber): 4 ô xếp hình vuông
           { q: -2, r: 0 }, { q: -1, r: 0 }, { q: -2, r: 1 }, { q: -1, r: 1 },
-          
+
           // Đảo 2 (Top Right - Ruby): 4 ô xếp hình vuông
           { q: 1, r: -2 }, { q: 2, r: -2 }, { q: 1, r: -1 }, { q: 2, r: -1 },
-          
+
           // Đảo 3 (Bottom Left - Sapphire): 3 ô xếp hình chữ L
           { q: -2, r: 2 }, { q: -1, r: 2 }, { q: -2, r: 3 },
-          
+
           // Đảo 4 (Bottom Right - Emerald): 4 ô xếp hình vuông
           { q: 1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }, { q: 2, r: 2 },
         ],
@@ -2353,10 +2353,10 @@ export const LEVELS: LevelConfig[] = [
       }
     ],
     availablePieces: getPieces([
-      'p-house-gray', 
+      'p-house-gray',
       'p-duo-amber', 'p-triad-amber', 'p-house-amber',
       'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby',
-      'p-duo-sapphire', 'p-house-sapphire', 
+      'p-duo-sapphire', 'p-house-sapphire',
       'p-duo-emerald', 'p-triad-emerald', 'p-quad-emerald'
     ]),
     targetScore: { star1: 500, star2: 1000, star3: 1500 },
@@ -2380,7 +2380,7 @@ export const LEVELS: LevelConfig[] = [
         targetTilesCount: 10,
         unlockedCoords: [
           // Vòng trong (Turntable)
-          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, 
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 },
           { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 },
           // Vòng ngoài
           { q: 2, r: 0 }, { q: 0, r: 2 }, { q: -2, r: 2 }, { q: -2, r: 0 }, { q: 0, r: -2 }, { q: 2, r: -2 },
@@ -2474,13 +2474,15 @@ export const LEVELS: LevelConfig[] = [
         targetTilesCount: 15,
         unlockedCoords: [
           // Vành đai ngoài
-          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }, 
+          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 },
           { q: 0, r: 2 }, { q: 1, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 3 },
           // Đảo trong (sẽ được unlock)
           { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
+          // --- 3 Ô SAPPHIRE MỚI (Dời xuống dưới, tránh cầu) ---
+          { q: 2, r: 1 }, { q: 1, r: 2 }, { q: 2, r: 2 },
         ],
         prePlacedRoads: [
-          // 3 cây cầu nối vành đai với đảo trong
+          // 3 cây cầu nối vành đai với đảo trong (giữ nguyên)
           { pieceId: 'p-bridge-single', q: 1, r: 0 },
           { pieceId: 'p-bridge-single', q: 0, r: 1 },
           { pieceId: 'p-bridge-single', q: -1, r: 1 },
@@ -2490,13 +2492,13 @@ export const LEVELS: LevelConfig[] = [
             name: 'Amber Repairs',
             color: 'amber',
             coords: [{ q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }],
-            // Sẽ được handle code để mở khóa 3 ô trong
             zoneModifier: { type: 'unlock_pieces', value: 0 },
           },
           {
             name: 'Sapphire Sanctum',
             color: 'sapphire',
-            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }],
+            // Dời 3 ô Sapphire xuống vùng đất trống
+            coords: [{ q: 1, r: 2 }, { q: 2, r: 1 }, { q: 2, r: 2 }],
           }
         ],
       }
@@ -2521,7 +2523,7 @@ export const LEVELS: LevelConfig[] = [
         objective: 'Fill the Ruby core and survive the penalty.',
         targetTilesCount: 12,
         unlockedCoords: [
-          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, 
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 },
           { q: -1, r: 0 }, { q: -2, r: 0 }, { q: -2, r: 1 },
           { q: -1, r: 1 }, { q: 0, r: 1 }, { q: 1, r: 1 },
           { q: 2, r: -1 }, { q: -1, r: 2 }, { q: 0, r: 2 }
@@ -2546,8 +2548,8 @@ export const LEVELS: LevelConfig[] = [
       }
     ],
     availablePieces: getPieces([
-      'p-house-gray', 
-      'p-duo-amber', 'p-triad-amber', 
+      'p-house-gray',
+      'p-duo-amber', 'p-triad-amber',
       'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby', // Bổ sung đủ Ruby
       'p-duo-emerald', 'p-duo-sapphire'
     ]),
@@ -2610,7 +2612,7 @@ export const LEVELS: LevelConfig[] = [
       }
     ],
     availablePieces: getPieces([
-      'p-house-gray', 
+      'p-house-gray',
       'p-duo-amber', 'p-triad-amber', 'p-quad-amber',
       'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby',
       'p-duo-emerald', 'p-triad-emerald', 'p-quad-emerald',
