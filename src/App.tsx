@@ -773,6 +773,8 @@ export default function App() {
     }, 3000);
   };
 
+  const [hasBeenInterruptedL2, setHasBeenInterruptedL2] = useState(false);
+
   // ─────────────────────────────────────────────────────────────
   // TÍNH TOÁN ZONE MODIFIERS (Dành cho Level 10)
   // ─────────────────────────────────────────────────────────────
@@ -1138,6 +1140,52 @@ export default function App() {
     });
   }, []);
 
+    // ─────────────────────────────────────────────────────────────
+  // Hàm xử lý khi user xác nhận Popup Interrupted (Gỡ Duo)
+  // ─────────────────────────────────────────────────────────────
+    const handleTutorialInterrupt = useCallback(() => {
+    // 1. Gỡ khối Duo khỏi bàn cờ
+    setPlacedTiles(prev => {
+      const next = new Map(prev);
+      prev.forEach((stack, key) => {
+        const hasDuo = stack.some(t => t.clusterShape && t.clusterShape.length > 1);
+        if (hasDuo) {
+          const remaining = stack.filter(t => !(t.clusterShape && t.clusterShape.length > 1));
+          if (remaining.length === 0) next.delete(key);
+          else next.set(key, remaining);
+        }
+      });
+      return next;
+    });
+
+    // 2. Nếu là Level 2, lập tức nhét khối Single vào Tray
+    if (currentLevel.id === 2) {
+      setHasBeenInterruptedL2(true);
+      
+      const singleEmerald: HexPiece = {
+        id: 'p-house-emerald',
+        type: 'trees',
+        color: 'emerald',
+        name: 'Emerald Grove',
+        description: 'Single Emerald tile.',
+        clusterType: 'single',
+        clusterShape: [{ q: 0, r: 0, type: 'trees' }],
+        lightbulbCost: 1,
+      };
+      
+      // Lấy khối Duo hiện tại và ghép thêm Single
+      const duoPiece = currentLevel.availablePieces.find(p => p.id === 'p-tutorial-duo-emerald');
+      if (duoPiece) {
+        setAvailablePieces([duoPiece, singleEmerald]);
+      } else {
+        setAvailablePieces([singleEmerald]);
+      }
+    }
+
+    sounds.playPickup();
+    showToast('Duo removed. Try using Single tiles instead!', 'info');
+  }, [currentLevel.id, currentLevel.availablePieces]);
+
   useEffect(() => {
     setPhaseIndex(0);
   }, [levelIndex]);
@@ -1152,6 +1200,9 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────
   const [hasUnlockedL13, setHasUnlockedL13] = useState(false);
 
+  // Reset khi đổi level
+  useEffect(() => { setHasBeenInterruptedL2(false); }, [levelIndex]);
+
   // Reset L13 unlock state khi đổi level/phase
   useEffect(() => {
     setHasUnlockedL13(false);
@@ -1161,6 +1212,29 @@ export default function App() {
     // 1. Tutorial Level 1 Phase 1: Only show the Amber tile to avoid confusion
     if (currentLevel.id === 1 && phaseIndex === 0) {
       return currentLevel.availablePieces.filter(p => p.color === 'amber');
+    }
+
+    // 2. Level 2 Phase 2
+    if (currentLevel.id === 2 && phaseIndex === 1) {
+      const duoPiece = currentLevel.availablePieces.find(p => p.id === 'p-tutorial-duo-emerald');
+      
+      if (!hasBeenInterruptedL2) {
+        return duoPiece ? [duoPiece] : [];
+      }
+      
+      const singleEmerald: HexPiece = {
+        id: 'p-house-emerald',
+        type: 'trees',
+        color: 'emerald',
+        name: 'Emerald Grove',
+        description: 'Single Emerald tile.',
+        clusterType: 'single',
+        clusterShape: [{ q: 0, r: 0, type: 'trees' }],
+        lightbulbCost: 1,
+      };
+      
+      // 1 Duo + 1 Single để lấp đủ 3 ô
+      return duoPiece ? [duoPiece, singleEmerald] : [singleEmerald];
     }
     
     // 2. Level 13: Add Sapphire pieces after unlocking
@@ -1197,7 +1271,7 @@ export default function App() {
     }
 
     return currentLevel.availablePieces;
-  }, [currentLevel, phaseIndex, hasUnlockedL13]);
+  }, [currentLevel, phaseIndex, hasUnlockedL13, placedTiles]);
 
   // ─────────────────────────────────────────────────────────────
   // LEVEL 13: Unlock Inner Sanctum & thêm quân Sapphire
@@ -1288,11 +1362,13 @@ export default function App() {
     setPickedUpCoord(null);
     setActiveDragPiece(null);
     setLevelCelebration(null);
-    setAvailablePieces(activeAvailablePieces);
+    
 
     // Note: we do NOT reset phaseIndex here — the effect now runs ON phase change too
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [levelIndex, phaseIndex, currentLevel]);
+
+
 
   // Analyze connectivity of placed in-bounds and connected tiles
   const connectivity = useMemo(() => {
@@ -3436,6 +3512,7 @@ export default function App() {
               const zoneId = currentPhase?.rotationZones?.[0]?.id;
               if (zoneId) handleRotateZone(zoneId);
             }}
+            onInterruptAcknowledged={handleTutorialInterrupt}
           />
         ) : (
           <div className="relative w-screen h-screen overflow-hidden bg-[#1e3520] font-sans flex flex-col justify-between select-none">
@@ -3488,6 +3565,7 @@ export default function App() {
                 rotationsPerformed={rotationsPerformed}
                 onComplete={() => { /* auto-advance handles phase transitions */ }}
                 onStepSeen={handleInlineTutorialStepSeen}
+                onInterruptAcknowledged={handleTutorialInterrupt}
               />
             )}
 

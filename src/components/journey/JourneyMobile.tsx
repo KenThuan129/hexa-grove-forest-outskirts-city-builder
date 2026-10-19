@@ -118,6 +118,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
         bossBattleStats,
         coloredZones,
         onInlineTutorialStepSeen,
+        onInterruptAcknowledged,
     } = props;
 
     // ── Tutorial level detection ──────────────────────────────────
@@ -251,6 +252,7 @@ export const JourneyMobile: React.FC<JourneySharedProps> = (props) => {
                             // Auto-advance handles phase transitions
                         }}
                         onStepSeen={onInlineTutorialStepSeen}
+                        onInterruptAcknowledged={onInterruptAcknowledged}
                         />
                 )}
 

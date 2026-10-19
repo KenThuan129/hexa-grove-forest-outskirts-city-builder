@@ -14,6 +14,7 @@ interface InlineTutorialOverlayProps {
     rotationsPerformed: number;
     onComplete: () => void;
     onStepSeen?: (tutorialId: string, stepIndex: number) => void;
+    onInterruptAcknowledged?: () => void;
 }
 
 type StepIcon = 'sparkle' | 'rotate' | 'undo' | 'check' | 'arrow' | 'warning';
@@ -95,85 +96,86 @@ function resolveLevel1Steps(
 }
 
 function resolveLevel2Steps(
-    phaseIndex: number,
-    placedTiles: Map<string, PlacedTile[]>,
-    selectedPiece: HexPiece | null,
-    rotationsPerformed: number
+  phaseIndex: number,
+  placedTiles: Map<string, PlacedTile[]>,
+  selectedPiece: HexPiece | null,
+  rotationsPerformed: number
 ): Step[] {
-    if (phaseIndex === 0) {
-        const a = placedTiles.get(coordKey(0, 0))?.length ?? 0;
-        const b = placedTiles.get(coordKey(1, 0))?.length ?? 0;
-        if (a > 0 && b > 0) return [];
+  if (phaseIndex === 0) {
+    const a = placedTiles.get(coordKey(0, 0))?.length ?? 0;
+    const b = placedTiles.get(coordKey(1, 0))?.length ?? 0;
+    if (a > 0 && b > 0) return [];
 
-        if (!selectedPiece) {
-            return [{
-                id: 'lv2p1-pick',
-                title: 'Drag the Emerald Duo onto the board',
-                description: 'This 2-hex cluster fills both glowing cells at once.',
-                icon: 'sparkle',
-                position: 'bottom',
-            }];
-        }
-        return [{
-            id: 'lv2p1-place',
-            title: 'Place the duo',
-            description: 'Tap the two glowing cells.',
-            icon: 'arrow',
-            position: 'top',
-        }];
+    if (!selectedPiece) {
+      return [{
+        id: 'lv2p1-pick',
+        title: 'Drag the Emerald Duo onto the board',
+        description: 'This 2-hex cluster fills both glowing cells at once.',
+        icon: 'sparkle',
+        position: 'bottom',
+      }];
     }
+    return [{
+      id: 'lv2p1-place',
+      title: 'Place the duo',
+      description: 'Tap the two glowing cells.',
+      icon: 'arrow',
+      position: 'top',
+    }];
+  }
 
-    // Phase 2 (Interrupted check)
-    const topCell = placedTiles.get(coordKey(0, 0))?.length ?? 0;
-    const bottomCell = placedTiles.get(coordKey(0, 1))?.length ?? 0;
+  // Phase 2 Logic
+// Phase 2 Logic
+  const c1 = placedTiles.get(coordKey(0, 0))?.length ?? 0;
+  const c2 = placedTiles.get(coordKey(1, 0))?.length ?? 0;
+  const c3 = placedTiles.get(coordKey(0, 1))?.length ?? 0; // Ô thứ 3
 
-    // Tìm xem có tile nào trên board ở phase này là Duo không
-    let isDuoPlaced = false;
-    placedTiles.forEach((stack) => {
-        if (stack.length > 0) {
-            const top = stack[stack.length - 1];
-            // Nếu là khối Duo (clusterShape >= 2) hoặc lấy từ lightbulbCost = 2
-            if ((top.clusterShape?.length ?? 0) > 1 || top.lightbulbCost === 2) {
-                isDuoPlaced = true;
-            }
-        }
-    });
-
-    // Nếu phát hiện user đã đặt Duo ở Phase 2, hiện ngay popup Interrupted bắt Undo
-    if (isDuoPlaced) {
-        return [{
-            id: 'lv2p2-interrupted',
-            title: 'Budget Interrupted!',
-            description: 'Bạn vừa dùng khối Duo (2 Lightbulbs) cho phase này. Hãy thu hồi (Undo) khối Duo và dùng các khối Single nhỏ thay thế để tối ưu!',
-            icon: 'warning',
-            position: 'center',
-            isInterrupt: true,
-        }];
+  let isDuoPlaced = false;
+  // Chỉ check 2 ô của Phase 2
+  [coordKey(0, 0), coordKey(1, 0)].forEach(key => {
+    const stack = placedTiles.get(key);
+    if (stack && stack.length > 0) {
+      const top = stack[stack.length - 1];
+      // Nếu là Duo thì kích hoạt Interrupt
+      if (top.lightbulbCost === 2 || (top.clusterShape?.length ?? 0) > 1) {
+        isDuoPlaced = true;
+      }
     }
+  });
 
-    if (topCell > 0 && bottomCell > 0) return [];
+  if (isDuoPlaced) {
+    return [{
+      id: 'lv2p2-interrupted',
+      title: 'Budget Interrupted!',
+      description: 'Bạn dùng khối Duo (2 Lightbulbs) nhưng ngân sách chỉ còn 1. Nhấn "I Understand", khối Duo sẽ được hoàn lại và bạn có thể dùng khối Single thay thế!',
+      icon: 'warning',
+      position: 'center',
+      isInterrupt: true,
+    }];
+  }
 
-    if (rotationsPerformed === 0) {
-        return [{
-            id: 'lv2p2-rotate',
-            title: 'Rotate the cluster',
-            description: 'The default shape will not fit. Tap the Rotate button below (or press R on PC).',
-            icon: 'rotate',
-            position: 'top',
-        }];
-    }
+  // Đã đặt đủ 3 ô
+  const filled = [c1, c2, c3].filter(x => x > 0).length;
+  if (filled >= 3) return [];
 
-    if (rotationsPerformed >= 1 && (topCell === 0 || bottomCell === 0)) {
-        return [{
-            id: 'lv2p2-place',
-            title: 'Now place it vertically',
-            description: 'The two glowing cells are stacked. Drop the duo onto them.',
-            icon: 'arrow',
-            position: 'top',
-        }];
-    }
+  // Nếu chưa đặt đủ, hiển thị hướng dẫn
+  if (!selectedPiece) {
+    return [{
+      id: 'lv2p2-pick',
+      title: 'Select a tile',
+      description: 'Use the single Emerald tile to fill the remaining cells.',
+      icon: 'sparkle',
+      position: 'bottom',
+    }];
+  }
 
-    return [];
+  return [{
+    id: 'lv2p2-place',
+    title: 'Fill the remaining cells',
+    description: 'Place the Emerald tile to complete the grid.',
+    icon: 'arrow',
+    position: 'top',
+  }];
 }
 
 export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
@@ -183,6 +185,7 @@ export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
     selectedPiece,
     rotationsPerformed,
     onStepSeen,
+    onInterruptAcknowledged,
 }) => {
     const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
@@ -254,7 +257,14 @@ export const InlineTutorialOverlay: React.FC<InlineTutorialOverlayProps> = ({
                     </div>
                 </div>
                 <button
-                    onClick={handleDismiss}
+                     onClick={() => {
+                        sounds.playClick();
+                        if (visibleStep.isInterrupt) {
+                        // Gọi callback để App.tsx gỡ khối Duo
+                        onInterruptAcknowledged?.(); 
+                        }
+                        handleDismiss();
+                    }}
                     className={`self-end text-[10px] font-bold px-3 py-1.5 rounded-lg transition-colors cursor-pointer ${isInterrupt
                             ? 'bg-rose-800 hover:bg-rose-700 text-white'
                             : 'text-slate-400 hover:text-white hover:bg-slate-800'

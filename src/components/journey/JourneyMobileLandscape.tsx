@@ -83,7 +83,8 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
         bossAmbience,
         bossBattleStats,
         coloredZones,
-        onInlineTutorialStepSeen
+        onInlineTutorialStepSeen,
+        onInterruptAcknowledged
     } = props;
 
     const [isShopSheetOpen, setIsShopSheetOpen] = useState(false);
@@ -242,6 +243,7 @@ export const JourneyMobileLandscape: React.FC<JourneySharedProps> = (props) => {
                             rotationsPerformed={rotationsPerformed}
                             onComplete={() => {}}
                             onStepSeen={onInlineTutorialStepSeen}
+                            onInterruptAcknowledged={onInterruptAcknowledged}
                         />
                     )}
 

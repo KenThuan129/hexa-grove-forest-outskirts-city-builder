@@ -120,4 +120,5 @@ export interface JourneySharedProps {
   onClearHover?: () => void;
 
   onInlineTutorialStepSeen?: (tutorialId: string, stepIndex: number) => void;
+  onInterruptAcknowledged?: () => void;
 }

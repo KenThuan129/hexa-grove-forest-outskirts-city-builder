@@ -712,16 +712,12 @@ export const LEVELS: LevelConfig[] = [
 
   // --------------------------------------------------------------------------
   // LEVEL 2: "Rotate & Budget"
-  // Onboarding tutorial — teaches drag-drop, cluster rotation, and the
-  // "undo" pattern via right-click / cancel. The board is intentionally
-  // shaped so the player MUST rotate the duo before placing it.
   // --------------------------------------------------------------------------
   {
     id: 2,
     name: 'Rotate & Budget',
-    subtitle: 'Tutorial: Drag a duo cluster, rotate it, and watch your budget.',
-    description:
-      'Clusters are multi-hex pieces. You can rotate them before placing. Watch your Lightbulb budget — placing a bigger cluster costs more.',
+    subtitle: 'Tutorial: Resource Planning',
+    description: 'Clusters are multi-hex pieces. Watch your Lightbulb budget — placing a bigger cluster costs more.',
     uiConfig: {
       hideLeftSidebar: true,
       hideRightSidebar: true,
@@ -751,34 +747,39 @@ export const LEVELS: LevelConfig[] = [
       },
       {
         phaseNumber: 2,
-        title: 'Rotate, Undo, and Reconsider',
-        objective: 'The duo no longer fits. Rotate it, place it, then undo and try single tiles instead.',
-        targetTilesCount: 3, // 3 ô cần đặt
+        title: 'Plan Ahead',
+        objective: 'You need 3 cells, but budget is tight. Can you adapt?',
+        targetTilesCount: 3,
+        // 3 ô xếp hình chữ L
         unlockedCoords: [
           { q: 0, r: 0 },
+          { q: 1, r: 0 },
           { q: 0, r: 1 },
-          { q: 0, r: 2 }, // 3 ô dọc
         ],
         coloredZones: [
           {
-            name: 'Emerald Vertical',
+            name: 'Emerald Expansion',
             color: 'emerald',
             coords: [
               { q: 0, r: 0 },
+              { q: 1, r: 0 },
               { q: 0, r: 1 },
-              { q: 0, r: 2 }, // 3 ô dọc
             ],
           },
         ],
       },
     ],
+    // Budget 3 cho Level, Phase 1 xài 2, Phase 2 chỉ còn 1 budget (nếu tính riêng) hoặc tổng 3.
+    // Nhưng vì ta truyền thống tính lightbulbsUsed toàn level, nên budget 3 nghĩa là Phase 2 còn 1.
+    lightbulbBudget: 4,
+    // CHỈ CẤP 1 khối Duo duy nhất
     availablePieces: [
       {
         id: 'p-tutorial-duo-emerald',
         type: 'mixed',
         color: 'emerald',
         name: 'Emerald Duo',
-        description: 'A 2-hex Emerald cluster. Rotate it before placing.',
+        description: 'A 2-hex Emerald cluster.',
         clusterType: 'duo',
         clusterShape: [
           { q: 0, r: 0, type: 'trees' },
@@ -786,19 +787,8 @@ export const LEVELS: LevelConfig[] = [
         ],
         lightbulbCost: 2,
       },
-      {
-        id: 'p-tutorial-single-emerald',
-        type: 'trees',
-        color: 'emerald',
-        name: 'Emerald Grove',
-        description: 'Single Emerald tile.',
-        clusterType: 'single',
-        clusterShape: [{ q: 0, r: 0, type: 'trees' }],
-        lightbulbCost: 1,
-      },
     ],
     targetScore: { star1: 200, star2: 400, star3: 600 },
-    lightbulbBudget: 3, // duo = 2, or 2 singles = 2, buffer for undo/retry
   },
 
   // --------------------------------------------------------------------------
