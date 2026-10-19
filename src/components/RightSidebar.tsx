@@ -1,5 +1,5 @@
 import React from 'react';
-import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode, PlayMode, PenaltyRecord, TileColor, BossBattleStats } from '../types/game';
+import { PhaseConfig, LevelConfig, PlacedTile, RotationZone, MasteryChallenge, GameMode, PlayMode, PenaltyRecord, TileColor, BossBattleStats, PenaltyBypassRecord } from '../types/game';
 import {
   Star,
   Compass,
@@ -21,6 +21,8 @@ import {
   Gift,
 } from 'lucide-react';
 import { coordKey } from '../utils/hexMath';
+import { PenaltyTracker } from './PenaltyTracker';
+
 
 interface RightSidebarProps {
   currentLevel: LevelConfig;
@@ -48,6 +50,7 @@ interface RightSidebarProps {
   highlightScore?: boolean;
   isFalsehoodActive?: boolean;
   isPenaltyLimitExceeded?: boolean;
+  bypasses: PenaltyBypassRecord;
   onRotateZone?: (zoneId: string) => void;
   onCompletePhase: () => void;
   onOpenBossBattle?: () => void;
@@ -88,6 +91,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
   onToggleSound,
   onResetBoard,
   onOpenRules,
+  bypasses,
 }) => {
   const isBuildingMode = playMode === 'building';
   const isBossLevel = Boolean(currentLevel.isBossLevel);
@@ -267,89 +271,14 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
               );
             })}
 
-            {/* Target Color Zone Tag: "No Off-map" (Level 6-8), "No Overlap" (Level 9), "No Penalty" (Level 10+) */}
-            {currentLevel.id >= 6 && (() => {
-              const isLevel9 = currentLevel.id === 9;
-              const isLevel10Plus = currentLevel.id >= 10;
-              const tagName = isLevel10Plus ? 'No Penalty' : isLevel9 ? 'No Overlap' : 'No Off-map';
-
-              const unlockedCoordSet = new Set(currentPhase.unlockedCoords.map(c => coordKey(c.q, c.r)));
-              if (currentPhase.fogCoords) {
-                currentPhase.fogCoords.forEach(c => unlockedCoordSet.add(coordKey(c.q, c.r)));
-              }
-              let offMapCount = 0;
-              let overlapCount = 0;
-              placedTiles.forEach((stack, key) => {
-                if (stack && stack.length > 0) {
-                  const isBridge = stack.some(t => t.type === 'bridge');
-                  if (!isBridge && !unlockedCoordSet.has(key)) {
-                    offMapCount += stack.length;
-                  }
-                  if (stack.length > 1) {
-                    overlapCount += stack.length - 1;
-                  }
-                }
-              });
-
-              const activeOverlap = overlapErrorCount !== undefined ? overlapErrorCount : overlapCount;
-
-              // Rules for Level 10+ "No Penalty" Badge:
-              // 1 - Bypass all Overuse penalty
-              // 2 - Overlap, Off-board, Falsehood, and Disconnect penalties are all counted
-              const countedOverlap = penalties?.overlap ?? activeOverlap;
-              const countedOffMap = penalties?.offMap ?? offMapCount;
-              const countedDisconnect = penalties?.disconnect ?? 0;
-              const countedFalsehood = penalties?.falsehood ?? (isFalsehoodActive ? 1 : 0);
-
-              const countedPenaltyErrors = countedOverlap + countedOffMap + countedDisconnect + countedFalsehood;
-
-              let isClean = false;
-              let violationCount = 0;
-
-              if (isLevel10Plus) {
-                isClean = countedPenaltyErrors === 0 && !isFalsehoodActive && !isPenaltyLimitExceeded;
-                violationCount = Math.max(countedPenaltyErrors, isPenaltyLimitExceeded || isFalsehoodActive ? 1 : 0);
-              } else if (isLevel9) {
-                isClean = activeOverlap === 0;
-                violationCount = activeOverlap;
-              } else {
-                isClean = offMapCount === 0;
-                violationCount = offMapCount;
-              }
-
-              return (
-                <div
-                  key="tag-penalty-condition"
-                  data-tutorial-id="tag-no-off-map"
-                  className={`flex items-center gap-1 px-2 py-0.5 rounded-xl border text-[10px] transition-all ${
-                    isClean
-                      ? 'bg-emerald-950/60 border-emerald-500/60 text-emerald-300 font-semibold shadow-[0_0_6px_rgba(16,185,129,0.2)]'
-                      : 'bg-rose-950/90 border-rose-500 text-rose-200 font-bold ring-2 ring-rose-500/80 animate-pulse shadow-[0_0_12px_rgba(244,63,94,0.6)]'
-                  }`}
-                  title={
-                    isClean
-                      ? `${tagName}: Clean! No errors or boundary violations.`
-                      : `${tagName} Failed: ${violationCount} active error(s)!`
-                  }
-                >
-                  <span
-                    className={`w-2 h-2 rounded-full shrink-0 ${
-                      isClean
-                        ? 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]'
-                        : 'bg-rose-400 shadow-[0_0_6px_rgba(251,113,133,0.8)]'
-                    }`}
-                  />
-                  <span className="truncate max-w-[90px]">{tagName}</span>
-                  {isClean ? (
-                    <Check className="w-3 h-3 text-emerald-400 shrink-0" />
-                  ) : (
-                    <span className="font-mono text-[9px] text-rose-300 font-bold">
-                      {violationCount > 0 ? `! (${violationCount})` : '✕'}
-                    </span>
-                  )}
-                </div>
-              );
-            })()}
+            {/* 2. Penalty Tracker */}
+            {playMode === 'challenger' && penalties && (
+              <PenaltyTracker
+                penalties={penalties}
+                bypasses={bypasses}
+                isTryHard={gameMode === 'tryhard'}
+              />
+            )}
 
             {/* Level 16 Tag: "Use Road" (checked if player placed at least one road hex) */}
             {currentLevel.id === 16 && (() => {

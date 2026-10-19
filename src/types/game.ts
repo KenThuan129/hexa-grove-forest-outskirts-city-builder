@@ -8,6 +8,19 @@ export type BossZoneType = 'power' | 'defend' | 'traits' | 'mixed';
 
 export type BossInspectionBenefitType = 'popularity' | 'ambience' | 'bonus_slot';
 
+export type ZoneModifierType = 
+  | 'add_lightbulb_pct' 
+  | 'reduce_lightbulb_pct' 
+  | 'ruby_tradeoff' 
+  | 'add_leaves'
+  | 'leaves_for_bypass' // Mới: Mất Leaves, được Bypass
+  | 'unlock_pieces';    // Mới: Mất Budget, được thêm quân
+
+export interface ZoneModifier {
+  type: ZoneModifierType;
+  value: number; // Vd: 20 cho 20%, hoặc 4 cho 4 bypass, 100 cho 100 leaves
+}
+
 export interface BossSectionInspection {
   zoneIndex: number;
   zoneName: string;
@@ -169,6 +182,7 @@ export interface PhaseConfig {
     coords: HexCoord[];
     name: string;
     bossZoneType?: BossZoneType | 'power' | 'defend' | 'traits' | 'mixed';
+    zoneModifier?: ZoneModifier;
   }[];
   fogCoords?: HexCoord[];     // Fog Hexes previewing next phase boundaries
   riverCoords?: HexCoord[];   // Unbuildable natural river barrier cells

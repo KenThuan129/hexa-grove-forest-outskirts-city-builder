@@ -655,12 +655,12 @@ export default function App() {
   // Tutorial Level 1 Phase 1: Only show the Amber tile to avoid confusion
   // ─────────────────────────────────────────────────────────────
   const activeAvailablePieces = useMemo(() => {
-  if (currentLevel.id === 1 && phaseIndex === 0) {
-    // Only keep the amber tile in phase 1
-    return currentLevel.availablePieces.filter(p => p.color === 'amber');
-  }
-  return currentLevel.availablePieces;
-}, [currentLevel, phaseIndex]);
+    if (currentLevel.id === 1 && phaseIndex === 0) {
+      // Only keep the amber tile in phase 1
+      return currentLevel.availablePieces.filter(p => p.color === 'amber');
+    }
+    return currentLevel.availablePieces;
+  }, [currentLevel, phaseIndex]);
 
   // ─────────────────────────────────────────────────────────────
   // Cloud Save Blob — the snapshot pushed to Supabase
@@ -774,6 +774,7 @@ export default function App() {
   const [alertToast, setAlertToast] = useState<{ message: string; type: 'info' | 'warn' | 'success' } | null>(null);
 
   const toastTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [processedLeafCosts, setProcessedLeafCosts] = useState<Set<string>>(new Set());
 
   const showToast = (message: string, type: 'info' | 'warn' | 'success' = 'info') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -782,6 +783,108 @@ export default function App() {
       setAlertToast(null);
     }, 3000);
   };
+
+  // ─────────────────────────────────────────────────────────────
+  // TÍNH TOÁN ZONE MODIFIERS (Dành cho Level 10)
+  // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
+  // UNIVERSAL ZONE MODIFIERS (Cho mọi level có gắn modifier)
+  // ─────────────────────────────────────────────────────────────
+  const activeZoneModifiers = useMemo(() => {
+    let bulbPctChange = 0;
+    let bonusLeaves = 0;
+    let leavesCost = 0;
+    let bonusOverlapBypass = 0;
+    let bonusDisconnectBypass = 0;
+
+    if (!currentPhase) return { bulbPctChange, bonusLeaves, leavesCost, bonusOverlapBypass, bonusDisconnectBypass };
+
+    currentPhase.coloredZones.forEach(zone => {
+      if (!zone.zoneModifier) return;
+      
+      const isComplete = zone.coords.every(targetCoord => {
+        const key = coordKey(targetCoord.q, targetCoord.r);
+        const stack = placedTiles.get(key);
+        if (!stack || stack.length === 0) return false;
+        const topTile = stack[stack.length - 1];
+        if (topTile.type === 'bridge') return false;
+        if (zone.color === 'neutral') return true;
+        return topTile.color === zone.color;
+      });
+
+      if (isComplete) {
+        if (zone.zoneModifier.type === 'add_lightbulb_pct') {
+          bulbPctChange += zone.zoneModifier.value;
+        } else if (zone.zoneModifier.type === 'reduce_lightbulb_pct') {
+          bulbPctChange -= zone.zoneModifier.value;
+        } else if (zone.zoneModifier.type === 'add_leaves') {
+          bonusLeaves += zone.zoneModifier.value;
+          bulbPctChange -= 10;
+        } else if (zone.zoneModifier.type === 'ruby_tradeoff') {
+          bonusOverlapBypass += zone.zoneModifier.value;
+          bonusDisconnectBypass += zone.zoneModifier.value;
+          bulbPctChange -= 15; 
+        } else if (zone.zoneModifier.type === 'leaves_for_bypass') {
+          leavesCost += zone.zoneModifier.value;
+          bonusOverlapBypass += 4; // Level 12: Tốn 50 lá đổi 4 bypass
+          bonusDisconnectBypass += 4;
+        }
+      }
+    });
+
+    return { bulbPctChange, bonusLeaves, leavesCost, bonusOverlapBypass, bonusDisconnectBypass };
+  }, [currentPhase, placedTiles]);
+
+  useEffect(() => {
+    if (!currentPhase) return;
+    
+    currentPhase.coloredZones.forEach(zone => {
+      if (zone.zoneModifier?.type !== 'leaves_for_bypass') return;
+      
+      const zoneKey = `${currentLevel.id}-${zone.name}`;
+      const isComplete = zone.coords.every(c => {
+        const stack = placedTiles.get(coordKey(c.q, c.r));
+        return stack && stack.length > 0 && stack[stack.length - 1].color === zone.color;
+      });
+
+      if (isComplete && !processedLeafCosts.has(zoneKey)) {
+        setLeaves(prev => Math.max(0, prev - (zone.zoneModifier?.value || 0)));
+        setProcessedLeafCosts(prev => new Set(prev).add(zoneKey));
+        showToast(`🩸 ${zone.name} Filled! -${zone.zoneModifier?.value} Leaves.`, 'warn');
+      }
+    });
+  }, [currentLevel.id, currentPhase, placedTiles, processedLeafCosts]);
+
+  // Xử lý cộng Leaves tự động cho BẤT KỲ LEVEL NÀO có modifier 'add_leaves'
+  const [claimedLeavesZones, setClaimedLeavesZones] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!currentPhase) return;
+
+    currentPhase.coloredZones.forEach(zone => {
+      if (zone.zoneModifier?.type !== 'add_leaves') return;
+      
+      const zoneKey = `${currentLevel.id}-${zone.name}`;
+      const isComplete = zone.coords.every(c => {
+        const stack = placedTiles.get(coordKey(c.q, c.r));
+        return stack && stack.length > 0 && stack[stack.length - 1].color === zone.color;
+      });
+
+      if (isComplete && !claimedLeavesZones.has(zoneKey)) {
+        setLeaves(prev => prev + (zone.zoneModifier?.value || 0));
+        setClaimedLeavesZones(prev => new Set(prev).add(zoneKey));
+        showToast(`🌿 ${zone.name} Filled! +${zone.zoneModifier?.value} Leaves!`, 'success');
+        sounds.playVictory();
+      } else if (!isComplete && claimedLeavesZones.has(zoneKey)) {
+        // Nếu user gỡ tile ra, reset lại để có thể nhận lại (tránh lạm dụng)
+        setClaimedLeavesZones(prev => {
+          const next = new Set(prev);
+          next.delete(zoneKey);
+          return next;
+        });
+      }
+    });
+  }, [currentLevel.id, currentPhase, placedTiles, claimedLeavesZones]);
 
   // Calculate Cumulative Penalty Bypasses from unlocked Memory Pictures (Max 3 per penalty type)
   const bypasses: PenaltyBypassRecord = useMemo(() => {
@@ -793,8 +896,40 @@ export default function App() {
         }
       }
     });
+    
+    // Cộng thêm từ Level 10
+    record.overlap += activeZoneModifiers.bonusOverlapBypass;
+    record.disconnect += activeZoneModifiers.bonusDisconnectBypass;
+
     return record;
-  }, [memories]);
+  }, [memories, activeZoneModifiers]);
+
+  const [hasClaimedL10Leaves, setHasClaimedL10Leaves] = useState(false);
+
+  useEffect(() => {
+    if (currentLevel.id !== 10) return;
+
+    // Tìm zone Emerald
+    const emeraldZone = currentPhase?.coloredZones.find(z => z.color === 'emerald' && z.zoneModifier?.type === 'add_leaves');
+    if (!emeraldZone) return;
+
+    const isComplete = emeraldZone.coords.every(c => {
+      const stack = placedTiles.get(coordKey(c.q, c.r));
+      return stack && stack.length > 0 && stack[stack.length - 1].color === 'emerald';
+    });
+
+    if (isComplete && !hasClaimedL10Leaves) {
+      setLeaves(prev => prev + (emeraldZone.zoneModifier?.value || 0));
+      setHasClaimedL10Leaves(true);
+      showToast(`🌿 Emerald Grove Filled! +100 Leaves!`, 'success');
+      sounds.playVictory();
+    }
+
+    // Nếu user undo (gỡ tile), reset lại để có thể nhận lại
+    if (!isComplete && hasClaimedL10Leaves) {
+      setHasClaimedL10Leaves(false);
+    }
+  }, [currentLevel.id, currentPhase, placedTiles, hasClaimedL10Leaves]);
 
   const isPickingTile = Boolean(selectedPiece || activeDragPiece);
 
@@ -874,9 +1009,12 @@ export default function App() {
         const stack = placedTiles.get(coordKey(c.q, c.r));
         if (stack && stack.length > 0) {
           const top = stack[stack.length - 1];
-          if (top.color === zone.color) occupied++;
+          if (zone.color === 'neutral' || top.color === zone.color) occupied++;
         }
       }
+
+      // Lấy thông tin modifier (nếu có)
+      const modifier = zone.zoneModifier;
 
       return {
         name: zone.name,
@@ -884,6 +1022,7 @@ export default function App() {
         bossZoneType: zone.bossZoneType,
         occupied,
         total: zone.coords.length,
+        modifier, // Trả về thêm modifier
       };
     }
 
@@ -932,6 +1071,7 @@ export default function App() {
       if (!phase) continue;
 
       // 1. Regular Unlocked Coords
+            // 1. Regular Unlocked Coords
       for (const coord of phase.unlockedCoords) {
         const key = coordKey(coord.q, coord.r);
         let colorReq: TileColor = 'neutral';
@@ -941,11 +1081,22 @@ export default function App() {
             break;
           }
         }
+
+        // ─────────────────────────────────────────────────────────────
+        // LEVEL 13 SPECIAL LOGIC: Inner Isle starts LOCKED
+        // ─────────────────────────────────────────────────────────────
+        const isLevel13InnerIsle = 
+          lvl.id === 13 && 
+          ((coord.q === 0 && coord.r === 0) || 
+           (coord.q === 1 && coord.r === 0) || 
+           (coord.q === 0 && coord.r === 1) || 
+           (coord.q === -1 && coord.r === 1));
+
         newCells.set(key, {
           q: coord.q,
           r: coord.r,
           colorRequirement: colorReq,
-          isUnlocked: true,
+          isUnlocked: !isLevel13InnerIsle, // Khóa nếu là đảo trong của Lvl 13
           unlockPhase: p + 1,
           isFog: false,
           isRiver: false,
@@ -991,12 +1142,12 @@ export default function App() {
   }, [allLevels]);
 
   const handleInlineTutorialStepSeen = useCallback((tutorialId: string, stepIndex: number) => {
-  setSeenTutorials(prev => {
-    const current = prev[tutorialId] ?? 0;
-    if (stepIndex <= current) return prev;
-    return { ...prev, [tutorialId]: stepIndex };
-  });
-}, []);
+    setSeenTutorials(prev => {
+      const current = prev[tutorialId] ?? 0;
+      if (stepIndex <= current) return prev;
+      return { ...prev, [tutorialId]: stepIndex };
+    });
+  }, []);
 
   useEffect(() => {
     setPhaseIndex(0);
@@ -1006,6 +1157,43 @@ export default function App() {
   useEffect(() => {
     initializeGridForLevel(levelIndex, phaseIndex);
   }, [levelIndex, phaseIndex, initializeGridForLevel]);
+
+  // ─────────────────────────────────────────────────────────────
+  // LEVEL 13: Unlock Inner Sanctum khi hoàn thành Amber Repairs
+  // ─────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (currentLevel.id !== 13 || !currentPhase) return;
+    
+    const amberZone = currentPhase.coloredZones.find(z => z.zoneModifier?.type === 'unlock_pieces');
+    if (!amberZone) return;
+
+    const isAmberComplete = amberZone.coords.every(c => {
+      const stack = placedTiles.get(coordKey(c.q, c.r));
+      return stack && stack.length > 0 && stack[stack.length - 1].color === 'amber';
+    });
+
+    if (isAmberComplete) {
+      setUnlockedCells(prev => {
+        let hasChanges = false;
+        const next = new Map(prev);
+        
+        next.forEach((cell, key) => {
+          // 4 ô của đảo trong
+          if ((cell.q === 0 && cell.r === 0) || 
+              (cell.q === 1 && cell.r === 0) || 
+              (cell.q === 0 && cell.r === 1) || 
+              (cell.q === -1 && cell.r === 1)) {
+            if (!cell.isUnlocked) {
+              next.set(key, { ...cell, isUnlocked: true });
+              hasChanges = true;
+            }
+          }
+        });
+        
+        return hasChanges ? next : prev; // Tránh re-render vô ích
+      });
+    }
+  }, [currentLevel.id, currentPhase, placedTiles]);
 
   // Reset or switch Level
   useEffect(() => {
@@ -1417,8 +1605,10 @@ export default function App() {
     return true;
   }, [currentLevel, penalties, rotationsPerformed, currentPhase, rawScore]);
 
-  // Building Mode: Lightbulbs Used & Level Budget Calculation
-  const lightbulbBudget = currentLevel.lightbulbBudget ?? (currentLevel.id * 5 + 20);
+  // Tính lại Lightbulb Budget thực tế
+  const baseLightbulbBudget = currentLevel.lightbulbBudget ?? (currentLevel.id * 5 + 20);
+  const lightbulbBudget = Math.max(1, Math.round(baseLightbulbBudget * (1 + activeZoneModifiers.bulbPctChange / 100)));
+
   const lightbulbsUsed = useMemo(() => {
     let total = 0;
     placedTiles.forEach(stack => {
@@ -1734,7 +1924,6 @@ export default function App() {
   useEffect(() => {
     if (
       !canCompletePhase ||
-      isLastPhase ||
       isExpansionAnimating ||
       levelTransit ||
       levelCelebration ||
@@ -1747,11 +1936,12 @@ export default function App() {
       return;
     }
 
+    // Đã xong điều kiện, đợi 800ms cho user kịp nhìn thấy hiệu ứng hoàn thành
     autoAdvanceTimerRef.current = setTimeout(() => {
       sounds.playZoneComplete();
-      handleCompletePhaseRef.current?.(); // ← FIX: use ref
+      handleCompletePhaseRef.current?.();
       autoAdvanceTimerRef.current = null;
-    }, 650);
+    }, 800);
 
     return () => {
       if (autoAdvanceTimerRef.current) {
@@ -1761,7 +1951,6 @@ export default function App() {
     };
   }, [
     canCompletePhase,
-    isLastPhase,
     isExpansionAnimating,
     levelTransit,
     levelCelebration,
@@ -2720,25 +2909,25 @@ export default function App() {
   };
 
   // ─────────────────────────────────────────────────────────────
-// Tutorial replay — reset the target level and re-enter it.
-// The `seenTutorials[id]` already stores max step reached, so
-// the skip gate still respects prior progress.
-// ─────────────────────────────────────────────────────────────
-const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: number) => {
-  setIsTutorialMenuOpen(false);
+  // Tutorial replay — reset the target level and re-enter it.
+  // The `seenTutorials[id]` already stores max step reached, so
+  // the skip gate still respects prior progress.
+  // ─────────────────────────────────────────────────────────────
+  const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: number) => {
+    setIsTutorialMenuOpen(false);
 
-  const targetIdx = allLevels.findIndex(l => l.id === targetLevelId);
-  if (targetIdx >= 0) {
-    triggerLevelTransit(targetIdx);
-    navigateWithTransition(
-      'journey',
-      `Replaying Tutorial: Level ${targetLevelId}`,
-      allLevels[targetIdx]?.name || 'Tutorial'
-    );
-  } else {
-    showToast('Tutorial level not found.', 'warn');
-  }
-}, [allLevels, triggerLevelTransit]);
+    const targetIdx = allLevels.findIndex(l => l.id === targetLevelId);
+    if (targetIdx >= 0) {
+      triggerLevelTransit(targetIdx);
+      navigateWithTransition(
+        'journey',
+        `Replaying Tutorial: Level ${targetLevelId}`,
+        allLevels[targetIdx]?.name || 'Tutorial'
+      );
+    } else {
+      showToast('Tutorial level not found.', 'warn');
+    }
+  }, [allLevels, triggerLevelTransit]);
 
   // ─────────────────────────────────────────────────────────────
   // Cloud Save — wipe cloud row (dangerous)
@@ -3293,7 +3482,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                     <span>Show UI [H]</span>
                   </button>
                 </div>
-              ) :  currentLevel.id >= 6 ? (
+              ) : currentLevel.id >= 6 ? (
                 <div className="w-full flex justify-between items-start gap-2">
                   {/* Top Left: Home, Memories & Level Name ONLY */}
                   <div className="pointer-events-auto flex items-center gap-2 wood-panel px-3.5 py-1.5 text-[#f4ecd8] text-xs whitespace-nowrap shadow-xl">
@@ -3426,7 +3615,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                     </button>
                   </div>
                 </div>
-              ): null}
+              ) : null}
 
               {/* Mid Row: Unified Building Sidebar (Building Mode) OR Split 2-Sidebars Layout (Challenger Mode) */}
               {!isCleanUiMode && (
@@ -3452,6 +3641,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                         rotationZones={currentPhase?.rotationZones}
                         penalties={penalties}
                         soundEnabled={soundEnabled}
+                        bypasses={bypasses}
                         canCompletePhase={canCompletePhase}
                         isLastPhase={phaseIndex + 1 === currentLevel.phases.length}
                         onRotateZone={handleRotateZone}
@@ -3527,6 +3717,7 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                             onToggleSound={handleToggleSound}
                             onResetBoard={handleResetBoard}
                             onOpenRules={() => setIsRulesModalOpen(true)}
+                            bypasses={bypasses}
                           />
                         </div>
                       ) : (
@@ -3622,49 +3813,43 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
               </div>
             )}
 
-            {currentLevel.isBossLevel && hoveredZoneInfo && cursorScreenPos && (() => {
-              const TOOLTIP_W = 230;
-              const TOOLTIP_H = 140;
+            {((currentLevel.isBossLevel || currentPhase?.coloredZones.some(z => z.zoneModifier)) && hoveredZoneInfo && cursorScreenPos) && (() => {
+              const TOOLTIP_W = 240;
+              const TOOLTIP_H = 160; // Tăng chiều cao lên xíu để chứa Modifier
               const vw = window.innerWidth;
               const vh = window.innerHeight;
 
-              // Position strictly on the right side of the cursor for optimal visibility
               let left = cursorScreenPos.x + 22;
               let top = cursorScreenPos.y - 25;
 
-              // Flip horizontally if clipping the right edge
-              if (left + TOOLTIP_W > vw - 16) {
-                left = cursorScreenPos.x - TOOLTIP_W - 22;
-              }
-              // Clamp vertically so tooltip never clips offscreen
+              if (left + TOOLTIP_W > vw - 16) left = cursorScreenPos.x - TOOLTIP_W - 22;
               top = Math.max(16, Math.min(vh - TOOLTIP_H - 16, top));
 
-              // Per-color theme (dot, border glow, gradient bg, label text)
+              // Per-color theme
               const theme =
-                hoveredZoneInfo.color === 'amber'
-                  ? { bg: 'from-amber-950/95 to-amber-900/95', border: 'border-amber-500/70', dot: 'bg-amber-400', label: 'text-amber-200', ring: 'shadow-[0_0_18px_rgba(245,158,11,0.4)]' }
-                  : hoveredZoneInfo.color === 'emerald'
-                    ? { bg: 'from-emerald-950/95 to-emerald-900/95', border: 'border-emerald-500/70', dot: 'bg-emerald-400', label: 'text-emerald-200', ring: 'shadow-[0_0_18px_rgba(16,185,129,0.4)]' }
-                    : hoveredZoneInfo.color === 'sapphire'
-                      ? { bg: 'from-cyan-950/95 to-cyan-900/95', border: 'border-cyan-500/70', dot: 'bg-cyan-400', label: 'text-cyan-200', ring: 'shadow-[0_0_18px_rgba(6,182,212,0.4)]' }
-                      : hoveredZoneInfo.color === 'ruby'
-                        ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
+                hoveredZoneInfo.color === 'amber' ? { bg: 'from-amber-950/95 to-amber-900/95', border: 'border-amber-500/70', dot: 'bg-amber-400', label: 'text-amber-200', ring: 'shadow-[0_0_18px_rgba(245,158,11,0.4)]' }
+                  : hoveredZoneInfo.color === 'emerald' ? { bg: 'from-emerald-950/95 to-emerald-900/95', border: 'border-emerald-500/70', dot: 'bg-emerald-400', label: 'text-emerald-200', ring: 'shadow-[0_0_18px_rgba(16,185,129,0.4)]' }
+                    : hoveredZoneInfo.color === 'sapphire' ? { bg: 'from-cyan-950/95 to-cyan-900/95', border: 'border-cyan-500/70', dot: 'bg-cyan-400', label: 'text-cyan-200', ring: 'shadow-[0_0_18px_rgba(6,182,212,0.4)]' }
+                      : hoveredZoneInfo.color === 'ruby' ? { bg: 'from-rose-950/95 to-rose-900/95', border: 'border-rose-500/70', dot: 'bg-rose-400', label: 'text-rose-200', ring: 'shadow-[0_0_18px_rgba(244,63,94,0.4)]' }
                         : { bg: 'from-slate-900/95 to-slate-800/95', border: 'border-slate-600/70', dot: 'bg-slate-400', label: 'text-slate-200', ring: '' };
 
               const isComplete = hoveredZoneInfo.occupied >= hoveredZoneInfo.total;
-              const zoneKey = `${currentLevel.id}-${hoveredZoneInfo.name}`;
-              const isInspected = inspectedZoneKeys.has(zoneKey);
-              const isCollapsed = Boolean(bossBattleStats.isStatsCollapsed);
+
+              // Text hiển thị Modifier
+              let modifierText = null;
+              if (hoveredZoneInfo.modifier) {
+                const { type, value } = hoveredZoneInfo.modifier;
+                if (type === 'add_lightbulb_pct') modifierText = `+${value}% Lightbulb Budget`;
+                else if (type === 'reduce_lightbulb_pct') modifierText = `-${value}% Lightbulb Budget`;
+                else if (type === 'ruby_tradeoff') modifierText = `+${value} Overlap & Disconnect Bypasses (Cost: -15% Budget)`;
+                else if (type === 'add_leaves') modifierText = `+${value} Leaves (Cost: -10% Budget)`;
+                else if (type === 'leaves_for_bypass') modifierText = `-${value} Leaves, +4 Bypasses`;
+                else if (type === 'unlock_pieces') modifierText = `Unlocks Inner Sanctum`;
+              }
 
               return (
-                <div
-                  className="fixed z-[60] pointer-events-none animate-in fade-in duration-100"
-                  style={{ left, top, width: TOOLTIP_W }}
-                >
-                  <div
-                    className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}
-                  >
-                    {/* Header: color swatch + zone color name + inspected badge */}
+                <div className="fixed z-[60] pointer-events-none animate-in fade-in duration-100" style={{ left, top, width: TOOLTIP_W }}>
+                  <div className={`bg-gradient-to-br ${theme.bg} border-2 ${theme.border} ${theme.ring} rounded-2xl px-3 py-2.5 shadow-2xl backdrop-blur-md`}>
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${theme.dot} shadow`} />
@@ -3672,32 +3857,21 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                           {hoveredZoneInfo.color} Zone
                         </span>
                       </div>
-                      {isComplete ? (
+                      {isComplete && (
                         <span className="text-[9px] font-black px-1.5 py-0.2 rounded-full bg-emerald-500 text-emerald-950">
                           ✓ DONE
-                        </span>
-                      ) : isInspected ? (
-                        <span className="text-[9px] font-bold text-amber-300">
-                          ✓ Inspected
-                        </span>
-                      ) : (
-                        <span className="text-[9px] font-medium text-white/70 animate-pulse">
-                          👁️ Inspecting...
                         </span>
                       )}
                     </div>
 
-                    {/* Zone name */}
                     <div className="text-xs font-bold text-white mb-1.5 truncate">
                       {hoveredZoneInfo.name}
                     </div>
 
-                    {/* Occupancy meter */}
                     <div className="flex items-center gap-2 mb-1.5">
                       <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/10">
                         <div
-                          className={`h-full rounded-full transition-all duration-200 ${isComplete ? 'bg-emerald-400' : theme.dot
-                            }`}
+                          className={`h-full rounded-full transition-all duration-200 ${isComplete ? 'bg-emerald-400' : theme.dot}`}
                           style={{ width: `${Math.round((hoveredZoneInfo.occupied / Math.max(1, hoveredZoneInfo.total)) * 100)}%` }}
                         />
                       </div>
@@ -3706,39 +3880,12 @@ const handleReplayTutorial = useCallback((_tutorialId: string, targetLevelId: nu
                       </span>
                     </div>
 
-                    {/* Stats Preview & Zero Collapse Warning */}
-                    {isCollapsed ? (
-                      <div className="pt-1.5 border-t border-rose-500/30 flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 text-rose-300 font-black text-[10px]">
-                          <span>⚠️</span>
-                          <span>ALL STATS DROPPED TO 0</span>
-                        </div>
-                        <div className="text-[9px] text-rose-200/90 font-medium">
-                          {bossBattleStats.collapseReason || 'Lightbulb budget exceeded or 2+ penalties active'}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="pt-1.5 border-t border-white/10 flex flex-col gap-0.5">
-                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-200">
-                          {hoveredZoneInfo.color === 'amber' || hoveredZoneInfo.color === 'ruby' ? (
-                            <>
-                              <span>⭐</span>
-                              <span>+35 Popularity (+{hoveredZoneInfo.color === 'ruby' ? '18' : '12'}/tile)</span>
-                            </>
-                          ) : hoveredZoneInfo.color === 'sapphire' ? (
-                            <>
-                              <span>✨</span>
-                              <span>+35 Ambience (+15/tile)</span>
-                            </>
-                          ) : (
-                            <>
-                              <span>🎁</span>
-                              <span>+1 Bonus Selection Slot</span>
-                            </>
-                          )}
-                        </div>
-                        <div className="text-[9px] text-white/60 font-medium">
-                          {isComplete ? '✨ Zone fulfilled · Synthesia boosted' : 'Match all zone tiles for Synthesia multiplier'}
+                    {/* Hiển thị Modifier (Chỉ dành cho Level 10) */}
+                    {modifierText && (
+                      <div className="pt-1.5 border-t border-white/10 flex items-start gap-1.5">
+                        <span className="text-[10px] mt-0.5">✨</span>
+                        <div className="text-[10px] text-amber-200 font-bold leading-tight">
+                          {modifierText}
                         </div>
                       </div>
                     )}

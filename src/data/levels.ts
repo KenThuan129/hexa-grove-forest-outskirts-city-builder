@@ -2291,769 +2291,332 @@ export const LEVELS: LevelConfig[] = [
   },
 
   // --------------------------------------------------------------------------
-  // LEVEL 10: Citadel of the Pioneers (Tier 1 Grand Finale)
+  // LEVEL 10: "Citadel of the Pioneers" (Now: Challenge Precursor)
   // --------------------------------------------------------------------------
   {
     id: 10,
-    name: "Citadel of the Pioneers",
-    subtitle: "Tier 1 Grand Finale: Multi-Phase Cluster Citadel",
-    description: "Combine all learned mechanics: Multi-Phase expansion, 2H to 5H Giant Clusters, and Tri-Color zone completion.",
+    name: "The Trade-off Citadel",
+    subtitle: "Mechanic: Zone Modifiers & Trade-offs",
+    description: "Inspect the 4 islands! Filling certain colored zones will grant powerful buffs but at a cost. Plan your resources wisely.",
+    lightbulbBudget: 45,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'The Divided Citadel',
+        objective: 'Fill the colored zones across the 4 islands. Pay attention to the trade-offs!',
+        targetTilesCount: 15, // Tổng số ô
+        unlockedCoords: [
+          // Đảo 1 (Top Left - Amber): 4 ô xếp hình vuông
+          { q: -2, r: 0 }, { q: -1, r: 0 }, { q: -2, r: 1 }, { q: -1, r: 1 },
+          
+          // Đảo 2 (Top Right - Ruby): 4 ô xếp hình vuông
+          { q: 1, r: -2 }, { q: 2, r: -2 }, { q: 1, r: -1 }, { q: 2, r: -1 },
+          
+          // Đảo 3 (Bottom Left - Sapphire): 3 ô xếp hình chữ L
+          { q: -2, r: 2 }, { q: -1, r: 2 }, { q: -2, r: 3 },
+          
+          // Đảo 4 (Bottom Right - Emerald): 4 ô xếp hình vuông
+          { q: 1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }, { q: 2, r: 2 },
+        ],
+        // 3 cây cầu hình tam giác ở giữa (Pre-placed)
+        prePlacedRoads: [
+          { pieceId: 'p-bridge-single', q: 0, r: 0 },
+          { pieceId: 'p-bridge-single', q: 0, r: -1 },
+          { pieceId: 'p-bridge-single', q: -1, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Amber Crucible',
+            color: 'amber',
+            coords: [{ q: -2, r: 0 }, { q: -1, r: 0 }, { q: -2, r: 1 }, { q: -1, r: 1 }],
+            zoneModifier: { type: 'add_lightbulb_pct', value: 20 },
+          },
+          {
+            name: 'Ruby Forge',
+            color: 'ruby',
+            coords: [{ q: 1, r: -2 }, { q: 2, r: -2 }, { q: 1, r: -1 }, { q: 2, r: -1 }], // Đã sửa thành 4 ô
+            zoneModifier: { type: 'ruby_tradeoff', value: 6 }, // Dùng type mới
+          },
+          {
+            name: 'Sapphire Spring',
+            color: 'sapphire',
+            coords: [{ q: -2, r: 2 }, { q: -1, r: 2 }, { q: -2, r: 3 }],
+            // Không có modifier
+          },
+          {
+            name: 'Emerald Grove',
+            color: 'emerald',
+            coords: [{ q: 1, r: 1 }, { q: 2, r: 1 }, { q: 1, r: 2 }, { q: 2, r: 2 }],
+            zoneModifier: { type: 'add_leaves', value: 100 },
+          }
+        ],
+      }
+    ],
+    availablePieces: getPieces([
+      'p-house-gray', 
+      'p-duo-amber', 'p-triad-amber', 'p-house-amber',
+      'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby',
+      'p-duo-sapphire', 'p-house-sapphire', 
+      'p-duo-emerald', 'p-triad-emerald', 'p-quad-emerald'
+    ]),
+    targetScore: { star1: 500, star2: 1000, star3: 1500 },
+    isBossLevel: false,
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 11: The Rotary Tollway (Trade-off: Budget vs Bypass)
+  // --------------------------------------------------------------------------
+  {
+    id: 11,
+    name: "The Rotary Tollway",
+    subtitle: "Mechanic: Trade-off - Budget vs Bypass",
+    description: "A massive rotating tollway dominates the center. Choose wisely: Amber gives you budget, but Ruby takes it away for powerful Overlap passes.",
+    lightbulbBudget: 25, // Budget cơ bản khá thấp
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'The Central Hub',
+        objective: 'Fill the Amber and Ruby zones on the tollway.',
+        targetTilesCount: 10,
+        unlockedCoords: [
+          // Vòng trong (Turntable)
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, 
+          { q: -1, r: 1 }, { q: -1, r: 0 }, { q: 0, r: -1 }, { q: 1, r: -1 },
+          // Vòng ngoài
+          { q: 2, r: 0 }, { q: 0, r: 2 }, { q: -2, r: 2 }, { q: -2, r: 0 }, { q: 0, r: -2 }, { q: 2, r: -2 },
+        ],
+        // Đường bị khóa (Pre-placed) bắt buộc user phải xoay
+        prePlacedRoads: [
+          { pieceId: 'p-road-single', q: 0, r: 0 },
+        ],
+        rotationZones: [
+          { id: 'zone-11-core', name: 'Rotary Core', center: { q: 0, r: 0 }, radius: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Amber Boost',
+            color: 'amber',
+            coords: [{ q: 0, r: 2 }, { q: -2, r: 2 }, { q: -2, r: 0 }],
+            zoneModifier: { type: 'add_lightbulb_pct', value: 20 },
+          },
+          {
+            name: 'Ruby Toll',
+            color: 'ruby',
+            coords: [{ q: 2, r: 0 }, { q: 0, r: -2 }, { q: 2, r: -2 }],
+            zoneModifier: { type: 'ruby_tradeoff', value: 3 }, // Mất 15% budget, +3 Overlap/Disconnect
+          }
+        ],
+      }
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-ruby', 'p-triad-amber', 'p-triad-ruby']),
+    targetScore: { star1: 600, star2: 1200, star3: 1800 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 12: The Bloodwood Canopy (Trade-off: Leaves vs Power)
+  // --------------------------------------------------------------------------
+  {
+    id: 12,
+    name: "The Bloodwood Canopy",
+    subtitle: "Mechanic: Spend Leaves for Bypasses",
+    description: "The forest demands a sacrifice. Fill the Emerald zone to gain Leaves, but spending the Ruby zone will consume your Leaves for massive Bypass power.",
+    lightbulbBudget: 35,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'The Canopy Floor',
+        objective: 'Balance your Leaves and Bypasses.',
+        targetTilesCount: 12,
+        unlockedCoords: [
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, { q: 0, r: 1 }, { q: 1, r: 1 },
+          { q: -1, r: 1 }, { q: -2, r: 1 }, { q: -2, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 2 },
+        ],
+        // Đường bị khóa chia cắt map
+        prePlacedRoads: [
+          { pieceId: 'p-road-single', q: 0, r: 0 },
+          { pieceId: 'p-road-single', q: 1, r: 0 },
+          { pieceId: 'p-road-single', q: 2, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Emerald Grove',
+            color: 'emerald',
+            coords: [{ q: 0, r: 1 }, { q: 1, r: 1 }, { q: 0, r: 2 }],
+            zoneModifier: { type: 'add_leaves', value: 150 },
+          },
+          {
+            name: 'Bloodwood Forge',
+            color: 'ruby',
+            coords: [{ q: -1, r: 1 }, { q: -2, r: 1 }, { q: -1, r: 2 }],
+            zoneModifier: { type: 'leaves_for_bypass', value: 50 }, // Tốn 50 Leaves để được 4 Bypass
+          }
+        ],
+      }
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-emerald', 'p-duo-ruby', 'p-triad-emerald', 'p-triad-ruby']),
+    targetScore: { star1: 800, star2: 1500, star3: 2200 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 13: The Broken Aqueduct (Trade-off: Unlock new land)
+  // --------------------------------------------------------------------------
+  {
+    id: 13,
+    name: "The Broken Aqueduct",
+    subtitle: "Mechanic: Unlock the Hidden Isles",
+    description: "The Sapphire zone is cut off. You must fill the Amber zone to repair the ancient viaducts and gain access to the inner sanctum.",
+    lightbulbBudget: 30,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'The Outer Rim',
+        objective: 'Fill the Amber zone to unlock the inner isle.',
+        targetTilesCount: 15,
+        unlockedCoords: [
+          // Vành đai ngoài
+          { q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }, 
+          { q: 0, r: 2 }, { q: 1, r: 2 }, { q: -1, r: 2 }, { q: 0, r: 3 },
+          // Đảo trong (sẽ được unlock)
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }, { q: -1, r: 1 },
+        ],
+        prePlacedRoads: [
+          // 3 cây cầu nối vành đai với đảo trong
+          { pieceId: 'p-bridge-single', q: 1, r: 0 },
+          { pieceId: 'p-bridge-single', q: 0, r: 1 },
+          { pieceId: 'p-bridge-single', q: -1, r: 1 },
+        ],
+        coloredZones: [
+          {
+            name: 'Amber Repairs',
+            color: 'amber',
+            coords: [{ q: 2, r: 0 }, { q: 3, r: 0 }, { q: 1, r: 1 }, { q: 2, r: 1 }],
+            // Sẽ được handle code để mở khóa 3 ô trong
+            zoneModifier: { type: 'unlock_pieces', value: 0 },
+          },
+          {
+            name: 'Sapphire Sanctum',
+            color: 'sapphire',
+            coords: [{ q: 0, r: 0 }, { q: 1, r: 0 }, { q: 0, r: 1 }],
+          }
+        ],
+      }
+    ],
+    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-quad-amber', 'p-duo-sapphire', 'p-triad-sapphire']),
+    targetScore: { star1: 1000, star2: 1800, star3: 2500 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 14: The Gravity Well (High Risk / High Reward)
+  // --------------------------------------------------------------------------
+  {
+    id: 14,
+    name: "The Gravity Well",
+    subtitle: "Mechanic: Heavy Penalties vs Ultimate Power",
+    description: "The Ruby core grants immense power but at a terrible cost. You can only win if you have enough Bypasses to survive the Overlap penalty.",
+    lightbulbBudget: 40,
+    phases: [
+      {
+        phaseNumber: 1,
+        title: 'The Singularity',
+        objective: 'Fill the Ruby core and survive the penalty.',
+        targetTilesCount: 12,
+        unlockedCoords: [
+          { q: 0, r: 0 }, { q: 1, r: 0 }, { q: 2, r: 0 }, 
+          { q: -1, r: 0 }, { q: -2, r: 0 }, { q: -2, r: 1 },
+          { q: -1, r: 1 }, { q: 0, r: 1 }, { q: 1, r: 1 },
+          { q: 2, r: -1 }, { q: -1, r: 2 }, { q: 0, r: 2 }
+        ],
+        prePlacedRoads: [
+          { pieceId: 'p-junction-roundabout', q: 0, r: 0 },
+        ],
+        coloredZones: [
+          {
+            name: 'Ruby Singularity',
+            color: 'ruby',
+            coords: [{ q: -1, r: 1 }, { q: 0, r: 1 }, { q: 1, r: 1 }, { q: -1, r: 2 }, { q: 0, r: 2 }],
+            zoneModifier: { type: 'ruby_tradeoff', value: 2 }, // Phạt nhẹ, nhưng cho 2 bypass
+          },
+          {
+            name: 'Amber Heavy Core',
+            color: 'amber',
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }],
+            zoneModifier: { type: 'reduce_lightbulb_pct', value: 5 }, // Mất 5% budget
+          }
+        ],
+      }
+    ],
+    availablePieces: getPieces([
+      'p-house-gray', 
+      'p-duo-amber', 'p-triad-amber', 
+      'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby', // Bổ sung đủ Ruby
+      'p-duo-emerald', 'p-duo-sapphire'
+    ]),
+    targetScore: { star1: 1200, star2: 2000, star3: 3000 },
+  },
+
+  // --------------------------------------------------------------------------
+  // LEVEL 15: The Grand Bazaar (Trade-off Mastery)
+  // --------------------------------------------------------------------------
+  {
+    id: 15,
+    name: "The Grand Bazaar",
+    subtitle: "Mechanic: Master of Trade-offs",
+    description: "Four factions, four prices. Balance Budget, Leaves, and Bypasses to complete the ultimate trading hub.",
     lightbulbBudget: 50,
     phases: [
       {
         phaseNumber: 1,
-        title: "Phase 1: Citadel Foundations",
-        objective: "Establish the core citadel using amber and sapphire clusters.",
-        targetTilesCount: 7,
+        title: 'The Crossroads',
+        objective: 'The ultimate test of resource management.',
+        targetTilesCount: 16,
         unlockedCoords: [
-          {
-            q: 0,
-            r: 0
-          },
-          {
-            q: 1,
-            r: 0
-          },
-          {
-            q: 0,
-            r: 1
-          },
-          {
-            q: -1,
-            r: 1
-          },
-          {
-            q: -1,
-            r: 0
-          },
-          {
-            q: 0,
-            r: -1
-          },
-          {
-            q: 1,
-            r: -1
-          },
-          {
-            q: 2,
-            r: 0
-          },
-          {
-            q: -2,
-            r: 0
-          },
-          {
-            q: 1,
-            r: 1
-          }
+          // Đảo Bắc
+          { q: 0, r: -2 }, { q: 1, r: -2 }, { q: -1, r: -1 }, { q: 0, r: -1 },
+          // Đảo Đông
+          { q: 2, r: 0 }, { q: 2, r: 1 }, { q: 1, r: 0 }, { q: 1, r: 1 },
+          // Đảo Nam
+          { q: 0, r: 2 }, { q: -1, r: 2 }, { q: 1, r: 2 }, { q: 0, r: 3 },
+          // Đảo Tây
+          { q: -2, r: 0 }, { q: -2, r: 1 }, { q: -1, r: 0 }, { q: -1, r: 1 },
+        ],
+        prePlacedRoads: [
+          { pieceId: 'p-bridge-single', q: 0, r: 0 },
         ],
         coloredZones: [
           {
-            name: "Citadel Gate",
-            color: "amber",
-            coords: [
-              {
-                q: 1,
-                r: 0
-              },
-              {
-                q: 2,
-                r: 0
-              }
-            ]
-          },
-          {
-            name: "Reservoir Keep",
-            color: "sapphire",
-            coords: [
-              {
-                q: -1,
-                r: 0
-              },
-              {
-                q: -2,
-                r: 0
-              }
-            ]
-          }
-        ],
-        fogCoords: [],
-        riverCoords: [],
-        rotationZones: []
-      },
-      {
-        phaseNumber: 2,
-        title: "Phase 2: Grand Bastion",
-        objective: "Expand into the outer emerald walls to complete the pioneer fortress.",
-        targetTilesCount: 14,
-        unlockedCoords: [
-          {
-            q: 1,
-            r: 0
-          },
-          {
-            q: -1,
-            r: 0
-          },
-          {
-            q: 2,
-            r: 0
-          },
-          {
-            q: -2,
-            r: 0
-          },
-          {
-            q: -2,
-            r: 1
-          },
-          {
-            q: -1,
-            r: -1
-          },
-          {
-            q: 1,
-            r: 1
-          },
-          {
-            q: -1,
-            r: 2
-          },
-          {
-            q: -1,
-            r: 1
-          },
-          {
-            q: 0,
-            r: 0
-          },
-          {
-            q: 1,
-            r: -1
-          },
-          {
-            q: 0,
-            r: -1
-          },
-          {
-            q: 0,
-            r: 1
-          },
-          {
-            q: 0,
-            r: 2
-          },
-          {
-            q: 0,
-            r: -2
-          },
-          {
-            q: 2,
-            r: -2
-          },
-          {
-            q: -2,
-            r: 2
-          }
-        ],
-        coloredZones: [
-          {
-            name: "Citadel Gate",
-            color: "amber",
-            coords: [
-              {
-                q: 1,
-                r: 0
-              },
-              {
-                q: 2,
-                r: 0
-              }
-            ]
-          },
-          {
-            name: "Reservoir Keep",
-            color: "sapphire",
-            coords: [
-              {
-                q: -1,
-                r: 0
-              },
-              {
-                q: -2,
-                r: 0
-              }
-            ]
-          },
-          {
-            name: "RUBY Zone",
-            color: "ruby",
-            coords: [
-              {
-                q: -1,
-                r: 1
-              },
-              {
-                q: 0,
-                r: 0
-              },
-              {
-                q: 1,
-                r: -1
-              },
-              {
-                q: 2,
-                r: -2
-              },
-              {
-                q: -2,
-                r: 2
-              }
-            ],
-            bossZoneType: "power"
-          },
-          {
-            name: "EMERALD Zone",
-            color: "emerald",
-            coords: [
-              {
-                q: 0,
-                r: -1
-              },
-              {
-                q: 0,
-                r: 1
-              },
-              {
-                q: 0,
-                r: 2
-              },
-              {
-                q: 0,
-                r: -2
-              }
-            ],
-            bossZoneType: "traits"
-          }
-        ],
-        fogCoords: [],
-        riverCoords: [],
-        rotationZones: []
-      }
-    ],
-    availablePieces: [
-      {
-        id: "p-house-gray",
-        type: "house",
-        color: "neutral",
-        name: "Timber Cottage",
-        description: "Single pioneer dwelling with stone base & slate roof.",
-        bonusesDescription: "Single cell. Safe on any gray clearing.",
-        clusterType: "single",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "house"
-          }
-        ],
-        lightbulbCost: 1
-      },
-      {
-        id: "p-triad-amber",
-        type: "mixed",
-        color: "amber",
-        name: "Amber Triad",
-        description: "Triangular sun-district with townhall and twin amber crofts.",
-        bonusesDescription: "3-Hex Triad cluster. Fills 3 amber zones.",
-        clusterType: "triad",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "house"
-          },
-          {
-            q: 1,
-            r: 0,
-            type: "mixed"
-          },
-          {
-            q: 0,
-            r: 1,
-            type: "trees"
-          }
-        ],
-        lightbulbCost: 3
-      },
-      {
-        id: "p-duo-sapphire",
-        type: "mixed",
-        color: "sapphire",
-        name: "Aqueduct Duo",
-        description: "Twin watermill and sluice gate reservoir.",
-        bonusesDescription: "2-Hex Duo cluster. Matches Sapphire zones.",
-        clusterType: "duo",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "house"
-          },
-          {
-            q: 1,
-            r: -1,
-            type: "mixed"
-          }
-        ],
-        lightbulbCost: 2
-      },
-      {
-        id: "p-quad-sapphire",
-        type: "mixed",
-        color: "sapphire",
-        name: "Basin Quad",
-        description: "Four-cell hydro reservoir with purification fountain & lodge.",
-        bonusesDescription: "4-Hex Quad cluster. Wide sapphire reach.",
-        clusterType: "quad",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "house"
-          },
-          {
-            q: 1,
-            r: 0,
-            type: "mixed"
-          },
-          {
-            q: 0,
-            r: 1,
-            type: "house"
-          },
-          {
-            q: -1,
-            r: 1,
-            type: "mixed"
-          }
-        ],
-        lightbulbCost: 4
-      },
-      {
-        id: "p-triad-emerald",
-        type: "mixed",
-        color: "emerald",
-        name: "Grove Triad",
-        description: "Three-cell enchanted forest grove with warden post.",
-        bonusesDescription: "3-Hex Triad cluster. Fast green zone coverage.",
-        clusterType: "triad",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "trees"
-          },
-          {
-            q: 1,
-            r: 0,
-            type: "trees"
-          },
-          {
-            q: 1,
-            r: -1,
-            type: "mixed"
-          }
-        ],
-        lightbulbCost: 3
-      },
-      {
-        id: "p-landmark-cathedral",
-        type: "landmark",
-        color: "ruby",
-        name: "Crimson Sovereign Cathedral",
-        description: "Five-hex magnificent terracotta cathedral and spire landmark.",
-        bonusesDescription: "5-Hex Landmark. Epic crimson beauty.",
-        clusterType: "pentad",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "landmark"
-          },
-          {
-            q: 1,
-            r: 0,
-            type: "mixed"
-          },
-          {
-            q: 0,
-            r: 1,
-            type: "house"
-          },
-          {
-            q: -1,
-            r: 1,
-            type: "landmark"
-          },
-          {
-            q: 1,
-            r: -1,
-            type: "house"
-          }
-        ],
-        lightbulbCost: 5
-      },
-      {
-        id: "p-duo-ruby",
-        type: "mixed",
-        color: "ruby",
-        name: "Forge Duo",
-        description: "Twin blacksmith workshop and brick kiln foundry.",
-        bonusesDescription: "2-Hex Duo cluster. Matches Ruby zones.",
-        clusterType: "duo",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "house"
-          },
-          {
-            q: 0,
-            r: 1,
-            type: "mixed"
-          }
-        ],
-        lightbulbCost: 2
-      },
-      {
-        id: "p-tower-sapphire",
-        type: "tower",
-        color: "sapphire",
-        name: "Hydro-Spire Keep",
-        description: "Three-hex waterworks castle keep with sky-high sapphire tower.",
-        bonusesDescription: "3-Hex Tower Cluster. Protects alignment zones.",
-        clusterType: "triad",
-        clusterShape: [
-          {
-            q: 0,
-            r: 0,
-            type: "tower"
-          },
-          {
-            q: 1,
-            r: -1,
-            type: "mixed"
-          },
-          {
-            q: 0,
-            r: -1,
-            type: "house"
-          }
-        ],
-        lightbulbCost: 3
-      }
-    ],
-    targetScore: {
-      star1: 500,
-      star2: 750,
-      star3: 1000,
-    },
-    isBossLevel: false
-  },
-
-  // --------------------------------------------------------------------------
-  // LEVEL 11: The Riverbend Turntable (Introduces Rotation Zones)
-  // --------------------------------------------------------------------------
-  {
-    id: 11,
-    name: 'The Riverbend Turntable',
-    subtitle: 'Mechanic: Interactive Rotation Zones',
-    description:
-      'Click the 3D rotary dial or the HUD button to rotate the 7 central hexes by 60°, shifting placed tiles into new color alignments!',
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Riverbend Mechanism',
-        objective: 'Use the turntable to shift structures into matching color zones.',
-        targetTilesCount: 8,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 0, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 2, r: -1 },
-          { q: 0, r: 2 },
-          { q: -2, r: 1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Rotary Sunpath',
+            name: 'Northern Amber',
             color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: -1 }],
+            coords: [{ q: 0, r: -2 }, { q: 1, r: -2 }, { q: -1, r: -1 }, { q: 0, r: -1 }],
+            zoneModifier: { type: 'add_lightbulb_pct', value: 25 },
           },
           {
-            name: 'Spring Inlet',
-            color: 'sapphire',
-            coords: [{ q: -1, r: 0 }, { q: -2, r: 1 }],
-          },
-        ],
-        initialPlacedTiles: [
-          { pieceId: 'p-house-amber', q: 0, r: 1 },
-        ],
-        rotationZones: [
-          {
-            id: 'zone-11-core',
-            name: 'Riverbend Turntable',
-            center: { q: 0, r: 0 },
-            radius: 1,
-          },
-        ],
-      },
-    ],
-    availablePieces: getPieces(['p-house-gray', 'p-duo-amber', 'p-duo-sapphire', 'p-trees-emerald']),
-    targetScore: { star1: 2200, star2: 2800, star3: 3250 },
-    lightbulbBudget: 15,
-  },
-
-  // --------------------------------------------------------------------------
-  // LEVEL 12: Whirling Windmill (Turntable + 3H Triads)
-  // --------------------------------------------------------------------------
-  {
-    id: 12,
-    name: 'Whirling Windmill',
-    subtitle: 'Mechanic: Rotary Cluster Alignment',
-    description:
-      'Rotate multi-hex clusters on the central turntable to fulfill intricate color requirements.',
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Windmill Meadow',
-        objective: 'Rotate the central mechanism to align the Amber and Emerald districts.',
-        targetTilesCount: 9,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 0, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 2, r: 0 },
-          { q: 1, r: 1 },
-          { q: -1, r: 2 },
-        ],
-        coloredZones: [
-          {
-            name: 'Mill Grain Store',
-            color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
+            name: 'Eastern Ruby',
+            color: 'ruby',
+            coords: [{ q: 2, r: 0 }, { q: 2, r: 1 }, { q: 1, r: 0 }, { q: 1, r: 1 }],
+            zoneModifier: { type: 'ruby_tradeoff', value: 4 },
           },
           {
-            name: 'Orchard Glade',
+            name: 'Southern Emerald',
             color: 'emerald',
-            coords: [{ q: 0, r: 1 }, { q: -1, r: 2 }],
-          },
-        ],
-        rotationZones: [
-          {
-            id: 'zone-12-core',
-            name: 'Windmill Gear',
-            center: { q: 0, r: 0 },
-            radius: 1,
-          },
-        ],
-      },
-    ],
-    availablePieces: getPieces(['p-house-gray', 'p-triad-amber', 'p-triad-emerald', 'p-duo-gray']),
-    targetScore: { star1: 1200, star2: 2200, star3: 2600 },
-    lightbulbBudget: 20,
-  },
-
-  // --------------------------------------------------------------------------
-  // LEVEL 13: Highland Citadel (Introduces Mastery Challenge)
-  // --------------------------------------------------------------------------
-  {
-    id: 13,
-    name: 'Highland Citadel',
-    subtitle: 'Mechanic: Mastery Challenges (1★ + Mastery Required)',
-    description:
-      'Achieve 1 Star AND complete the Highland Mastery Challenge (Complete with at least 2500 points) to advance!',
-    lightbulbBudget: 9,
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Citadel Outskirts',
-        objective: 'Fulfill all color zones and execute the turntable mechanism.',
-        targetTilesCount: 10,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 0, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 2, r: 0 },
-          { q: 0, r: 2 },
-          { q: -2, r: 0 },
-          { q: 0, r: -2 },
-        ],
-        coloredZones: [
-          {
-            name: 'Sunstone Bastion',
-            color: 'amber',
-            coords: [
-              { q: 1, r: 0 },
-              { q: 2, r: 0 },
-            ],
+            coords: [{ q: 0, r: 2 }, { q: -1, r: 2 }, { q: 1, r: 2 }, { q: 0, r: 3 }],
+            zoneModifier: { type: 'add_leaves', value: 200 },
           },
           {
-            name: 'Aquifer Spring',
+            name: 'Western Sapphire',
             color: 'sapphire',
-            coords: [
-              { q: -1, r: 0 },
-              { q: -2, r: 0 },
-            ],
-          },
+            coords: [{ q: -2, r: 0 }, { q: -2, r: 1 }, { q: -1, r: 0 }, { q: -1, r: 1 }],
+          }
         ],
-        rotationZones: [
-          {
-            id: 'zone-13-highland',
-            name: 'Citadel Turntable',
-            center: { q: 0, r: 0 },
-            radius: 1,
-          },
-        ],
-      },
+      }
     ],
     availablePieces: getPieces([
-      'p-house-gray',
-      'p-duo-gray',
-      'p-duo-emerald',
-      'p-duo-sapphire',
-      'p-duo-amber',
+      'p-house-gray', 
+      'p-duo-amber', 'p-triad-amber', 'p-quad-amber',
+      'p-duo-ruby', 'p-triad-ruby', 'p-quad-ruby',
+      'p-duo-emerald', 'p-triad-emerald', 'p-quad-emerald',
+      'p-duo-sapphire', 'p-triad-sapphire'
     ]),
-    targetScore: { star1: 2600, star2: 2700, star3: 3400 },
-    isBossLevel: false,
-    masteryChallenge: {
-      id: 'mc-custom-13',
-      title: 'Highland Score Mastery',
-      description: 'Complete with at least 2500 points',
-      type: 'min_score',
-      targetValue: 2500,
-    },
-  },
-
-  // --------------------------------------------------------------------------
-  // LEVEL 14: Sunstone Quarry (Mastery: Zero Overuse)
-  // --------------------------------------------------------------------------
-  {
-    id: 14,
-    name: 'Sunstone Quarry',
-    subtitle: 'Mastery Challenge: Zero Overuse',
-    description:
-      'Stay strictly within the building quota to earn the Master Stonemason achievement.',
-    masteryChallenge: {
-      id: 'mc-14',
-      title: 'Quarry Efficiency',
-      description: 'Complete the level with 0 Overuse penalties (stay within Par).',
-      type: 'zero_overuse',
-    },
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Quarry Terraces',
-        objective: 'Pack 4-hex and 3-hex amber structures within par.',
-        targetTilesCount: 8,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 2, r: 0 },
-          { q: 0, r: 1 },
-          { q: 1, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 2, r: -1 },
-        ],
-        coloredZones: [
-          {
-            name: 'Sunstone Quarry',
-            color: 'amber',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }, { q: 1, r: 1 }, { q: 2, r: -1 }],
-          },
-        ],
-      },
-    ],
-    availablePieces: getPieces(['p-house-gray', 'p-quad-amber', 'p-triad-amber', 'p-duo-amber']),
-    targetScore: { star1: 2400, star2: 3400, star3: 3800 },
-    lightbulbBudget: 12,
-  },
-
-  // --------------------------------------------------------------------------
-  // LEVEL 15: Glacial Springs (Sapphire Waterways + Dual Rotation Zones)
-  // --------------------------------------------------------------------------
-  {
-    id: 15,
-    name: 'Glacial Springs',
-    subtitle: 'Mechanic: Sapphire Flow & Rotary Hubs',
-    description:
-      'Route crystal sapphire streams through rotating glacial valve hubs.',
-    phases: [
-      {
-        phaseNumber: 1,
-        title: 'Glacial Basin',
-        objective: 'Align sapphire springs and verdant banks using the rotary valve.',
-        targetTilesCount: 11,
-        unlockedCoords: [
-          { q: 0, r: 0 },
-          { q: 1, r: 0 },
-          { q: 0, r: 1 },
-          { q: -1, r: 1 },
-          { q: -1, r: 0 },
-          { q: 0, r: -1 },
-          { q: 1, r: -1 },
-          { q: 2, r: 0 },
-          { q: -2, r: 0 },
-          { q: 0, r: 2 },
-          { q: 0, r: -2 },
-        ],
-        coloredZones: [
-          {
-            name: 'Glacial Sluice',
-            color: 'sapphire',
-            coords: [{ q: 0, r: 1 }, { q: 0, r: 2 }, { q: -1, r: 1 }],
-          },
-          {
-            name: 'Alpine Pines',
-            color: 'emerald',
-            coords: [{ q: 1, r: 0 }, { q: 2, r: 0 }],
-          },
-        ],
-        initialPlacedTiles: [
-          { pieceId: 'p-house-sapphire', q: 1, r: -1 },
-          { pieceId: 'p-house-gray', q: 0, r: -1 },
-          { pieceId: 'p-house-gray', q: 0, r: 0 },
-          { pieceId: 'p-house-gray', q: -1, r: 0 },
-        ],
-        rotationZones: [
-          {
-            id: 'zone-15-glacial',
-            name: 'Glacial Valve',
-            center: { q: 0, r: 0 },
-            radius: 1,
-          },
-        ],
-      },
-    ],
-    availablePieces: getPieces(['p-house-gray', 'p-duo-sapphire', 'p-quad-sapphire', 'p-duo-emerald', 'p-triad-emerald']),
-    targetScore: { star1: 2800, star2: 4000, star3: 4300 },
-    lightbulbBudget: 12,
+    targetScore: { star1: 1500, star2: 2500, star3: 3500 },
   },
 
   // --------------------------------------------------------------------------
