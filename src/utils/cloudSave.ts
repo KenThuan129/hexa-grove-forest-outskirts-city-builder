@@ -20,7 +20,9 @@ export interface AppSaveSnapshot {
   claimedChestIds: number[];
   hasGoldenTicket: boolean;
   playMode: CloudSaveBlob['playMode'];
-  gameMode: CloudSaveBlob['gameMode'];
+  gameModifier: CloudSaveBlob['gameModifier'];
+  unlockedModifiers: CloudSaveBlob['unlockedModifiers'];
+  tightRopeLevelsCleared: CloudSaveBlob['tightRopeLevelsCleared'];
   latestChapterExplore: number;
   latestMemories: number;
   chosenBypass: CloudSaveBlob['chosenBypass'];
@@ -136,7 +138,9 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     claimedChestIds: [],
     hasGoldenTicket: false,
     playMode: 'building',
-    gameMode: 'casual',
+    gameModifier: 'none',
+    unlockedModifiers: ['none', 'safety_guard'],
+    tightRopeLevelsCleared: [],
     latestChapterExplore: 0,
     latestMemories: 0,
     chosenBypass: {},
@@ -151,16 +155,11 @@ export function migrateBlob(raw: any): CloudSaveBlob {
   const rawSchema = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 1;
 
   // ── v2 → v3 migration ────────────────────────────────────────
-  // Existing players (v2 or lower) already know the UI. Give them
-  // `complete` stage so we don't force them through onboarding again.
-  // Brand-new blobs (no schemaVersion) get `welcome`.
   let migratedStage: OnboardingStage;
   if (rawSchema < 3) {
     if (rawSchema === 0 || (raw.highestCompletedLevel ?? 0) === 0 && raw.schemaVersion === undefined) {
-      // Treat as fresh
       migratedStage = 'welcome';
     } else {
-      // Existing player
       migratedStage = 'complete';
     }
   } else {
@@ -169,6 +168,15 @@ export function migrateBlob(raw: any): CloudSaveBlob {
 
   const validStages: OnboardingStage[] = ['welcome', 'tutorial_lv1', 'tutorial_lv2', 'post_lv5', 'complete'];
   if (!validStages.includes(migratedStage)) migratedStage = 'welcome';
+
+  // Fallback cho gameModifier nếu data cũ
+  const migratedGameModifier = raw.gameModifier ?? 'none';
+  const migratedUnlockedModifiers = Array.isArray(raw.unlockedModifiers) 
+    ? raw.unlockedModifiers 
+    : ['none', 'safety_guard'];
+  const migratedTightRopeLevels = Array.isArray(raw.tightRopeLevelsCleared) 
+    ? raw.tightRopeLevelsCleared 
+    : [];
 
   return {
     schemaVersion: CURRENT_SAVE_SCHEMA_VERSION,
@@ -180,8 +188,11 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     constructions: raw.constructions && typeof raw.constructions === 'object' ? raw.constructions : fallback.constructions,
     claimedChestIds: Array.isArray(raw.claimedChestIds) ? raw.claimedChestIds : fallback.claimedChestIds,
     hasGoldenTicket: typeof raw.hasGoldenTicket === 'boolean' ? raw.hasGoldenTicket : fallback.hasGoldenTicket,
-    playMode: raw.playMode === 'challenger' ? 'challenger' : 'building',
-    gameMode: raw.gameMode === 'tryhard' ? 'tryhard' : 'casual',
+    // Migrate 'challenger' cũ thành 'concrete'
+    playMode: raw.playMode === 'concrete' || raw.playMode === 'challenger' ? 'concrete' : 'building',
+    gameModifier: migratedGameModifier,
+    unlockedModifiers: migratedUnlockedModifiers,
+    tightRopeLevelsCleared: migratedTightRopeLevels,
     latestChapterExplore: typeof raw.latestChapterExplore === 'number' ? raw.latestChapterExplore : 0,
     latestMemories: typeof raw.latestMemories === 'number' ? raw.latestMemories : 0,
     chosenBypass: raw.chosenBypass && typeof raw.chosenBypass === 'object' ? raw.chosenBypass : {},
@@ -232,6 +243,7 @@ export function blobsAreMeaningfullyDifferent(
     'leaves',
     'hasGoldenTicket',
     'onboardingStage',
+    'gameModifier',
   ];
 
   for (const field of fields) {
@@ -245,6 +257,8 @@ export function blobsAreMeaningfullyDifferent(
   if (!eqObj(local.constructions, cloud.constructions)) return true;
   if (!eqObj(local.boosters, cloud.boosters)) return true;
   if (!eqObj(local.seenTutorials, cloud.seenTutorials)) return true;
+  if (!eqArr(local.unlockedModifiers, cloud.unlockedModifiers)) return true;
+  if (!eqArr(local.tightRopeLevelsCleared, cloud.tightRopeLevelsCleared)) return true;
 
   return false;
 }

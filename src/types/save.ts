@@ -1,7 +1,7 @@
 // src/types/save.ts
 
 import type { BoosterId, ConstructionId } from './economy';
-import type { BypassablePenaltyType, GameMode, MemoryPicture, PlayMode } from './game';
+import type { BypassablePenaltyType, GameMode, GameModifier, MemoryPicture, PlayMode } from './game';
 
 /** Bump this whenever the blob shape changes in a breaking way. */
 export const CURRENT_SAVE_SCHEMA_VERSION = 3;
@@ -40,8 +40,10 @@ export interface CloudSaveBlob {
   constructions: Record<ConstructionId, number>;
   claimedChestIds: number[];
   hasGoldenTicket: boolean;
-  playMode: PlayMode;
-  gameMode: GameMode;
+  playMode: PlayMode; // Sẽ tự động nhận 'building' | 'concrete'
+  gameModifier: GameModifier; // Thay thế cho gameMode (casual/tryhard)
+  unlockedModifiers: GameModifier[]; // Lưu các modifier đã mở khóa
+  tightRopeLevelsCleared: number[]; // Lưu ID các màn đã qua bằng Tight Rope
 
   // ── Memories feature ─────────────────────────────────────────────
   /** Last VN chapter id the player opened (0 = none). */

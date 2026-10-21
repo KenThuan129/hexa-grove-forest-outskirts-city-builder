@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { sounds } from '../utils/audio';
-import { PenaltyRecord, GameMode } from '../types/game';
+import { PenaltyRecord, GameMode, PlayMode } from '../types/game';
 import {
   Sparkles,
   Star,
@@ -36,7 +36,7 @@ export interface LevelCelebrationData {
   penalties: PenaltyRecord;
   totalLevelsCount: number;
   isFinalLevel?: boolean;
-  gameMode?: GameMode;
+  playMode?: PlayMode;
 }
 
 interface EndOfLevelCelebrationProps {
@@ -44,6 +44,7 @@ interface EndOfLevelCelebrationProps {
   onContinue: () => void;
   onReplay: () => void;
   onViewMemories?: () => void;
+  onReturnHome?: () => void;
 }
 
 export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
@@ -51,6 +52,7 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
   onContinue,
   onReplay,
   onViewMemories,
+  onReturnHome
 }) => {
   const [revealedStars, setRevealedStars] = useState<number>(0);
   const [showPathProgress, setShowPathProgress] = useState(false);
@@ -520,7 +522,7 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
              <button
               onClick={() => {
                 // Gọi thẳng onContinue (về Home)
-                onContinue();
+                if (onReturnHome) onReturnHome();
               }}
               className="flex-1 py-2 px-2.5 rounded-xl bg-[#2b1a11]/80 hover:bg-[#3a2519] border border-[#5c3d2e] text-[#f0c674] font-bold text-[11px] transition-colors cursor-pointer flex items-center justify-center gap-1"
             >

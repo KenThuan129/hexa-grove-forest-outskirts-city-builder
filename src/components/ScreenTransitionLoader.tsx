@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Compass, Sparkles, Home, BookOpen, MapPin } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
-export type ScreenDestination = 'home' | 'journey' | 'memories';
+export type ScreenDestination = 'home' | 'journey_map' | 'journey' | 'memories';
 
 interface ScreenTransitionLoaderProps {
   destination: ScreenDestination;

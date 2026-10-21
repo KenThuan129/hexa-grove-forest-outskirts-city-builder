@@ -31,6 +31,7 @@ import { CloudSaveIndicator } from './components/CloudSaveIndicator';
 import { JourneyMobileOnly } from './components/journey/Journey';
 import { useLayout } from './context/LayoutContext';
 import { ConflictResolutionModal } from './components/ConflictResolutionModal';
+import { JourneyMap } from './components/JourneyMap';
 import type { CloudSaveBlob } from './types/save';
 import {
   GUEST_TRIAL_LEVEL_IDS,
@@ -59,9 +60,9 @@ import {
   PenaltyBypassRecord,
   PenaltyType,
   BypassablePenaltyType,
-  GameMode,
   PlayMode,
   BossBattleStats,
+  GameModifier,
 } from './types/game';
 import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors, HEX_DIRECTIONS } from './utils/hexMath';
 // Thêm vào import list hiện tại:
@@ -95,7 +96,7 @@ import {
 
 export default function App() {
   // Page Navigation: 'home' | 'journey' | 'memories'
-  const [activePage, setActivePage] = useState<'home' | 'journey' | 'memories'>('home');
+  const [activePage, setActivePage] = useState<'home' | 'journey_map' | 'journey' | 'memories'>('home');
 
   // Onboarding stage — controls which UI elements are visible.
   // Synced to cloud via CloudSaveBlob. Default 'welcome' for new players.
@@ -170,7 +171,7 @@ export default function App() {
   // Loading Screens & Transit State
   const [showSpecialIntro, setShowSpecialIntro] = useState(true);
   const [screenTransition, setScreenTransition] = useState<{
-    destination: 'home' | 'journey' | 'memories';
+    destination: 'home' | 'journey_map' | 'journey' | 'memories';
     title?: string;
     subtitle?: string;
   } | null>(null);
@@ -183,7 +184,7 @@ export default function App() {
   const [levelCelebration, setLevelCelebration] = useState<LevelCelebrationData | null>(null);
 
   const navigateWithTransition = (
-    dest: 'home' | 'journey' | 'memories',
+    dest: 'home' | 'journey_map' | 'journey' | 'memories',
     title?: string,
     subtitle?: string,
     force?: boolean
@@ -260,32 +261,50 @@ export default function App() {
     setPhaseIndex(phaseNum !== undefined ? phaseNum : 0);
   }, [allLevels, isAuthLoading, isGuest]);
 
+    const handleNavigateJourney = () => {
+    // Khóa Journey Map cho đến khi hoàn thành Level 5 (hết Tutorial Arc)
+    if (highestCompletedLevel < 5) {
+      sounds.playWarning();
+      showToast(
+        `🔒 Journey Map locked! Complete Level 5 to unlock the full campaign (${highestCompletedLevel}/5 completed).`,
+        'warn'
+      );
+      return;
+    }
+    
+    navigateWithTransition('journey_map', 'Journey Levels', 'Select your next expedition');
+  };
+
+  const handleSelectLevelFromMap = (index: number, modifier: GameModifier) => {
+    setGameModifier(modifier);
+    triggerLevelTransit(index);
+    
+    // Reset HP nếu là Cold Sea
+    if (modifier === 'cold_sea') setColdSeaHp(300);
+
+    const level = allLevels[index];
+    navigateWithTransition(
+      'journey',
+      `Embarking on Level ${level.id}: ${level.name}`,
+      `Par Limit: ${level.phases[0]?.targetTilesCount || 5} Tiles`
+    );
+  };
+
   // Clean UI / Zen Mode for clutter-free viewport
   const [isCleanUiMode, setIsCleanUiMode] = useState(false);
   const [isJourneyPaused, setIsJourneyPaused] = useState(false);
   const [zoneHighlightKeys, setZoneHighlightKeys] = useState<Set<string>>(new Set());
 
-  // Play Mode State: 'building' (Standard Journey Mode) vs 'challenger' (Stars, Score, Par, Penalties)
-  const [playMode, setPlayMode] = useState<PlayMode>(() => {
-    try {
-      const saved = localStorage.getItem('hexa_play_mode');
-      if (saved === 'building' || saved === 'challenger') return saved;
-      return 'building';
-    } catch {
-      return 'building';
-    }
-  });
-
   const [isBossBattleOpen, setIsBossBattleOpen] = useState(false);
 
-  // Game Mode State: 'casual' (relaxed, stress-free progression) vs 'tryhard' (1★ + Mastery required)
-  const [gameMode, setGameMode] = useState<GameMode>(() => {
+  // Game Mode State: 'casual' (relaxed, stress-free progression) vs 'concrete' (1★ + Mastery required)
+   const [playMode, setPlayMode] = useState<PlayMode>(() => {
     try {
-      const saved = localStorage.getItem('hexa_game_mode');
-      if (saved === 'casual' || saved === 'tryhard') return saved;
-      return 'casual';
+      const saved = localStorage.getItem('hexa_play_mode');
+      if (saved === 'building' || saved === 'concrete') return saved;
+      return 'building';
     } catch {
-      return 'casual';
+      return 'building';
     }
   });
 
@@ -499,12 +518,12 @@ export default function App() {
 
   const [mobileTutorialSeenGroups, setMobileTutorialSeenGroups] = useState<string[]>([]);
 
-  // Persist gameMode and highestCompletedLevel
+  // Persist playMode and highestCompletedLevel
   useEffect(() => {
     try {
-      localStorage.setItem('hexa_game_mode', gameMode);
+      localStorage.setItem('hexa_game_mode', playMode);
     } catch { }
-  }, [gameMode]);
+  }, [playMode]);
 
   useEffect(() => {
     try {
@@ -576,6 +595,11 @@ export default function App() {
       return false;
     }
   });
+
+  const [gameModifier, setGameModifier] = useState<GameModifier>('none');
+  const [unlockedModifiers, setUnlockedModifiers] = useState<GameModifier[]>(['none', 'safety_guard']);
+  const [tightRopeLevelsCleared, setTightRopeLevelsCleared] = useState<number[]>([]);
+  const [coldSeaHp, setColdSeaHp] = useState(300);
 
   // ── Cloud Save — conflict resolution + wipe ────────────────────
   const [pendingConflict, setPendingConflict] = useState<{
@@ -674,13 +698,14 @@ export default function App() {
       claimedChestIds,
       hasGoldenTicket,
       playMode,
-      gameMode,
+      gameModifier,          
+      unlockedModifiers,      
+      tightRopeLevelsCleared, 
       latestChapterExplore,
       latestMemories,
       chosenBypass: chosenBypassMap as any,
       memories,
       mobileTutorialSeenGroups,
-      // ── NEW (schema v3) ──
       onboardingStage,
       seenTutorials,
     });
@@ -693,12 +718,13 @@ export default function App() {
     claimedChestIds,
     hasGoldenTicket,
     playMode,
-    gameMode,
+    gameModifier,           
+    unlockedModifiers,      
+    tightRopeLevelsCleared, 
     latestChapterExplore,
     latestMemories,
     memories,
     mobileTutorialSeenGroups,
-    // ── NEW ──
     onboardingStage,
     seenTutorials,
   ]);
@@ -866,14 +892,8 @@ export default function App() {
         setClaimedLeavesZones(prev => new Set(prev).add(zoneKey));
         showToast(`🌿 ${zone.name} Filled! +${zone.zoneModifier?.value} Leaves!`, 'success');
         sounds.playVictory();
-      } else if (!isComplete && claimedLeavesZones.has(zoneKey)) {
-        // Nếu user gỡ tile ra, reset lại để có thể nhận lại (tránh lạm dụng)
-        setClaimedLeavesZones(prev => {
-          const next = new Set(prev);
-          next.delete(zoneKey);
-          return next;
-        });
       }
+      // ĐÃ XÓA ĐOẠN ELSE IF (RESET KHI GỠ TILE) ĐỂ CHỐNG GLITCH
     });
   }, [currentLevel.id, currentPhase, placedTiles, claimedLeavesZones]);
 
@@ -1492,7 +1512,7 @@ export default function App() {
   // Penalties record with Memories Penalty Bypass Free Passes Applied!
   const penalties: PenaltyRecord = useMemo(() => {
     // Overuse penalties are bypassed by default until Challenger Mode is entered
-    const isOveruseActive = playMode === 'challenger';
+    const isOveruseActive = playMode === 'concrete';
     const effectiveOveruse = isOveruseActive ? Math.max(0, rawOveruseCount - bypasses.overuse) : 0;
 
     return {
@@ -1510,10 +1530,10 @@ export default function App() {
   const strictPenaltyLimit = currentLevel.strictPenaltyLimit ?? (currentLevel.id >= 20 ? 3 : undefined);
   const isPenaltyLimitExceeded =
     !isTitanShieldActive &&
-    gameMode === 'tryhard' &&
+    playMode === 'concrete' &&
     strictPenaltyLimit !== undefined &&
     totalPenaltiesCount > strictPenaltyLimit;
-  const isFalsehoodActive = !isTitanShieldActive && gameMode === 'tryhard' && penalties.falsehood > 0;
+  const isFalsehoodActive = !isTitanShieldActive && playMode === 'concrete' && penalties.falsehood > 0;
 
   // Trigger Penalty Discovery when switching to Challenger Mode for the first time
   const handleSwitchPlayMode = (mode: PlayMode) => {
@@ -1522,7 +1542,7 @@ export default function App() {
       localStorage.setItem('hexa_play_mode', mode);
     } catch { }
 
-    if (mode === 'challenger' && !hasDiscoveredPenalties) {
+    if (mode === 'concrete' && !hasDiscoveredPenalties) {
       setHasDiscoveredPenalties(true);
       setIsPenaltyDiscoveryModalOpen(true);
       setHighlightPenalties(true);
@@ -2414,6 +2434,33 @@ export default function App() {
           });
           return next;
         });
+
+        // CẬP NHẬT LẠI TỌA ĐỘ CỦA COLORED ZONES TRONG DATA
+        setCustomLevels(prev => {
+          const next = [...prev];
+          const currentLvlIndex = next.findIndex(l => l.id === currentLevel.id);
+          if (currentLvlIndex >= 0) {
+            const lvl = { ...next[currentLvlIndex] };
+            const phase = { ...lvl.phases[phaseIndex] };
+            
+            // Xoay từng coord trong coloredZones
+            phase.coloredZones = phase.coloredZones.map(z => ({
+              ...z,
+              coords: z.coords.map(c => {
+                if (zoneKeySet.has(coordKey(c.q, c.r))) {
+                  return rotateHexCoord({ q: c.q, r: c.r }, zone.center, 1);
+                }
+                return c;
+              })
+            }));
+            
+            lvl.phases = [...lvl.phases];
+            lvl.phases[phaseIndex] = phase;
+            next[currentLvlIndex] = lvl;
+            return next;
+          }
+          return prev;
+        });
       }
 
       setRotationsPerformed(prev => prev + 1);
@@ -2719,7 +2766,7 @@ export default function App() {
         return;
       }
 
-      const isTryHard = gameMode === 'tryhard';
+      const isTryHard = playMode === 'concrete';
       const hasMastery = Boolean(currentLevel.masteryChallenge);
 
       if (isTryHard) {
@@ -2782,7 +2829,7 @@ export default function App() {
         penalties: penalties,
         totalLevelsCount: LEVELS.length,
         isFinalLevel: levelIndex + 1 >= LEVELS.length,
-        gameMode: gameMode,
+        playMode: playMode,
       });
     }
   };
@@ -2931,7 +2978,6 @@ export default function App() {
     setClaimedChestIds(blob.claimedChestIds);
     setHasGoldenTicket(blob.hasGoldenTicket);
     setPlayMode(blob.playMode);
-    setGameMode(blob.gameMode);
     setLatestChapterExplore(blob.latestChapterExplore);
     setLatestMemories(blob.latestMemories);
     setMobileTutorialSeenGroups(blob.mobileTutorialSeenGroups ?? []);
@@ -2954,6 +3000,10 @@ export default function App() {
         currentLevel: blob.constructions?.[item.id] ?? item.currentLevel,
       }))
     );
+
+    setGameModifier(blob.gameModifier ?? 'none');
+    setUnlockedModifiers(blob.unlockedModifiers ?? ['none', 'safety_guard']);
+    setTightRopeLevelsCleared(blob.tightRopeLevelsCleared ?? []);
 
     showToast('Cloud save loaded.', 'success');
   }, []);
@@ -3284,7 +3334,6 @@ export default function App() {
           currentLevelIndex={levelIndex}
           isOpenShowcase={isOpenHomeShowcase}
           onboardingStage={onboardingStage}
-          gameMode={gameMode}
           playMode={playMode}
           performanceMode={performanceMode}
           cloudSaveStatus={saveStatus}
@@ -3303,15 +3352,6 @@ export default function App() {
           onClaimChest={handleClaimChest}
           onBuyBooster={handleBuyBooster}
           onUpgradeConstruction={handleUpgradeConstruction}
-          onChangeGameMode={mode => {
-            setGameMode(mode);
-            showToast(
-              mode === 'casual'
-                ? 'Switched to Casual Mode: Relaxed rules & easy progression.'
-                : 'Switched to Try-Hard Mode: 1★ + Mastery required to win.',
-              'info'
-            );
-          }}
           onChangePlayMode={mode => {
             setPlayMode(mode);
             try {
@@ -3327,7 +3367,7 @@ export default function App() {
           onCloseShowcase={() => setIsOpenHomeShowcase(false)}
           onSelectLevel={idx => triggerLevelTransit(idx)}
           onStartJourney={() => {
-            // Guest who finished all trials must sign in
+            // Guest check
             if (isGuest && isGuestTrialComplete()) {
               sounds.playWarning();
               setAuthPrompt('Sign in to unlock all 40 levels and continue your journey.');
@@ -3336,43 +3376,32 @@ export default function App() {
               return;
             }
 
-            // ── Onboarding: transition from 'welcome' to 'tutorial_lv1' ──
-            if (onboardingStage === 'welcome') {
-              setOnboardingStage('tutorial_lv1');
-              // Jump to Level 1 explicitly (ignore nextPlayableIndex)
-              const lvl1Index = allLevels.findIndex(l => l.id === 1);
-              triggerLevelTransit(lvl1Index >= 0 ? lvl1Index : 0);
+            // Nếu đang trong Onboarding hoặc chưa xong Level 5, bắt buộc đi theo flow Tutorial
+            if (onboardingStage === 'welcome' || highestCompletedLevel < 5) {
+              
+              // Xác định level tiếp theo cần chơi
+              let targetLevelId = 1;
+              if (onboardingStage === 'tutorial_lv1' || (highestCompletedLevel === 0)) targetLevelId = 1;
+              else if (onboardingStage === 'tutorial_lv2' || (highestCompletedLevel === 1)) targetLevelId = 2;
+              else targetLevelId = highestCompletedLevel + 1; // Level 3, 4, 5
+
+              // Nếu đã qua 1, 2 thì set stage complete (không bị kẹt ở tutorial cũ)
+              if (highestCompletedLevel >= 2 && onboardingStage !== 'complete') {
+                setOnboardingStage('complete');
+              }
+
+              const idx = allLevels.findIndex(l => l.id === targetLevelId);
+              triggerLevelTransit(idx >= 0 ? idx : 0);
               navigateWithTransition(
-                'journey',
-                'Beginning Your Journey',
-                'Level 1: Placing Your First Tile'
+                'journey', 
+                `Continuing Journey`, 
+                `Level ${targetLevelId}`
               );
               return;
             }
 
-            // If in tutorial_lv1 / tutorial_lv2 stage, always go to the current tutorial level
-            if (onboardingStage === 'tutorial_lv1') {
-              const lvl1Index = allLevels.findIndex(l => l.id === 1);
-              triggerLevelTransit(lvl1Index >= 0 ? lvl1Index : 0);
-              navigateWithTransition('journey', 'Resuming Tutorial', 'Level 1: Placing Your First Tile');
-              return;
-            }
-            if (onboardingStage === 'tutorial_lv2') {
-              const lvl2Index = allLevels.findIndex(l => l.id === 2);
-              triggerLevelTransit(lvl2Index >= 0 ? lvl2Index : 1);
-              navigateWithTransition('journey', 'Resuming Tutorial', 'Level 2: Rotate & Budget');
-              return;
-            }
-
-            const playIndex = nextPlayableIndex >= 0 ? nextPlayableIndex : levelIndex;
-            const playLevel = allLevels[playIndex] ?? currentLevel;
-
-            triggerLevelTransit(playIndex);
-            navigateWithTransition(
-              'journey',
-              `Embarking on Level ${playLevel.id}: ${playLevel.name}`,
-              `Par Limit: ${playLevel.phases[0]?.targetTilesCount || 5} Tiles · 3★ Challenge`
-            );
+            // Bình thường (đã qua Level 5) -> Mở Journey Map
+            handleNavigateJourney();
           }}
           onNavigateMemories={() => {
             navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties');
@@ -3384,6 +3413,20 @@ export default function App() {
           onOpenShop={() => setIsShopModalOpen(true)}
           onShowGoldenTicket={() => setIsGoldenTicketModalOpen(true)}
           onPlayIntro={() => setShowSpecialIntro(true)}
+        />
+      )}
+
+      {activePage === 'journey_map' && (
+        <JourneyMap
+          levels={allLevels}
+          highestCompletedLevel={highestCompletedLevel}
+          currentLevelIndex={levelIndex}
+          playMode={playMode}
+          gameModifier={gameModifier}
+          unlockedModifiers={unlockedModifiers}
+          tightRopeLevelsCleared={tightRopeLevelsCleared}
+          onSelectLevel={handleSelectLevelFromMap}
+          onNavigateHome={() => navigateWithTransition('home', 'Returning Home', 'Island Sanctuary')}
         />
       )}
 
@@ -3794,7 +3837,6 @@ export default function App() {
                             hidePenalties={currentLevel.uiConfig?.hidePenalties}
                             highlightPenalties={highlightPenalties}
                             bypasses={bypasses}
-                            gameMode={gameMode}
                             playMode={playMode}
                             lightbulbsUsed={lightbulbsUsed}
                             lightbulbBudget={lightbulbBudget}
@@ -3823,7 +3865,6 @@ export default function App() {
                             hasCompletedFirstTrial={hasCompletedFirstTrial}
                             masteryChallenge={currentLevel.masteryChallenge}
                             isMasteryCompleted={isMasteryCompleted}
-                            gameMode={gameMode}
                             playMode={playMode}
                             bossBattleStats={currentLevel.isBossLevel ? bossBattleStats : undefined}
                             inspectedZoneIds={inspectedZoneKeys}
@@ -4124,14 +4165,12 @@ export default function App() {
         onForceSync={forceSync}
         onWipeCloudSave={() => setIsWipeCloudConfirmOpen(true)}
         soundEnabled={soundEnabled}
-        gameMode={gameMode}
         playMode={playMode}
         performanceMode={performanceMode}
         targetFps={targetFps}
         isLowPowerMode={isLowPowerMode}
         textureQuality={textureQuality}
         highestCompletedLevel={highestCompletedLevel}
-        onChangeGameMode={setGameMode}
         onChangePlayMode={handleSwitchPlayMode}
         onTogglePerformanceMode={setPerformanceMode}
         onChangeTargetFps={setTargetFps}
@@ -4498,6 +4537,7 @@ export default function App() {
             setLevelCelebration(null);
             navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties');
           }}
+          onReturnHome={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
         />
       )}
     </>

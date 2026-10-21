@@ -159,7 +159,6 @@ export const HomePage: React.FC<HomePageProps> = ({
         onOpenRules={onOpenRules}
         onOpenLevelEditor={onOpenLevelEditor}
         onOpenAdminAuth={onOpenAdminAuth}
-        onChangeGameMode={onChangeGameMode}
         onChangePlayMode={onChangePlayMode}
         onOpenShop={onOpenShop}
         onShowGoldenTicket={onShowGoldenTicket}
@@ -473,28 +472,26 @@ export const HomePage: React.FC<HomePageProps> = ({
                 </div>
 
                 <button
-                  data-tutorial-id="home-play-btn"
-                  onClick={() => {
-                    sounds.playVictory();
-                    onStartJourney();
-                  }}
-                  className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer animate-pulse"
-                >
-                  <div className="flex items-center gap-3 text-left">
-                    <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-                      <Play className="w-4 h-4 fill-[#f4ecd8] text-[#f4ecd8] ml-0.5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
-                        Begin Journey
-                      </span>
-                      <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
-                        Start Your Journey
-                      </span>
-                    </div>
-                  </div>
-                  <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
-                </button>
+                      data-tutorial-id="home-play-btn"
+                      onClick={onStartJourney} // Hàm này giờ sẽ dẫn vào JourneyMap
+                      className="group relative w-full flex items-center justify-between p-3.5 btn-wooden-sign text-[#f4ecd8] shadow-xl border-2 border-[#8fbc6f] transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 text-left">
+                        <div className="w-10 h-10 rounded-xl bg-[#8fbc6f]/30 border border-[#8fbc6f]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                          <Compass className="w-4 h-4 text-[#f4ecd8]" />
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#8fbc6f] block font-rounded">
+                            World Map
+                          </span>
+                          <span className="text-xs sm:text-sm font-bold tracking-wide block truncate max-w-[170px] font-rounded">
+                            Journey Levels
+                          </span>
+                        </div>
+                      </div>
+
+                      <ChevronRight className="w-5 h-5 text-[#f0c674] group-hover:translate-x-1 transition-transform" />
+                    </button>
               </div>
             ) : (
               <>
@@ -534,10 +531,10 @@ export const HomePage: React.FC<HomePageProps> = ({
                           if (!isAdminUnlocked) {
                             onOpenAdminAuth?.('Challenger Mode');
                           } else {
-                            onChangePlayMode('challenger');
+                            onChangePlayMode('concrete');
                           }
                         }}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'challenger'
+                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex flex-col items-center gap-0.5 cursor-pointer border ${playMode === 'concrete'
                           ? 'btn-river-stone border-[#8fbc6f]'
                           : 'bg-[#2b1a11]/60 border-[#5c3d2e] text-[#a8b89a] hover:text-[#f4ecd8]'
                           }`}
@@ -594,53 +591,6 @@ export const HomePage: React.FC<HomePageProps> = ({
                         {idx === currentLevelIndex && <CheckCircle2 className="w-3.5 h-3.5 text-[#f4ecd8]" />}
                       </button>
                     ))}
-                  </div>
-                )}
-
-                {/* Game Mode Selector — unlocked after all 40 levels */}
-                {isChallengeModeUnlocked && (
-                  <div className="flex flex-col gap-1">
-                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1e3520]/80 rounded-xl border border-[#6b8e5a]/40">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (isGuest) return;
-                          onChangeGameMode('casual');
-                          sounds.playClick();
-                        }}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${gameMode === 'casual'
-                          ? 'btn-river-stone'
-                          : 'text-[#a8b89a] hover:text-[#f4ecd8]'
-                          }`}
-                      >
-                        <CheckCircle2 className="w-3.5 h-3.5" />
-                        <span>Casual</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleTryHardToggle}
-                        className={`py-2 px-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${!isTryHardUnlocked
-                          ? 'text-[#a8b89a]/60 bg-[#1e3520]/40 border border-[#5c3d2e] cursor-pointer hover:border-[#f0c674]'
-                          : gameMode === 'tryhard'
-                            ? 'btn-sunlight text-[#2b1a11]'
-                            : 'text-[#a8b89a] hover:text-[#f4ecd8] cursor-pointer'
-                          }`}
-                        title={
-                          isGuest
-                            ? 'Sign in to unlock this mode'
-                            : `Try-Hard Mode: Requires 1★ + Mastery Challenge completed`
-                        }
-                      >
-                        <Award className="w-3.5 h-3.5" />
-                        <span>Try-Hard</span>
-                      </button>
-                    </div>
-
-                                        {modeNotice && (
-                      <div className="text-[10px] text-[#f0c674] font-bold bg-[#3a2519]/90 border border-[#f0c674]/50 p-1.5 rounded-xl text-center animate-in fade-in duration-150">
-                        {modeNotice}
-                      </div>
-                    )}
                   </div>
                 )}
 

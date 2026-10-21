@@ -2,7 +2,8 @@ export type TileType = 'house' | 'trees' | 'mixed' | 'road' | 'bridge' | 'tower'
 
 export type TileColor = 'neutral' | 'amber' | 'emerald' | 'sapphire' | 'ruby';
 
-export type PlayMode = 'building' | 'challenger';
+export type PlayMode = 'building' | 'concrete';
+export type GameModifier = 'none' | 'safety_guard' | 'tight_rope' | 'cold_sea';
 
 export type BossZoneType = 'power' | 'defend' | 'traits' | 'mixed';
 
