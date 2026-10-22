@@ -506,6 +506,9 @@ export default function App() {
   const [rotationsPerformed, setRotationsPerformed] = useState(0);
   const [zoneOverrides, setZoneOverrides] = useState<Record<string, PhaseConfig['coloredZones']>>({});
 
+  // THÊM STATE MỚI Ở ĐÂY:
+  const [validFogTilesPlaced, setValidFogTilesPlaced] = useState(0);
+
   // Memories & Penalty Bypass System
   const [memories, setMemories] = useState<MemoryPicture[]>(INITIAL_MEMORIES);
   const [highestCompletedLevel, setHighestCompletedLevel] = useState<number>(() => {
@@ -1099,7 +1102,7 @@ export default function App() {
   };
 
   // Initialize Unlocked Grid Cells for current Phase (including Fog Hexes & River Separators)
-  const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number) => {
+  const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number, fogBonus: number = 0) => {
     const safeIdx = Math.max(0, Math.min(allLevels.length - 1, lvlIdx));
     const lvl = allLevels[safeIdx] || allLevels[0];
     if (!lvl || !lvl.phases || lvl.phases.length === 0) return;
@@ -1176,6 +1179,43 @@ export default function App() {
           }
         }
       }
+
+      // 4. THÊM LOGIC SPAWN GRAY TILES TỪ FOG BONUS
+      // Nếu có fogBonus > 0 và không phải phase đầu tiên, spawn thêm
+      if (safePhIdx > 0 && fogBonus > 0) {
+        const currentPhaseData = lvl.phases[safePhIdx];
+        const zonesToAnchor = currentPhaseData.coloredZones || [];
+
+        // Lấy tất cả các ô kề Colored Zones (quanh các ô có màu)
+        const candidateCoords: HexCoord[] = [];
+        zonesToAnchor.forEach(zone => {
+          zone.coords.forEach(c => {
+            const neighbors = getHexNeighbors(c.q, c.r);
+            neighbors.forEach(n => {
+              const nKey = coordKey(n.q, n.r);
+              if (!newCells.has(nKey) && !candidateCoords.some(x => x.q === n.q && x.r === n.r)) {
+                candidateCoords.push(n);
+              }
+            });
+          });
+        });
+
+        // Spawn số ô Gray = fogBonus (tối đa bằng số candidate có sẵn)
+        const spawnCount = Math.min(fogBonus, candidateCoords.length);
+        for (let i = 0; i < spawnCount; i++) {
+          const coord = candidateCoords[i];
+          const key = coordKey(coord.q, coord.r);
+          newCells.set(key, {
+            q: coord.q,
+            r: coord.r,
+            colorRequirement: 'neutral',
+            isUnlocked: true,
+            unlockPhase: safePhIdx + 1,
+            isFog: false,
+            isRiver: false,
+          });
+        }
+      }
     }
 
     setUnlockedCells(newCells);
@@ -1239,10 +1279,14 @@ export default function App() {
     setPhaseIndex(0);
   }, [levelIndex]);
 
+  useEffect(() => {
+    setValidFogTilesPlaced(0);
+  }, [levelIndex, phaseIndex]);
+
   // Effect B: Rebuild grid cells on level OR phase change
   useEffect(() => {
-    initializeGridForLevel(levelIndex, phaseIndex);
-  }, [levelIndex, phaseIndex, initializeGridForLevel]);
+    initializeGridForLevel(levelIndex, phaseIndex, validFogTilesPlaced);
+  }, [levelIndex, phaseIndex, initializeGridForLevel, validFogTilesPlaced]);
 
   // ─────────────────────────────────────────────────────────────
   // LEVEL 13: Unlock Inner Sanctum & thêm quân Sapphire
@@ -2344,7 +2388,17 @@ export default function App() {
         sounds.playWarning();
         showToast('⚠️ Falsehood Penalty! Fog exploration must connect to safe ground. Score is 0 until corrected or removed!', 'warn');
       } else if (placedOnFog && isFogLegit) {
-        showToast('🌫️ Safe Fog Exploration! +3 bonus clearance tiles will unlock next phase.', 'success');
+        // Đếm số ô Fog hợp lệ vừa được đặt (chỉ đếm số ô, không đếm số tile trong stack)
+        let fogCellsUsed = 0;
+        offsets.forEach(off => {
+          const tQ = anchorCoord.q + off.q;
+          const tR = anchorCoord.r + off.r;
+          const cell = unlockedCells.get(coordKey(tQ, tR));
+          if (cell?.isFog) fogCellsUsed++;
+        });
+
+        setValidFogTilesPlaced(prev => prev + fogCellsUsed);
+        showToast(`🌫️ Safe Fog Exploration! +${fogCellsUsed * 3} bonus clearance tiles will unlock next phase.`, 'success');
       }
 
       let hadOverlap = false;
@@ -2779,6 +2833,7 @@ export default function App() {
         parLimit: nextPhaseTarget,
         phaseNumber: nextPhaseNum,
       });
+      setValidFogTilesPlaced(0);
       setPhaseIndex(prev => prev + 1);
       showToast(`Expansion Unlocked! Advancing to Phase ${nextPhaseNum}.`, 'success');
       setTimeout(() => {
@@ -4592,7 +4647,10 @@ export default function App() {
             setLevelCelebration(null);
             navigateWithTransition('memories', 'Opening Gallery of Memories', 'Chronicles of unlocked relics & penalties');
           }}
-          onReturnHome={() => navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub')}
+          onReturnHome={() => {
+            setLevelCelebration(null); // <-- Thêm dòng này để tắt popup
+            navigateWithTransition('home', 'Returning to Island Sanctuary', 'Archipelago Resort & Building Hub', true); // Thêm true để force
+          }}
         />
       )}
     </>
