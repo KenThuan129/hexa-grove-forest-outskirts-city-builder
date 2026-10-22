@@ -139,7 +139,8 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     hasGoldenTicket: false,
     playMode: 'building',
     gameModifier: 'none',
-    unlockedModifiers: ['none', 'safety_guard'],
+    // Mới — Tight Rope mặc định unlock sẵn
+    unlockedModifiers: ['none', 'safety_guard', 'tight_rope'],
     tightRopeLevelsCleared: [],
     latestChapterExplore: 0,
     latestMemories: 0,
@@ -154,10 +155,12 @@ export function migrateBlob(raw: any): CloudSaveBlob {
 
   const rawSchema = typeof raw.schemaVersion === 'number' ? raw.schemaVersion : 1;
 
-  // ── v2 → v3 migration ────────────────────────────────────────
+  // ── Onboarding stage migration ───────────────────────────────
   let migratedStage: OnboardingStage;
   if (rawSchema < 3) {
-    if (rawSchema === 0 || (raw.highestCompletedLevel ?? 0) === 0 && raw.schemaVersion === undefined) {
+    // v1/v2 → user cũ. Nếu level > 0 → coi như đã qua tutorial.
+    // Nếu level = 0 và không có schema → first run.
+    if (rawSchema === 0 || (raw.highestCompletedLevel ?? 0) === 0) {
       migratedStage = 'welcome';
     } else {
       migratedStage = 'complete';
@@ -169,14 +172,59 @@ export function migrateBlob(raw: any): CloudSaveBlob {
   const validStages: OnboardingStage[] = ['welcome', 'tutorial_lv1', 'tutorial_lv2', 'post_lv5', 'complete'];
   if (!validStages.includes(migratedStage)) migratedStage = 'welcome';
 
-  // Fallback cho gameModifier nếu data cũ
-  const migratedGameModifier = raw.gameModifier ?? 'none';
-  const migratedUnlockedModifiers = Array.isArray(raw.unlockedModifiers) 
-    ? raw.unlockedModifiers 
-    : ['none', 'safety_guard'];
-  const migratedTightRopeLevels = Array.isArray(raw.tightRopeLevelsCleared) 
-    ? raw.tightRopeLevelsCleared 
-    : [];
+  // ── playMode migration ───────────────────────────────────────
+  // v1/v2: 'building' | 'challenger'
+  // v3:    'building' | 'concrete'
+  const migratedPlayMode: CloudSaveBlob['playMode'] =
+    raw.playMode === 'concrete' || raw.playMode === 'challenger'
+      ? 'concrete'
+      : 'building';
+
+  // ── gameModifier migration ───────────────────────────────────
+  // v3: raw.gameModifier đã có → dùng trực tiếp
+  // v1/v2: raw.gameMode 'casual' | 'tryhard' → map
+  // Building mode → force 'none' (Building không có modifier)
+  let migratedGameModifier: CloudSaveBlob['gameModifier'];
+  if (raw.gameModifier === 'none' || raw.gameModifier === 'safety_guard' ||
+      raw.gameModifier === 'tight_rope' || raw.gameModifier === 'cold_sea') {
+    migratedGameModifier = raw.gameModifier;
+  } else if (raw.gameMode === 'tryhard') {
+    migratedGameModifier = 'tight_rope';
+  } else if (raw.gameMode === 'casual') {
+    migratedGameModifier = 'safety_guard';
+  } else {
+    migratedGameModifier = 'none';
+  }
+  // Building mode không dùng modifier — ép về 'none'
+  if (migratedPlayMode === 'building') {
+    migratedGameModifier = 'none';
+  }
+
+  // ── unlockedModifiers + tightRopeLevelsCleared ───────────────
+  let migratedUnlockedModifiers: CloudSaveBlob['unlockedModifiers'] = Array.isArray(raw.unlockedModifiers)
+  ? [...raw.unlockedModifiers]
+  : ['none', 'safety_guard', 'tight_rope'];
+
+  const migratedTightRopeLevels: CloudSaveBlob['tightRopeLevelsCleared'] =
+    Array.isArray(raw.tightRopeLevelsCleared)
+      ? raw.tightRopeLevelsCleared
+      : [];
+
+  // Đảm bảo 'none' + 'safety_guard' luôn có mặt
+  if (!migratedUnlockedModifiers.includes('none')) migratedUnlockedModifiers.push('none');
+  if (!migratedUnlockedModifiers.includes('safety_guard')) migratedUnlockedModifiers.push('safety_guard');
+  // Sau block "Đảm bảo 'none' + 'safety_guard' luôn có mặt"
+  if (!migratedUnlockedModifiers.includes('tight_rope')) {
+    migratedUnlockedModifiers.push('tight_rope');
+  }
+
+  // Auto-unlock Cold Sea nếu đã clear >= 10 màn Tight Rope
+  if (
+    migratedTightRopeLevels.length >= 10 &&
+    !migratedUnlockedModifiers.includes('cold_sea')
+  ) {
+    migratedUnlockedModifiers.push('cold_sea');
+  }
 
   return {
     schemaVersion: CURRENT_SAVE_SCHEMA_VERSION,
@@ -188,8 +236,7 @@ export function migrateBlob(raw: any): CloudSaveBlob {
     constructions: raw.constructions && typeof raw.constructions === 'object' ? raw.constructions : fallback.constructions,
     claimedChestIds: Array.isArray(raw.claimedChestIds) ? raw.claimedChestIds : fallback.claimedChestIds,
     hasGoldenTicket: typeof raw.hasGoldenTicket === 'boolean' ? raw.hasGoldenTicket : fallback.hasGoldenTicket,
-    // Migrate 'challenger' cũ thành 'concrete'
-    playMode: raw.playMode === 'concrete' || raw.playMode === 'challenger' ? 'concrete' : 'building',
+    playMode: migratedPlayMode,
     gameModifier: migratedGameModifier,
     unlockedModifiers: migratedUnlockedModifiers,
     tightRopeLevelsCleared: migratedTightRopeLevels,

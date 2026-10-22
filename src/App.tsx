@@ -63,6 +63,7 @@ import {
   PlayMode,
   BossBattleStats,
   GameModifier,
+  PhaseConfig,
 } from './types/game';
 import { coordKey, analyzeConnectivity, rotateHexCoord, getCoordsInRadius, getHexNeighbors, HEX_DIRECTIONS } from './utils/hexMath';
 // Thêm vào import list hiện tại:
@@ -261,7 +262,7 @@ export default function App() {
     setPhaseIndex(phaseNum !== undefined ? phaseNum : 0);
   }, [allLevels, isAuthLoading, isGuest]);
 
-    const handleNavigateJourney = () => {
+  const handleNavigateJourney = () => {
     // Khóa Journey Map cho đến khi hoàn thành Level 5 (hết Tutorial Arc)
     if (highestCompletedLevel < 5) {
       sounds.playWarning();
@@ -271,14 +272,14 @@ export default function App() {
       );
       return;
     }
-    
+
     navigateWithTransition('journey_map', 'Journey Levels', 'Select your next expedition');
   };
 
   const handleSelectLevelFromMap = (index: number, modifier: GameModifier) => {
     setGameModifier(modifier);
     triggerLevelTransit(index);
-    
+
     // Reset HP nếu là Cold Sea
     if (modifier === 'cold_sea') setColdSeaHp(300);
 
@@ -298,7 +299,7 @@ export default function App() {
   const [isBossBattleOpen, setIsBossBattleOpen] = useState(false);
 
   // Game Mode State: 'casual' (relaxed, stress-free progression) vs 'concrete' (1★ + Mastery required)
-   const [playMode, setPlayMode] = useState<PlayMode>(() => {
+  const [playMode, setPlayMode] = useState<PlayMode>(() => {
     try {
       const saved = localStorage.getItem('hexa_play_mode');
       if (saved === 'building' || saved === 'concrete') return saved;
@@ -503,6 +504,7 @@ export default function App() {
   const [phaseIndex, setPhaseIndex] = useState(0);
   const [hasCompletedFirstTrial, setHasCompletedFirstTrial] = useState(false);
   const [rotationsPerformed, setRotationsPerformed] = useState(0);
+  const [zoneOverrides, setZoneOverrides] = useState<Record<string, PhaseConfig['coloredZones']>>({});
 
   // Memories & Penalty Bypass System
   const [memories, setMemories] = useState<MemoryPicture[]>(INITIAL_MEMORIES);
@@ -596,7 +598,24 @@ export default function App() {
     }
   });
 
-  const [gameModifier, setGameModifier] = useState<GameModifier>('none');
+  const [gameModifier, setGameModifier] = useState<GameModifier>(() => {
+    try {
+      const saved = localStorage.getItem('hexa_game_modifier');
+      if (saved === 'none' || saved === 'safety_guard' || saved === 'tight_rope' || saved === 'cold_sea') {
+        return saved;
+      }
+      return 'none';
+    } catch {
+      return 'none';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hexa_game_modifier', gameModifier);
+    } catch { }
+  }, [gameModifier]);
+
   const [unlockedModifiers, setUnlockedModifiers] = useState<GameModifier[]>(['none', 'safety_guard']);
   const [tightRopeLevelsCleared, setTightRopeLevelsCleared] = useState<number[]>([]);
   const [coldSeaHp, setColdSeaHp] = useState(300);
@@ -673,7 +692,17 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 
   const currentLevel = allLevels[levelIndex] || allLevels[0];
-  const currentPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
+  const rawPhase = currentLevel.phases[phaseIndex] || currentLevel.phases[0];
+
+  const phaseKey = `${currentLevel.id}-${phaseIndex}`;
+  const currentPhase = useMemo(() => {
+    if (!rawPhase) return rawPhase;
+    const override = zoneOverrides[phaseKey];
+    if (override) {
+      return { ...rawPhase, coloredZones: override };
+    }
+    return rawPhase;
+  }, [rawPhase, zoneOverrides, phaseKey]);
 
   // ─────────────────────────────────────────────────────────────
   // Cloud Save Blob — the snapshot pushed to Supabase
@@ -698,9 +727,9 @@ export default function App() {
       claimedChestIds,
       hasGoldenTicket,
       playMode,
-      gameModifier,          
-      unlockedModifiers,      
-      tightRopeLevelsCleared, 
+      gameModifier,
+      unlockedModifiers,
+      tightRopeLevelsCleared,
       latestChapterExplore,
       latestMemories,
       chosenBypass: chosenBypassMap as any,
@@ -718,9 +747,9 @@ export default function App() {
     claimedChestIds,
     hasGoldenTicket,
     playMode,
-    gameModifier,           
-    unlockedModifiers,      
-    tightRopeLevelsCleared, 
+    gameModifier,
+    unlockedModifiers,
+    tightRopeLevelsCleared,
     latestChapterExplore,
     latestMemories,
     memories,
@@ -818,7 +847,7 @@ export default function App() {
 
     currentPhase.coloredZones.forEach(zone => {
       if (!zone.zoneModifier) return;
-      
+
       const isComplete = zone.coords.every(targetCoord => {
         const key = coordKey(targetCoord.q, targetCoord.r);
         const stack = placedTiles.get(key);
@@ -840,7 +869,7 @@ export default function App() {
         } else if (zone.zoneModifier.type === 'ruby_tradeoff') {
           bonusOverlapBypass += zone.zoneModifier.value;
           bonusDisconnectBypass += zone.zoneModifier.value;
-          bulbPctChange -= 15; 
+          bulbPctChange -= 15;
         } else if (zone.zoneModifier.type === 'leaves_for_bypass') {
           leavesCost += zone.zoneModifier.value;
           bonusOverlapBypass += 4; // Level 12: Tốn 50 lá đổi 4 bypass
@@ -854,10 +883,10 @@ export default function App() {
 
   useEffect(() => {
     if (!currentPhase) return;
-    
+
     currentPhase.coloredZones.forEach(zone => {
       if (zone.zoneModifier?.type !== 'leaves_for_bypass') return;
-      
+
       const zoneKey = `${currentLevel.id}-${zone.name}`;
       const isComplete = zone.coords.every(c => {
         const stack = placedTiles.get(coordKey(c.q, c.r));
@@ -880,7 +909,7 @@ export default function App() {
 
     currentPhase.coloredZones.forEach(zone => {
       if (zone.zoneModifier?.type !== 'add_leaves') return;
-      
+
       const zoneKey = `${currentLevel.id}-${zone.name}`;
       const isComplete = zone.coords.every(c => {
         const stack = placedTiles.get(coordKey(c.q, c.r));
@@ -907,7 +936,7 @@ export default function App() {
         }
       }
     });
-    
+
     // Cộng thêm từ Level 10
     record.overlap += activeZoneModifiers.bonusOverlapBypass;
     record.disconnect += activeZoneModifiers.bonusDisconnectBypass;
@@ -1082,7 +1111,7 @@ export default function App() {
       if (!phase) continue;
 
       // 1. Regular Unlocked Coords
-            // 1. Regular Unlocked Coords
+      // 1. Regular Unlocked Coords
       for (const coord of phase.unlockedCoords) {
         const key = coordKey(coord.q, coord.r);
         let colorReq: TileColor = 'neutral';
@@ -1096,12 +1125,12 @@ export default function App() {
         // ─────────────────────────────────────────────────────────────
         // LEVEL 13 SPECIAL LOGIC: Inner Isle starts LOCKED
         // ─────────────────────────────────────────────────────────────
-        const isLevel13InnerIsle = 
-          lvl.id === 13 && 
-          ((coord.q === 0 && coord.r === 0) || 
-           (coord.q === 1 && coord.r === 0) || 
-           (coord.q === 0 && coord.r === 1) || 
-           (coord.q === -1 && coord.r === 1));
+        const isLevel13InnerIsle =
+          lvl.id === 13 &&
+          ((coord.q === 0 && coord.r === 0) ||
+            (coord.q === 1 && coord.r === 0) ||
+            (coord.q === 0 && coord.r === 1) ||
+            (coord.q === -1 && coord.r === 1));
 
         newCells.set(key, {
           q: coord.q,
@@ -1160,10 +1189,10 @@ export default function App() {
     });
   }, []);
 
-    // ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────
   // Hàm xử lý khi user xác nhận Popup Interrupted (Gỡ Duo)
   // ─────────────────────────────────────────────────────────────
-    const handleTutorialInterrupt = useCallback(() => {
+  const handleTutorialInterrupt = useCallback(() => {
     // 1. Gỡ khối Duo khỏi bàn cờ
     setPlacedTiles(prev => {
       const next = new Map(prev);
@@ -1181,7 +1210,7 @@ export default function App() {
     // 2. Nếu là Level 2, lập tức nhét khối Single vào Tray
     if (currentLevel.id === 2) {
       setHasBeenInterruptedL2(true);
-      
+
       const singleEmerald: HexPiece = {
         id: 'p-house-emerald',
         type: 'trees',
@@ -1192,7 +1221,7 @@ export default function App() {
         clusterShape: [{ q: 0, r: 0, type: 'trees' }],
         lightbulbCost: 1,
       };
-      
+
       // Lấy khối Duo hiện tại và ghép thêm Single
       const duoPiece = currentLevel.availablePieces.find(p => p.id === 'p-tutorial-duo-emerald');
       if (duoPiece) {
@@ -1237,11 +1266,11 @@ export default function App() {
     // 2. Level 2 Phase 2
     if (currentLevel.id === 2 && phaseIndex === 1) {
       const duoPiece = currentLevel.availablePieces.find(p => p.id === 'p-tutorial-duo-emerald');
-      
+
       if (!hasBeenInterruptedL2) {
         return duoPiece ? [duoPiece] : [];
       }
-      
+
       const singleEmerald: HexPiece = {
         id: 'p-house-emerald',
         type: 'trees',
@@ -1252,36 +1281,36 @@ export default function App() {
         clusterShape: [{ q: 0, r: 0, type: 'trees' }],
         lightbulbCost: 1,
       };
-      
+
       // 1 Duo + 1 Single để lấp đủ 3 ô
       return duoPiece ? [duoPiece, singleEmerald] : [singleEmerald];
     }
-    
+
     // 2. Level 13: Add Sapphire pieces after unlocking
     if (currentLevel.id === 13 && hasUnlockedL13) {
       const extraPieces: HexPiece[] = [
-        { 
-          id: 'p-duo-sapphire-unlocked', 
-          type: 'mixed', 
-          color: 'sapphire', 
-          name: 'Aqueduct Duo', 
-          description: 'Unlocked Duo.', 
-          clusterType: 'duo', 
-          clusterShape: [{q:0,r:0,type:'house'}, {q:1,r:0,type:'mixed'}], 
-          lightbulbCost: 2 
+        {
+          id: 'p-duo-sapphire-unlocked',
+          type: 'mixed',
+          color: 'sapphire',
+          name: 'Aqueduct Duo',
+          description: 'Unlocked Duo.',
+          clusterType: 'duo',
+          clusterShape: [{ q: 0, r: 0, type: 'house' }, { q: 1, r: 0, type: 'mixed' }],
+          lightbulbCost: 2
         },
-        { 
-          id: 'p-triad-sapphire-unlocked', 
-          type: 'mixed', 
-          color: 'sapphire', 
-          name: 'Basin Triad', 
-          description: 'Unlocked Triad.', 
-          clusterType: 'triad', 
-          clusterShape: [{q:0,r:0,type:'house'}, {q:1,r:0,type:'mixed'}, {q:0,r:1,type:'house'}], 
-          lightbulbCost: 3 
+        {
+          id: 'p-triad-sapphire-unlocked',
+          type: 'mixed',
+          color: 'sapphire',
+          name: 'Basin Triad',
+          description: 'Unlocked Triad.',
+          clusterType: 'triad',
+          clusterShape: [{ q: 0, r: 0, type: 'house' }, { q: 1, r: 0, type: 'mixed' }, { q: 0, r: 1, type: 'house' }],
+          lightbulbCost: 3
         }
       ];
-      
+
       // Đảm bảo không bị trùng lặp nếu reset
       const existingIds = new Set(currentLevel.availablePieces.map(p => p.id));
       return [
@@ -1298,7 +1327,7 @@ export default function App() {
   // ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (currentLevel.id !== 13 || !currentPhase) return;
-    
+
     const amberZone = currentPhase.coloredZones.find(z => z.zoneModifier?.type === 'unlock_pieces');
     if (!amberZone) return;
 
@@ -1311,10 +1340,10 @@ export default function App() {
       setUnlockedCells(prev => {
         const next = new Map(prev);
         next.forEach((cell, key) => {
-          if ((cell.q === 0 && cell.r === 0) || 
-              (cell.q === 1 && cell.r === 0) || 
-              (cell.q === 0 && cell.r === 1) || 
-              (cell.q === -1 && cell.r === 1)) {
+          if ((cell.q === 0 && cell.r === 0) ||
+            (cell.q === 1 && cell.r === 0) ||
+            (cell.q === 0 && cell.r === 1) ||
+            (cell.q === -1 && cell.r === 1)) {
             next.set(key, { ...cell, isUnlocked: true });
           }
         });
@@ -1382,7 +1411,7 @@ export default function App() {
     setPickedUpCoord(null);
     setActiveDragPiece(null);
     setLevelCelebration(null);
-    
+
 
     // Note: we do NOT reset phaseIndex here — the effect now runs ON phase change too
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1511,7 +1540,11 @@ export default function App() {
 
   // Penalties record with Memories Penalty Bypass Free Passes Applied!
   const penalties: PenaltyRecord = useMemo(() => {
-    // Overuse penalties are bypassed by default until Challenger Mode is entered
+    // Safety Guard: bỏ qua toàn bộ lỗi
+    if (playMode === 'concrete' && gameModifier === 'safety_guard') {
+      return { overuse: 0, disconnect: 0, overlap: 0, offMap: 0, falsehood: 0 };
+    }
+
     const isOveruseActive = playMode === 'concrete';
     const effectiveOveruse = isOveruseActive ? Math.max(0, rawOveruseCount - bypasses.overuse) : 0;
 
@@ -1522,7 +1555,7 @@ export default function App() {
       offMap: Math.max(0, rawOffMapCount - bypasses.offMap),
       falsehood: dynamicFalsehoodCount,
     };
-  }, [playMode, rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, dynamicFalsehoodCount, bypasses]);
+  }, [playMode, gameModifier, rawOveruseCount, connectivity.disconnectedCount, rawOverlapErrorCount, rawOffMapCount, dynamicFalsehoodCount, bypasses]);
 
   // Strict Penalty Limit Check (Level 20+ max 3 penalties allowed in Try-Hard mode; relaxed in Casual mode)
   const totalPenaltiesCount =
@@ -1561,6 +1594,24 @@ export default function App() {
       );
     }
   };
+
+  // ⬇️ THÊM HÀM NÀY NGAY BÊN DƯỚI ⬇️
+  const handleTogglePlayMode = useCallback((mode: PlayMode) => {
+    setPlayMode(mode);
+    try {
+      localStorage.setItem('hexa_play_mode', mode);
+    } catch { }
+
+    // Building mode không dùng modifier → ép về 'none'
+    if (mode === 'building') {
+      setGameModifier('none');
+    } else if (gameModifier === 'none') {
+      // Concrete mode chưa chọn modifier → default safety_guard
+      setGameModifier('safety_guard');
+    }
+
+    sounds.playClick();
+  }, [gameModifier]);
 
   // Colored Zones Completion check & counts
   // Colored Zones Completion check & counts
@@ -2093,6 +2144,11 @@ export default function App() {
 
   // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
   const score = useMemo(() => {
+    // Safety Guard: score bị cap = star1 (vẫn pass màn)
+    if (playMode === 'concrete' && gameModifier === 'safety_guard') {
+      return currentLevel.targetScore.star1;
+    }
+
     if (isPenaltyLimitExceeded || isFalsehoodActive) {
       return 0;
     }
@@ -2101,7 +2157,7 @@ export default function App() {
       finalScore += 600;
     }
     return finalScore;
-  }, [rawScore, currentLevel, isMasteryCompleted, isPenaltyLimitExceeded, isFalsehoodActive]);
+  }, [rawScore, currentLevel, isMasteryCompleted, isPenaltyLimitExceeded, isFalsehoodActive, playMode, gameModifier]);
 
   // Stars calculation
   const starsEarned = useMemo(() => {
@@ -2421,6 +2477,7 @@ export default function App() {
 
       // 2. Level 20+ Turntable: Switch positions of the colored hexes within the turntable area!
       if (currentLevel.id >= 20) {
+        // Cập nhật màu của các ô trên lưới (Grid)
         setUnlockedCells(prev => {
           const next = new Map(prev);
           const cellsInZone = zoneCoords.map(c => prev.get(coordKey(c.q, c.r))).filter((c): c is GridCell => Boolean(c));
@@ -2435,31 +2492,22 @@ export default function App() {
           return next;
         });
 
-        // CẬP NHẬT LẠI TỌA ĐỘ CỦA COLORED ZONES TRONG DATA
-        setCustomLevels(prev => {
-          const next = [...prev];
-          const currentLvlIndex = next.findIndex(l => l.id === currentLevel.id);
-          if (currentLvlIndex >= 0) {
-            const lvl = { ...next[currentLvlIndex] };
-            const phase = { ...lvl.phases[phaseIndex] };
-            
-            // Xoay từng coord trong coloredZones
-            phase.coloredZones = phase.coloredZones.map(z => ({
-              ...z,
-              coords: z.coords.map(c => {
-                if (zoneKeySet.has(coordKey(c.q, c.r))) {
-                  return rotateHexCoord({ q: c.q, r: c.r }, zone.center, 1);
-                }
-                return c;
-              })
-            }));
-            
-            lvl.phases = [...lvl.phases];
-            lvl.phases[phaseIndex] = phase;
-            next[currentLvlIndex] = lvl;
-            return next;
-          }
-          return prev;
+        // Cập nhật toạ độ của Colored Zones đang hiển thị (React State Override)
+        setZoneOverrides(prev => {
+          const currentOverride = prev[phaseKey] || currentPhase.coloredZones;
+
+          const rotatedZones = currentOverride.map(z => ({
+            ...z,
+            coords: z.coords.map(c => {
+              // Nếu ô đó nằm trong vùng xoay thì xoay toạ độ, ngược lại giữ nguyên
+              if (zoneKeySet.has(coordKey(c.q, c.r))) {
+                return rotateHexCoord({ q: c.q, r: c.r }, zone.center, 1);
+              }
+              return c;
+            })
+          }));
+
+          return { ...prev, [phaseKey]: rotatedZones };
         });
       }
 
@@ -2950,6 +2998,11 @@ export default function App() {
     setRotationsPerformed(0);
     setSelectedPiece(null);
     setPickedUpCoord(null);
+    setZoneOverrides(prev => {
+      const next = { ...prev };
+      delete next[`${currentLevel.id}-${phaseIndex}`];
+      return next;
+    });
     showToast('Board cleared. Pioneer anew!', 'info');
   };
 
@@ -3378,7 +3431,7 @@ export default function App() {
 
             // Nếu đang trong Onboarding hoặc chưa xong Level 5, bắt buộc đi theo flow Tutorial
             if (onboardingStage === 'welcome' || highestCompletedLevel < 5) {
-              
+
               // Xác định level tiếp theo cần chơi
               let targetLevelId = 1;
               if (onboardingStage === 'tutorial_lv1' || (highestCompletedLevel === 0)) targetLevelId = 1;
@@ -3393,8 +3446,8 @@ export default function App() {
               const idx = allLevels.findIndex(l => l.id === targetLevelId);
               triggerLevelTransit(idx >= 0 ? idx : 0);
               navigateWithTransition(
-                'journey', 
-                `Continuing Journey`, 
+                'journey',
+                `Continuing Journey`,
                 `Level ${targetLevelId}`
               );
               return;
@@ -3426,6 +3479,8 @@ export default function App() {
           unlockedModifiers={unlockedModifiers}
           tightRopeLevelsCleared={tightRopeLevelsCleared}
           onSelectLevel={handleSelectLevelFromMap}
+          onSelectModifier={setGameModifier}
+          onTogglePlayMode={handleTogglePlayMode}
           onNavigateHome={() => navigateWithTransition('home', 'Returning Home', 'Island Sanctuary')}
         />
       )}
