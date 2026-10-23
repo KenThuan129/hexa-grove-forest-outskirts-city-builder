@@ -506,8 +506,6 @@ export default function App() {
   const [rotationsPerformed, setRotationsPerformed] = useState(0);
   const [zoneOverrides, setZoneOverrides] = useState<Record<string, PhaseConfig['coloredZones']>>({});
 
-  // THÊM STATE MỚI Ở ĐÂY:
-  const [validFogTilesPlaced, setValidFogTilesPlaced] = useState(0);
 
   // Memories & Penalty Bypass System
   const [memories, setMemories] = useState<MemoryPicture[]>(INITIAL_MEMORIES);
@@ -791,6 +789,9 @@ export default function App() {
   const [unlockedCells, setUnlockedCells] = useState<Map<string, GridCell>>(new Map());
   const [placedTiles, setPlacedTiles] = useState<Map<string, PlacedTile[]>>(new Map());
   const [availablePieces, setAvailablePieces] = useState<HexPiece[]>([]);
+  // Lưu các key của ô Fog đã được chuyển thành Gray
+  const [clearedFogKeys, setClearedFogKeys] = useState<Set<string>>(new Set());
+  const [dynamicFogSpawns, setDynamicFogSpawns] = useState<HexCoord[]>([]);
 
   // Dragging & Interaction
   const [selectedPiece, setSelectedPiece] = useState<HexPiece | null>(null);
@@ -1102,7 +1103,7 @@ export default function App() {
   };
 
   // Initialize Unlocked Grid Cells for current Phase (including Fog Hexes & River Separators)
-  const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number, fogBonus: number = 0) => {
+  const initializeGridForLevel = useCallback((lvlIdx: number, phIdx: number, clearedFogs: Set<string>, dynamicFogs: HexCoord[] = []) => {
     const safeIdx = Math.max(0, Math.min(allLevels.length - 1, lvlIdx));
     const lvl = allLevels[safeIdx] || allLevels[0];
     if (!lvl || !lvl.phases || lvl.phases.length === 0) return;
@@ -1180,42 +1181,35 @@ export default function App() {
         }
       }
 
-      // 4. THÊM LOGIC SPAWN GRAY TILES TỪ FOG BONUS
-      // Nếu có fogBonus > 0 và không phải phase đầu tiên, spawn thêm
-      if (safePhIdx > 0 && fogBonus > 0) {
-        const currentPhaseData = lvl.phases[safePhIdx];
-        const zonesToAnchor = currentPhaseData.coloredZones || [];
-
-        // Lấy tất cả các ô kề Colored Zones (quanh các ô có màu)
-        const candidateCoords: HexCoord[] = [];
-        zonesToAnchor.forEach(zone => {
-          zone.coords.forEach(c => {
-            const neighbors = getHexNeighbors(c.q, c.r);
-            neighbors.forEach(n => {
-              const nKey = coordKey(n.q, n.r);
-              if (!newCells.has(nKey) && !candidateCoords.some(x => x.q === n.q && x.r === n.r)) {
-                candidateCoords.push(n);
-              }
-            });
+      // 4. Áp dụng clearedFogs (như cũ)
+      clearedFogs.forEach(key => {
+        const existing = newCells.get(key);
+        if (existing && existing.isFog) {
+          newCells.set(key, {
+            ...existing,
+            isFog: false,
+            isUnlocked: true,
+            colorRequirement: 'neutral',
           });
-        });
+        }
+      });
 
-        // Spawn số ô Gray = fogBonus (tối đa bằng số candidate có sẵn)
-        const spawnCount = Math.min(fogBonus, candidateCoords.length);
-        for (let i = 0; i < spawnCount; i++) {
-          const coord = candidateCoords[i];
-          const key = coordKey(coord.q, coord.r);
+      // 5. Áp dụng dynamicFogs (Các ô Fog spawn thêm)
+      dynamicFogs.forEach(coord => {
+        const key = coordKey(coord.q, coord.r);
+        // Chỉ set nếu ô đó chưa tồn tại hoặc đang trống (không đè lên Safe tile)
+        if (!newCells.has(key)) {
           newCells.set(key, {
             q: coord.q,
             r: coord.r,
             colorRequirement: 'neutral',
-            isUnlocked: true,
+            isUnlocked: false,
             unlockPhase: safePhIdx + 1,
-            isFog: false,
+            isFog: true,
             isRiver: false,
           });
         }
-      }
+      });
     }
 
     setUnlockedCells(newCells);
@@ -1279,14 +1273,11 @@ export default function App() {
     setPhaseIndex(0);
   }, [levelIndex]);
 
-  useEffect(() => {
-    setValidFogTilesPlaced(0);
-  }, [levelIndex, phaseIndex]);
 
   // Effect B: Rebuild grid cells on level OR phase change
   useEffect(() => {
-    initializeGridForLevel(levelIndex, phaseIndex, validFogTilesPlaced);
-  }, [levelIndex, phaseIndex, initializeGridForLevel, validFogTilesPlaced]);
+    initializeGridForLevel(levelIndex, phaseIndex, clearedFogKeys, dynamicFogSpawns);
+  }, [levelIndex, phaseIndex, initializeGridForLevel, clearedFogKeys, dynamicFogSpawns]);
 
   // ─────────────────────────────────────────────────────────────
   // LEVEL 13: Unlock Inner Sanctum & thêm quân Sapphire
@@ -1295,6 +1286,11 @@ export default function App() {
 
   // Reset khi đổi level
   useEffect(() => { setHasBeenInterruptedL2(false); }, [levelIndex]);
+
+  useEffect(() => {
+    setClearedFogKeys(new Set());
+    setDynamicFogSpawns([]);
+  }, [levelIndex]);
 
   // Reset L13 unlock state khi đổi level/phase
   useEffect(() => {
@@ -1610,7 +1606,7 @@ export default function App() {
     playMode === 'concrete' &&
     strictPenaltyLimit !== undefined &&
     totalPenaltiesCount > strictPenaltyLimit;
-  const isFalsehoodActive = !isTitanShieldActive && playMode === 'concrete' && penalties.falsehood > 0;
+  const isFalsehoodActive = !isTitanShieldActive && penalties.falsehood > 0;
 
   // Trigger Penalty Discovery when switching to Challenger Mode for the first time
   const handleSwitchPlayMode = (mode: PlayMode) => {
@@ -2132,8 +2128,8 @@ export default function App() {
   const canCompletePhase =
     playMode === 'building'
       ? isLastPhase
-        ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
-        : coloredZonesCompleted && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
+        ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && penalties.falsehood === 0 && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
+        : coloredZonesCompleted && penalties.falsehood === 0 && (lightbulbBudget <= 0 || lightbulbsUsed <= lightbulbBudget)
       : isLastPhase
         ? coloredZonesCompleted && meetsLevelMechanicRequirement && blockingPenaltiesCount === 0 && inBoundsPlacedCount >= Math.min(2, parCount)
         : coloredZonesCompleted && inBoundsPlacedCount >= Math.min(2, parCount);
@@ -2187,8 +2183,15 @@ export default function App() {
   ]);
 
   // Calculate Real-Time Score (includes +600 Mastery Bonus when achieved; 0 if disqualified)
+  // Trong App.tsx
+
   const score = useMemo(() => {
-    // Safety Guard: score bị cap = star1 (vẫn pass màn)
+    // Building Mode: Auto 3-star score
+    if (playMode === 'building') {
+      return currentLevel.targetScore.star3;
+    }
+
+    // Concrete Mode:
     if (playMode === 'concrete' && gameModifier === 'safety_guard') {
       return currentLevel.targetScore.star1;
     }
@@ -2203,14 +2206,16 @@ export default function App() {
     return finalScore;
   }, [rawScore, currentLevel, isMasteryCompleted, isPenaltyLimitExceeded, isFalsehoodActive, playMode, gameModifier]);
 
-  // Stars calculation
   const starsEarned = useMemo(() => {
+    // Building Mode luôn 3 sao
+    if (playMode === 'building') return 3;
+
     const targets = currentLevel.targetScore;
     if (score >= targets.star3) return 3;
     if (score >= targets.star2) return 2;
     if (score >= targets.star1) return 1;
     return 0;
-  }, [score, currentLevel]);
+  }, [score, currentLevel, playMode]);
 
   // Rotate a held cluster by 60° (using R key or Rotate button)
   const handleRotateCluster = useCallback(() => {
@@ -2388,17 +2393,61 @@ export default function App() {
         sounds.playWarning();
         showToast('⚠️ Falsehood Penalty! Fog exploration must connect to safe ground. Score is 0 until corrected or removed!', 'warn');
       } else if (placedOnFog && isFogLegit) {
-        // Đếm số ô Fog hợp lệ vừa được đặt (chỉ đếm số ô, không đếm số tile trong stack)
-        let fogCellsUsed = 0;
+        const fogKeysToClear: string[] = [];
+
         offsets.forEach(off => {
           const tQ = anchorCoord.q + off.q;
           const tR = anchorCoord.r + off.r;
-          const cell = unlockedCells.get(coordKey(tQ, tR));
-          if (cell?.isFog) fogCellsUsed++;
+          const key = coordKey(tQ, tR);
+          if (unlockedCells.get(key)?.isFog) {
+            fogKeysToClear.push(key);
+          }
         });
 
-        setValidFogTilesPlaced(prev => prev + fogCellsUsed);
-        showToast(`🌫️ Safe Fog Exploration! +${fogCellsUsed * 3} bonus clearance tiles will unlock next phase.`, 'success');
+        if (fogKeysToClear.length > 0) {
+          // 1. Lưu lại các key đã mở vào clearedFogKeys
+          setClearedFogKeys(prev => {
+            const next = new Set(prev);
+            fogKeysToClear.forEach(k => next.add(k));
+            return next;
+          });
+
+          // 2. Tính toán 3 ô Fog mới sẽ spawn
+          const newFogSpawns: HexCoord[] = [];
+          const fogSpawnKeys = new Set<string>();
+
+          offsets.forEach(off => {
+            const tQ = anchorCoord.q + off.q;
+            const tR = anchorCoord.r + off.r;
+            const neighbors = getHexNeighbors(tQ, tR);
+
+            neighbors.forEach(n => {
+              const nKey = coordKey(n.q, n.r);
+              // Chỉ spawn ở ô chưa có gì (kể cả chưa là Fog), chưa là River, và nằm trong bán kính board
+              const isVacant = !unlockedCells.has(nKey) && !placedTiles.has(nKey);
+
+              if (
+                isVacant &&
+                Math.abs(n.q) < 8 && Math.abs(n.r) < 8 && Math.abs(n.q + n.r) < 8
+              ) {
+                if (!fogSpawnKeys.has(nKey)) {
+                  fogSpawnKeys.add(nKey);
+                  newFogSpawns.push(n);
+                }
+              }
+            });
+          });
+
+          const spawnCount = Math.min(3, newFogSpawns.length);
+          const spawnedFogs = newFogSpawns.slice(0, spawnCount);
+
+          // Thêm vào state dynamicFogSpawns để initializeGridForLevel merge vào
+          if (spawnedFogs.length > 0) {
+            setDynamicFogSpawns(prev => [...prev, ...spawnedFogs]);
+          }
+
+          showToast(`🌫️ Fog Cleared! Expanded your vision with ${spawnedFogs.length} new Fog tiles.`, 'success');
+        }
       }
 
       let hadOverlap = false;
@@ -2833,7 +2882,6 @@ export default function App() {
         parLimit: nextPhaseTarget,
         phaseNumber: nextPhaseNum,
       });
-      setValidFogTilesPlaced(0);
       setPhaseIndex(prev => prev + 1);
       showToast(`Expansion Unlocked! Advancing to Phase ${nextPhaseNum}.`, 'success');
       setTimeout(() => {
@@ -3058,6 +3106,7 @@ export default function App() {
       delete next[`${currentLevel.id}-${phaseIndex}`];
       return next;
     });
+    setDynamicFogSpawns([]);
     showToast('Board cleared. Pioneer anew!', 'info');
   };
 
@@ -4641,6 +4690,7 @@ export default function App() {
       {levelCelebration && (
         <EndOfLevelCelebration
           data={levelCelebration}
+          isMinimal={playMode === 'building'}
           onContinue={handleCelebrationContinue}
           onReplay={handleCelebrationReplay}
           onViewMemories={() => {

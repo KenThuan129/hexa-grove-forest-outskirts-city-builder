@@ -45,6 +45,7 @@ interface EndOfLevelCelebrationProps {
   onReplay: () => void;
   onViewMemories?: () => void;
   onReturnHome?: () => void;
+  isMinimal?: boolean;
 }
 
 export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
@@ -52,7 +53,8 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
   onContinue,
   onReplay,
   onViewMemories,
-  onReturnHome
+  onReturnHome,
+  isMinimal = false
 }) => {
   const [revealedStars, setRevealedStars] = useState<number>(0);
   const [showPathProgress, setShowPathProgress] = useState(false);
@@ -234,8 +236,8 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
     data.starsEarned === 3
       ? 'Flawless Master Architect ★★★'
       : data.starsEarned === 2
-      ? 'Distinguished Pioneer ★★'
-      : 'Frontier Cleared ★';
+        ? 'Distinguished Pioneer ★★'
+        : 'Frontier Cleared ★';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200 overflow-y-auto">
@@ -292,24 +294,21 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
             return (
               <div
                 key={starIdx}
-                className={`relative transition-all duration-300 ${
-                  isRevealed ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
-                }`}
+                className={`relative transition-all duration-300 ${isRevealed ? 'scale-100 opacity-100' : 'scale-50 opacity-0'
+                  }`}
               >
                 {isEarned && isRevealed && (
                   <div className="absolute -inset-1.5 bg-amber-400/40 rounded-full blur-sm animate-ping" />
                 )}
                 <div
-                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center border transition-all ${
-                    isEarned
+                  className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center border transition-all ${isEarned
                       ? 'bg-gradient-to-br from-amber-300 to-yellow-500 border-yellow-200 shadow-[0_0_15px_rgba(245,158,11,0.5)] text-slate-950 scale-105'
                       : 'bg-slate-800/80 border-slate-700 text-slate-600'
-                  }`}
+                    }`}
                 >
                   <Star
-                    className={`w-5 h-5 sm:w-6 sm:h-6 ${
-                      isEarned ? 'fill-yellow-100 text-slate-900' : 'fill-slate-700 text-slate-600'
-                    }`}
+                    className={`w-5 h-5 sm:w-6 sm:h-6 ${isEarned ? 'fill-yellow-100 text-slate-900' : 'fill-slate-700 text-slate-600'
+                      }`}
                   />
                 </div>
               </div>
@@ -317,184 +316,184 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
           })}
         </div>
 
-        {/* Score & Treasury Spoils Grid */}
-        <div className={`w-full grid grid-cols-2 gap-2 mb-2.5 transition-all duration-300 ${
-          showRewards ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-        }`}>
-          {/* Settlement Score */}
-          <div className="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-2.5 text-left shadow-sm">
-            <span className="text-[9.5px] uppercase font-bold text-slate-400 block mb-0.5">
-              Settlement Score
-            </span>
-            <div className="text-lg sm:text-xl font-black text-white font-mono leading-none">
-              {data.score.toLocaleString()}
-            </div>
-            <button
-              onClick={() => setShowAuditDetails(prev => !prev)}
-              className="text-[9px] font-bold text-emerald-400 mt-1 flex items-center gap-0.5 hover:underline cursor-pointer"
-            >
-              <ShieldCheck className="w-2.5 h-2.5 shrink-0" />
-              <span>{totalPenaltiesCount === 0 ? 'Pristine Zero Errors' : `${totalPenaltiesCount} Deductions`}</span>
-              {showAuditDetails ? <ChevronUp className="w-2.5 h-2.5 ml-0.5" /> : <ChevronDown className="w-2.5 h-2.5 ml-0.5" />}
-            </button>
-          </div>
-
-          {/* Spoils / Coins Card */}
-          <div className="bg-gradient-to-br from-amber-500/15 to-yellow-600/10 border border-amber-500/35 rounded-2xl p-2.5 text-left shadow-sm">
-            <span className="text-[9.5px] uppercase font-bold text-amber-300 block mb-0.5">
-              Expedition Spoils
-            </span>
-            <div className="text-lg sm:text-xl font-black text-amber-300 font-mono leading-none flex items-center gap-1">
-              <Coins className="w-4 h-4 text-amber-400 fill-amber-400" />
-              <span>+{animatedCoins}</span>
-            </div>
-            <div className="text-[9px] font-bold text-amber-200 mt-1">
-              Treasury Credited
-            </div>
-          </div>
-        </div>
-
-        {/* Collapsible Penalties & Audit Breakdown */}
-        {showAuditDetails && (
-          <div className="w-full text-[10px] text-left mb-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1 animate-in fade-in duration-200">
-            <div className="font-bold text-slate-400 uppercase tracking-wider text-[9px] mb-1">
-              Settlement Audit Breakdown:
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Overuse ({data.penalties.overuse}):</span>
-              <span className="font-mono text-rose-400">{data.penalties.overuse > 0 ? `-${data.penalties.overuse * 150}` : '0'}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Disconnects ({data.penalties.disconnect}):</span>
-              <span className="font-mono text-rose-400">{data.penalties.disconnect > 0 ? `-${data.penalties.disconnect * 120}` : '0'}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Overlaps ({data.penalties.overlap}):</span>
-              <span className="font-mono text-rose-400">{data.penalties.overlap > 0 ? `-${data.penalties.overlap * 100}` : '0'}</span>
-            </div>
-            <div className="flex justify-between text-slate-300">
-              <span>Off-Map Drops ({data.penalties.offMap}):</span>
-              <span className="font-mono text-rose-400">{data.penalties.offMap > 0 ? `-${data.penalties.offMap * 80}` : '0'}</span>
-            </div>
-            {totalDeductions > 0 && (
-              <div className="border-t border-slate-800 pt-1 flex justify-between font-bold text-rose-400">
-                <span>Total Deductions:</span>
-                <span className="font-mono">-{totalDeductions}</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Mastery Challenge Badge */}
-        {data.isMasteryCompleted && showRewards && (
-          <div className="w-full mb-2.5 px-2.5 py-1.5 rounded-xl bg-purple-950/50 border border-purple-400/35 flex items-center gap-2 text-left animate-in fade-in">
-            <div className="w-6 h-6 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center shrink-0">
-              <Crown className="w-3.5 h-3.5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[10px] font-black text-purple-200 flex items-center gap-1">
-                <span>Mastery Conquered!</span>
-                <span className="text-[8px] px-1 py-0.2 bg-purple-800 text-purple-100 rounded-full font-bold">+600 Score</span>
-              </div>
-              <div className="text-[8.5px] text-purple-300/80 truncate">
-                {data.masteryTitle || 'Special challenge fulfilled.'}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Archipelago Expedition Journey Cartography Track */}
-        <div className={`w-full bg-slate-950/70 border border-slate-800/80 rounded-2xl p-2.5 sm:p-3 mb-3 text-left transition-all duration-300 ${
-          showPathProgress ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-        }`}>
-          <div className="flex items-center justify-between mb-1.5">
-            <div className="flex items-center gap-1 text-[11px] font-black text-slate-200">
-              <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
-              <span>Archipelago Cartography Trail</span>
-            </div>
-            <span className="text-[9.5px] font-bold text-emerald-400 bg-emerald-950/70 px-2 py-0.2 rounded-full border border-emerald-500/30">
-              {progressPercent}% Unveiled
-            </span>
-          </div>
-
-          {/* Trail Nodes */}
-          <div className="relative flex items-center justify-between px-3 py-1.5">
-            {/* Base line */}
-            <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full" />
-            
-            {/* Animated Laser beam */}
-            <div
-              className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-emerald-500 via-amber-400 to-yellow-300 rounded-full transition-all duration-700 shadow-[0_0_6px_rgba(245,158,11,0.8)]"
-              style={{
-                width: showPathProgress ? (data.isFinalLevel ? '100%' : '50%') : '0%',
-              }}
-            />
-
-            {/* Node 1: Completed Level */}
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500 border border-emerald-200 text-slate-950 flex items-center justify-center font-black text-xs shadow-md">
-                <CheckCircle2 className="w-4 h-4 text-emerald-950" />
-              </div>
-              <span className="text-[9px] font-bold text-emerald-300 mt-0.5">
-                Lvl {currentLevelId}
-              </span>
-              <span className="text-[7.5px] text-slate-400">Done ✓</span>
-            </div>
-
-            {/* Node 2: Unlocking Next Level */}
-            {!data.isFinalLevel && (
-              <div className="relative z-10 flex flex-col items-center">
-                <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-black text-xs transition-all duration-500 ${
-                  showPathProgress
-                    ? 'bg-amber-500 border border-amber-200 text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.7)] animate-bounce'
-                    : 'bg-slate-800 border border-slate-700 text-slate-500'
-                }`}>
-                  {showPathProgress ? (
-                    <Unlock className="w-3.5 h-3.5 text-amber-950" />
-                  ) : (
-                    <Lock className="w-3.5 h-3.5 text-slate-500" />
-                  )}
+        {!isMinimal && (
+          <>
+            {/* Score & Treasury Spoils Grid */}
+            <div className={`w-full grid grid-cols-2 gap-2 mb-2.5 transition-all duration-300 ${showRewards ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+              }`}>
+              {/* Settlement Score */}
+              <div className="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-2.5 text-left shadow-sm">
+                <span className="text-[9.5px] uppercase font-bold text-slate-400 block mb-0.5">
+                  Settlement Score
+                </span>
+                <div className="text-lg sm:text-xl font-black text-white font-mono leading-none">
+                  {data.score.toLocaleString()}
                 </div>
-                <span className={`text-[9px] font-bold mt-0.5 ${showPathProgress ? 'text-amber-300' : 'text-slate-500'}`}>
-                  Lvl {nextLevelId}
-                </span>
-                <span className="text-[7.5px] text-amber-400 font-semibold">
-                  {showPathProgress ? 'Unlocked' : 'Locked'}
-                </span>
+                <button
+                  onClick={() => setShowAuditDetails(prev => !prev)}
+                  className="text-[9px] font-bold text-emerald-400 mt-1 flex items-center gap-0.5 hover:underline cursor-pointer"
+                >
+                  <ShieldCheck className="w-2.5 h-2.5 shrink-0" />
+                  <span>{totalPenaltiesCount === 0 ? 'Pristine Zero Errors' : `${totalPenaltiesCount} Deductions`}</span>
+                  {showAuditDetails ? <ChevronUp className="w-2.5 h-2.5 ml-0.5" /> : <ChevronDown className="w-2.5 h-2.5 ml-0.5" />}
+                </button>
               </div>
-            )}
 
-            {/* Node 3: Grand Milestone */}
-            <div className="relative z-10 flex flex-col items-center">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center font-black text-xs">
-                {data.isFinalLevel ? (
-                  <Crown className="w-4 h-4 text-amber-400" />
-                ) : (
-                  <Lock className="w-3.5 h-3.5 text-slate-600" />
+              {/* Spoils / Coins Card */}
+              <div className="bg-gradient-to-br from-amber-500/15 to-yellow-600/10 border border-amber-500/35 rounded-2xl p-2.5 text-left shadow-sm">
+                <span className="text-[9.5px] uppercase font-bold text-amber-300 block mb-0.5">
+                  Expedition Spoils
+                </span>
+                <div className="text-lg sm:text-xl font-black text-amber-300 font-mono leading-none flex items-center gap-1">
+                  <Coins className="w-4 h-4 text-amber-400 fill-amber-400" />
+                  <span>+{animatedCoins}</span>
+                </div>
+                <div className="text-[9px] font-bold text-amber-200 mt-1">
+                  Treasury Credited
+                </div>
+              </div>
+            </div>
+
+            {/* Collapsible Penalties & Audit Breakdown */}
+            {showAuditDetails && (
+              <div className="w-full text-[10px] text-left mb-2.5 p-2.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1 animate-in fade-in duration-200">
+                <div className="font-bold text-slate-400 uppercase tracking-wider text-[9px] mb-1">
+                  Settlement Audit Breakdown:
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Overuse ({data.penalties.overuse}):</span>
+                  <span className="font-mono text-rose-400">{data.penalties.overuse > 0 ? `-${data.penalties.overuse * 150}` : '0'}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Disconnects ({data.penalties.disconnect}):</span>
+                  <span className="font-mono text-rose-400">{data.penalties.disconnect > 0 ? `-${data.penalties.disconnect * 120}` : '0'}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Overlaps ({data.penalties.overlap}):</span>
+                  <span className="font-mono text-rose-400">{data.penalties.overlap > 0 ? `-${data.penalties.overlap * 100}` : '0'}</span>
+                </div>
+                <div className="flex justify-between text-slate-300">
+                  <span>Off-Map Drops ({data.penalties.offMap}):</span>
+                  <span className="font-mono text-rose-400">{data.penalties.offMap > 0 ? `-${data.penalties.offMap * 80}` : '0'}</span>
+                </div>
+                {totalDeductions > 0 && (
+                  <div className="border-t border-slate-800 pt-1 flex justify-between font-bold text-rose-400">
+                    <span>Total Deductions:</span>
+                    <span className="font-mono">-{totalDeductions}</span>
+                  </div>
                 )}
               </div>
-              <span className="text-[9px] font-bold text-slate-500 mt-0.5">
-                {data.isFinalLevel ? 'Mastery' : `Lvl ${Math.min(data.totalLevelsCount, nextLevelId + 1)}`}
-              </span>
-              <span className="text-[7.5px] text-slate-500">
-                {data.isFinalLevel ? 'Peak' : 'Frontier'}
-              </span>
-            </div>
-          </div>
+            )}
 
-          {/* Next Level Preview Title */}
-          {!data.isFinalLevel && data.nextLevelName && (
-            <div className="mt-1.5 text-center text-[9.5px] font-semibold text-slate-300 bg-slate-900/80 py-1 px-2 rounded-lg border border-slate-800 flex items-center justify-center gap-1">
-              <span className="text-amber-400 font-bold">Next:</span>
-              <span className="text-white font-bold truncate">{data.nextLevelName}</span>
+            {/* Mastery Challenge Badge */}
+            {data.isMasteryCompleted && showRewards && (
+              <div className="w-full mb-2.5 px-2.5 py-1.5 rounded-xl bg-purple-950/50 border border-purple-400/35 flex items-center gap-2 text-left animate-in fade-in">
+                <div className="w-6 h-6 rounded-lg bg-purple-500/30 text-purple-300 flex items-center justify-center shrink-0">
+                  <Crown className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[10px] font-black text-purple-200 flex items-center gap-1">
+                    <span>Mastery Conquered!</span>
+                    <span className="text-[8px] px-1 py-0.2 bg-purple-800 text-purple-100 rounded-full font-bold">+600 Score</span>
+                  </div>
+                  <div className="text-[8.5px] text-purple-300/80 truncate">
+                    {data.masteryTitle || 'Special challenge fulfilled.'}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Archipelago Expedition Journey Cartography Track */}
+            <div className={`w-full bg-slate-950/70 border border-slate-800/80 rounded-2xl p-2.5 sm:p-3 mb-3 text-left transition-all duration-300 ${showPathProgress ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+              }`}>
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1 text-[11px] font-black text-slate-200">
+                  <Compass className="w-3.5 h-3.5 text-emerald-400 animate-spin-slow" />
+                  <span>Archipelago Cartography Trail</span>
+                </div>
+                <span className="text-[9.5px] font-bold text-emerald-400 bg-emerald-950/70 px-2 py-0.2 rounded-full border border-emerald-500/30">
+                  {progressPercent}% Unveiled
+                </span>
+              </div>
+
+              {/* Trail Nodes */}
+              <div className="relative flex items-center justify-between px-3 py-1.5">
+                {/* Base line */}
+                <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-1 bg-slate-800 rounded-full" />
+
+                {/* Animated Laser beam */}
+                <div
+                  className="absolute left-6 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-emerald-500 via-amber-400 to-yellow-300 rounded-full transition-all duration-700 shadow-[0_0_6px_rgba(245,158,11,0.8)]"
+                  style={{
+                    width: showPathProgress ? (data.isFinalLevel ? '100%' : '50%') : '0%',
+                  }}
+                />
+
+                {/* Node 1: Completed Level */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-emerald-500 border border-emerald-200 text-slate-950 flex items-center justify-center font-black text-xs shadow-md">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-950" />
+                  </div>
+                  <span className="text-[9px] font-bold text-emerald-300 mt-0.5">
+                    Lvl {currentLevelId}
+                  </span>
+                  <span className="text-[7.5px] text-slate-400">Done ✓</span>
+                </div>
+
+                {/* Node 2: Unlocking Next Level */}
+                {!data.isFinalLevel && (
+                  <div className="relative z-10 flex flex-col items-center">
+                    <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center font-black text-xs transition-all duration-500 ${showPathProgress
+                        ? 'bg-amber-500 border border-amber-200 text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.7)] animate-bounce'
+                        : 'bg-slate-800 border border-slate-700 text-slate-500'
+                      }`}>
+                      {showPathProgress ? (
+                        <Unlock className="w-3.5 h-3.5 text-amber-950" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-slate-500" />
+                      )}
+                    </div>
+                    <span className={`text-[9px] font-bold mt-0.5 ${showPathProgress ? 'text-amber-300' : 'text-slate-500'}`}>
+                      Lvl {nextLevelId}
+                    </span>
+                    <span className="text-[7.5px] text-amber-400 font-semibold">
+                      {showPathProgress ? 'Unlocked' : 'Locked'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Node 3: Grand Milestone */}
+                <div className="relative z-10 flex flex-col items-center">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-500 flex items-center justify-center font-black text-xs">
+                    {data.isFinalLevel ? (
+                      <Crown className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5 text-slate-600" />
+                    )}
+                  </div>
+                  <span className="text-[9px] font-bold text-slate-500 mt-0.5">
+                    {data.isFinalLevel ? 'Mastery' : `Lvl ${Math.min(data.totalLevelsCount, nextLevelId + 1)}`}
+                  </span>
+                  <span className="text-[7.5px] text-slate-500">
+                    {data.isFinalLevel ? 'Peak' : 'Frontier'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Next Level Preview Title */}
+              {!data.isFinalLevel && data.nextLevelName && (
+                <div className="mt-1.5 text-center text-[9.5px] font-semibold text-slate-300 bg-slate-900/80 py-1 px-2 rounded-lg border border-slate-800 flex items-center justify-center gap-1">
+                  <span className="text-amber-400 font-bold">Next:</span>
+                  <span className="text-white font-bold truncate">{data.nextLevelName}</span>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </>
+        )}
 
         {/* Action Controls */}
-        <div className={`w-full flex flex-col gap-2 transition-all duration-300 ${
-          showActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
-        }`}>
+        <div className={`w-full flex flex-col gap-2 transition-all duration-300 ${showActions ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
+          }`}>
           {/* Main Embark Button */}
           <button
             onClick={onContinue}
@@ -519,7 +518,7 @@ export const EndOfLevelCelebration: React.FC<EndOfLevelCelebrationProps> = ({
               <span>Replay</span>
             </button>
 
-             <button
+            <button
               onClick={() => {
                 // Gọi thẳng onContinue (về Home)
                 if (onReturnHome) onReturnHome();
